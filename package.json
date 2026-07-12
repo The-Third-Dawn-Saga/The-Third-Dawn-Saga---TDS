@@ -1,0 +1,16 @@
+{
+  "name": "third-dawn-definitive-atlas",
+  "version": "2.0.0",
+  "private": true,
+  "description": "The Third Dawn Saga \u2014 Crown of Tears world atlas. Single-file offline HTML built from src/ modules.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/smoke.mjs",
+    "screenshots": "node tools/screenshots.mjs",
+    "perf": "node tools/perfprobe.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright-core": "^1.50.0"
+  }
+}

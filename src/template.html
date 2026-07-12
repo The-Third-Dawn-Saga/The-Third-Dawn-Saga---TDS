@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Third Dawn Saga — Definitive World Atlas</title>
+<style>
+  :root{
+    --ink:#e9e2cc; --gold:#c9a227; --gold-soft:#e8d9a0; --parch:#b9ac86;
+    --night:#060d18; --panel:#0b1522; --line:#22344a;
+    --ember:#e0563e; --ice:#9fd4e8; --jade:#3f9c6e; --violet:#b58ae0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--night); color:var(--ink);
+    font-family:Georgia,'Palatino Linotype',Palatino,serif;
+    overflow:hidden;
+  }
+  /* ---------- header ---------- */
+  header{
+    height:64px; display:flex; align-items:center; gap:20px;
+    padding:0 18px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0a1424,#060d18);
+  }
+  .brand h1{font-size:17px; letter-spacing:0.14em; font-weight:700; color:var(--gold-soft);}
+  .brand small{display:block; font-size:10px; letter-spacing:0.3em; color:var(--parch); text-transform:uppercase;}
+  /* signature: guardian-star mode switcher */
+  .modeSwitch{margin-left:auto; display:flex; align-items:flex-end; gap:26px;}
+  .modeTab{background:none; border:none; cursor:pointer; color:var(--parch);
+    font-family:inherit; font-size:12px; letter-spacing:0.22em; text-transform:uppercase;
+    display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px 2px;}
+  .modeTab .stars{display:flex; gap:7px; height:14px; align-items:center;}
+  .modeTab .st{width:8px;height:8px;border-radius:50%;background:#233246; box-shadow:none; transition:all .25s;}
+  .modeTab.active{color:var(--gold-soft);}
+  .modeTab.active .st.y{background:var(--gold); box-shadow:0 0 8px var(--gold);}
+  .modeTab.active .st.r{background:var(--ember); box-shadow:0 0 8px var(--ember);}
+  .modeTab.active .st.m{background:transparent; border:1px solid #3d4f66;}
+  .modeTab .st.m{border:1px solid #223146;}
+  .modeTab u{ text-decoration:none; border-bottom:1px solid transparent; padding-bottom:2px;}
+  .modeTab.active u{border-bottom-color:var(--gold);}
+  /* ---------- stage ---------- */
+  #stage{position:relative; height:calc(100% - 64px);}
+  .view{position:absolute; inset:0; display:none;}
+  .view.active{display:block;}
+  #cosmosMount{width:100%; height:100%;}
+  #mapWrap{width:100%; height:100%; position:relative;}
+  #mapBase,#mapCanvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
+  #mapCanvas{cursor:grab;}
+  #mapCanvas:active{cursor:grabbing;}
+
+  /* ---------- layer rail ---------- */
+  #layerRail{
+    position:absolute; top:14px; left:14px; width:184px; max-height:calc(100% - 28px); overflow-y:auto;
+    background:rgba(7,15,26,0.92); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; font-size:12px; z-index:5;
+  }
+  #layerRail h3{font-size:10px; letter-spacing:0.28em; color:var(--gold-soft); text-transform:uppercase; margin-bottom:9px;}
+  #layerRail label{display:flex; align-items:center; gap:8px; padding:3px 0; cursor:pointer; color:var(--ink);}
+  #layerRail input{accent-color:var(--gold);}
+  #layerRail .hiddenRow{color:var(--violet);}
+  #layerRail hr{border:none; border-top:1px solid var(--line); margin:8px 0;}
+  .toolBtn{
+    width:100%; margin-top:6px; padding:7px 8px; background:#101d30; color:var(--ink);
+    border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12px;
+    cursor:pointer; letter-spacing:0.04em;
+  }
+  .toolBtn:hover{border-color:var(--gold);}
+  .toolBtn.on{background:var(--gold); color:#1a1206; border-color:var(--gold); font-weight:700;}
+  .zoomRow{display:flex; gap:6px; margin-top:6px;}
+  .zoomRow .toolBtn{margin-top:0;}
+  #seasonCal{font-size:10px; line-height:1.55; color:var(--parch); margin-top:7px;}
+  #seasonCal b{color:var(--gold-soft); font-weight:700;}
+  #seasonNote{font-size:9px; color:#6d80a0; margin-top:6px; line-height:1.4;}
+
+  /* ---------- quick journeys ---------- */
+  #quickBar{position:absolute; left:14px; bottom:14px; z-index:5; display:flex; gap:8px; flex-wrap:wrap; max-width:60%;}
+  .quickJ{
+    background:rgba(7,15,26,0.92); border:1px solid var(--line); border-radius:20px;
+    color:var(--gold-soft); font-family:inherit; font-size:11px; padding:6px 13px; cursor:pointer;
+  }
+  .quickJ:hover{border-color:var(--gold);}
+
+  /* ---------- info panel ---------- */
+  #infoPanel{
+    position:absolute; top:14px; right:-380px; width:352px; max-height:calc(100% - 28px);
+    background:rgba(8,16,28,0.96); border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:8px; z-index:8; transition:right .28s ease; overflow-y:auto;
+  }
+  #infoPanel.open{right:14px;}
+  #infoPanel .ip-inner{padding:16px 18px 18px;}
+  .ip-close{position:sticky; top:8px; float:right; background:none; border:none; color:var(--parch);
+    font-size:18px; cursor:pointer; font-family:inherit; margin:8px 10px 0 0;}
+  .ip-kicker{font-size:9px; letter-spacing:0.32em; color:var(--gold); text-transform:uppercase; margin-bottom:5px;}
+  #infoPanel h2{font-size:19px; color:var(--gold-soft); margin-bottom:11px; letter-spacing:0.02em;}
+  .ip-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-bottom:11px;}
+  .ip-grid div, .ip-sect{font-size:12.5px; line-height:1.5;}
+  .ip-grid label, .ip-sect label{display:block; font-size:9px; letter-spacing:0.24em; text-transform:uppercase; color:var(--parch); margin-bottom:2px;}
+  .ip-sect{margin-bottom:10px;}
+  .ip-fly{margin-top:4px;}
+
+  /* ---------- journey results ---------- */
+  #journeyResult{
+    position:absolute; bottom:-320px; left:50%; transform:translateX(-50%);
+    width:min(560px, 92%); background:rgba(8,16,28,0.97); border:1px solid var(--line);
+    border-top:3px solid var(--gold); border-radius:8px 8px 0 0; padding:13px 18px 15px;
+    z-index:9; transition:bottom .3s ease; font-size:12.5px;
+  }
+  #journeyResult.open{bottom:0;}
+  .jr-head{font-size:14px; color:var(--gold-soft); margin-bottom:9px; display:flex; justify-content:space-between; align-items:baseline;}
+  .jr-head span{font-size:11px; color:var(--parch);}
+  .jr-row{display:grid; grid-template-columns:150px 90px 1fr; gap:10px; padding:5px 0; border-top:1px solid #16243a; align-items:baseline;}
+  .jr-row b{color:var(--ice); font-weight:700;}
+  .jr-row em{color:var(--gold-soft); font-style:normal; font-weight:700;}
+  .jr-row small{color:var(--parch); line-height:1.4;}
+  .jr-season{margin-top:8px; padding-top:7px; border-top:1px dashed #2a3d58; font-size:10.5px; color:#c9a86a; line-height:1.45;}
+
+  /* ---------- cosmos legend + controls ---------- */
+  #cosmosLegend{
+    position:absolute; left:14px; bottom:14px; z-index:5; width:290px;
+    background:rgba(7,15,26,0.9); border:1px solid var(--line); border-radius:8px;
+    padding:12px 15px; font-size:11.5px; line-height:1.55; color:var(--parch);
+  }
+  #cosmosLegend b{color:var(--gold-soft);}
+  #cosmosLegend .lg{display:flex; gap:8px; align-items:center; margin-top:4px;}
+  .dot{width:9px;height:9px;border-radius:50%;}
+  #cosmosCtl{
+    position:absolute; top:14px; left:14px; z-index:5; width:184px;
+    background:rgba(7,15,26,0.92); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; font-size:12px;
+  }
+  #cosmosCtl h3{font-size:10px; letter-spacing:0.28em; color:var(--gold-soft); text-transform:uppercase; margin-bottom:9px;}
+  #cosmosCtl label{display:flex; align-items:center; gap:8px; padding:3px 0; cursor:pointer; color:var(--ink);}
+  #cosmosCtl input[type=checkbox]{accent-color:var(--gold);}
+  #dayNight{width:100%; accent-color:var(--gold); margin:4px 0 2px;}
+  .dnRow{display:flex; justify-content:space-between; font-size:9px; letter-spacing:0.2em; color:var(--parch); text-transform:uppercase;}
+  footer.note{
+    position:absolute; right:14px; bottom:14px; z-index:5; font-size:10px; color:#5d708a; max-width:330px; text-align:right;
+  }
+  @media (max-width:760px){
+    #layerRail{width:150px; font-size:11px;}
+    #infoPanel{width:86%;}
+    #quickBar{max-width:calc(100% - 28px);}
+    .brand h1{font-size:13px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>THE CROWN OF TEARS</h1>
+    <small>The Third Dawn Saga — Definitive Atlas</small>
+  </div>
+  <nav class="modeSwitch">
+    <button class="modeTab" id="tabCosmos">
+      <span class="stars"><span class="st r"></span><span class="st y"></span><span class="st r"></span><span class="st m"></span></span>
+      <u>Cosmos</u>
+    </button>
+    <button class="modeTab active" id="tabMap">
+      <span class="stars"><span class="st r"></span><span class="st y"></span><span class="st r"></span><span class="st m"></span></span>
+      <u>Map</u>
+    </button>
+  </nav>
+</header>
+
+<div id="stage">
+  <!-- 3D -->
+  <section class="view" id="viewCosmos">
+    <div id="cosmosMount"></div>
+    <aside id="cosmosCtl">
+      <h3>Sky</h3>
+      <input type="range" id="dayNight" min="0" max="1000" value="140">
+      <div class="dnRow"><span>Day</span><span>Night</span></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:8px 0">
+      <h3>Scene</h3>
+      <label><input type="checkbox" id="cosmosBorders" checked> Kingdom borders</label>
+      <label><input type="checkbox" id="cosmosLabels" checked> Labels</label>
+      <label><input type="checkbox" id="cosmosClouds" checked> Clouds</label>
+    </aside>
+    <div id="cosmosLegend">
+      <b>The World-Cage.</b> Drag to orbit, scroll to zoom, click anything.
+      <div class="lg"><span class="dot" style="background:#ffd45a"></span>Salem — the loyal South star</div>
+      <div class="lg"><span class="dot" style="background:#ff4a3a"></span>Fallen guardians — North and West</div>
+      <div class="lg"><span class="dot" style="border:1px solid #3d4f66"></span>The Missing Star — East</div>
+      <div class="lg" style="margin-top:7px">World Tree, pillars and leviathans rendered at readable scale; distances hold true in the Map view.</div>
+    </div>
+  </section>
+
+  <!-- 2D -->
+  <section class="view active" id="viewMap">
+    <div id="mapWrap">
+      <canvas id="mapBase"></canvas>
+      <canvas id="mapCanvas"></canvas>
+      <aside id="layerRail">
+        <h3>Style</h3>
+        <div class="zoomRow">
+          <button class="toolBtn styleBtn on" data-style="satellite">Satellite</button>
+          <button class="toolBtn styleBtn" data-style="atlas">Atlas</button>
+        </div>
+        <hr>
+        <h3>Season</h3>
+        <div class="zoomRow">
+          <button class="toolBtn seasonBtn" data-season="0">Early</button>
+          <button class="toolBtn seasonBtn on" data-season="1">High</button>
+        </div>
+        <div class="zoomRow">
+          <button class="toolBtn seasonBtn" data-season="2">Late</button>
+          <button class="toolBtn seasonBtn" data-season="3">Deep</button>
+        </div>
+        <div id="seasonCal"></div>
+        <div id="seasonNote"></div>
+        <hr>
+        <h3>Layers</h3>
+        <label><input type="checkbox" data-layer="borders" checked> Kingdom borders</label>
+        <label><input type="checkbox" data-layer="mountains" checked> Mountains</label>
+        <label><input type="checkbox" data-layer="rivers" checked> Rivers</label>
+        <label><input type="checkbox" data-layer="settlements" checked> Settlements</label>
+        <label><input type="checkbox" data-layer="gates" checked> Gates (Aetheric + Ring)</label>
+        <label><input type="checkbox" data-layer="wonders" checked> Wonders</label>
+        <label><input type="checkbox" data-layer="routes" checked> Trade routes</label>
+        <label style="color:#9fd4a8"><input type="checkbox" data-layer="migrations" checked> Migrations</label>
+        <label style="color:#c9b06a"><input type="checkbox" data-layer="activities" checked> Seasonal activity</label>
+        <label class="hiddenRow"><input type="checkbox" data-layer="hidden"> Hidden world</label>
+        <label style="color:#d08a3a"><input type="checkbox" data-layer="war"> War Powers</label>
+        <label><input type="checkbox" data-layer="labels" checked> Labels</label>
+        <hr>
+        <button class="toolBtn" id="btnMeasure">⌖ Measure journey</button>
+        <div class="zoomRow">
+          <button class="toolBtn" id="btnZoomIn">+</button>
+          <button class="toolBtn" id="btnZoomOut">−</button>
+          <button class="toolBtn" id="btnHome">⌂</button>
+        </div>
+      </aside>
+      <div id="quickBar">
+        <button class="quickJ" data-a="fishing" data-b="sundisk">Fishing village → Sundisk</button>
+        <button class="quickJ" data-a="sundisk" data-b="verdanthome">Sundisk → World Tree</button>
+        <button class="quickJ" data-a="verdanthome" data-b="ironhaven">World Tree → Ironhaven</button>
+        <button class="quickJ" data-a="sundisk" data-b="celestial">Sundisk → Celestial City</button>
+      </div>
+      <footer class="note">Scale: continent 30M sq mi · population 62M (March 2026 retcon).
+        Markers tagged PROPOSED or RECONCILE in their entries await ratification.</footer>
+    </div>
+  </section>
+
+  <!-- shared info panel -->
+  <aside id="infoPanel">
+    <button class="ip-close">✕</button>
+    <div class="ip-inner"><div class="ip-body"></div></div>
+  </aside>
+  <div id="journeyResult"></div>
+</div>
+
+<!--THREE-->
+<!--DATA-->
+<!--GEO-->
+<!--WORKER-->
+<!--MAP-->
+<!--COSMOS-->
+<!--SHELL-->
+</body>
+</html>
