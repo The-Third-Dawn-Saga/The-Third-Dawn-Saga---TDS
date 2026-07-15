@@ -122,7 +122,7 @@ const SETTLEMENTS = [
   { id:'paradise', name:'Paradise Lost', x:6542, y:1628, type:'capital', kingdom:'zarkaine',
     pop:'~400,000', info:'Zar\u2019kaine\u2019s capital. Paradise Terminal under 500-year embargo — exit only. Children greet departing travellers with flowers; it is a recruitment tool.' },
   // vassals & towns
-  { id:'fishing', name:'Rhy\u2019s Fishing Village', x:4380, y:6095, type:'village', kingdom:'sunlands',
+  { id:'fishing', name:'Rhy\u2019s Fishing Village', x:4451, y:6089, type:'village', kingdom:'sunlands',
     pop:'~500', info:'On the Wailing Cliffs coast, ~810 miles south of Sundisk City — two days by Sun Eater, weeks on foot. Wooden pirogues, drying nets, Captain Mensah\u2019s house, Nyla\u2019s tea house. \u201cMay your nets be full / may your hull be dry.\u201d The wind through the cliff formations wails; it masked a hidden prince\u2019s crying.' },
   { id:'goldencoast', name:'Golden Coast', x:5600, y:5450, type:'vassal', kingdom:'sunlands',
     pop:'150,000', info:'Merchant republic on the eastern coast; banking partnership with Albion Magna; busiest caravan route to Sundisk. Reached through the Golden Strait.' },
@@ -246,6 +246,45 @@ const FORESTS = [
     info:'An old-growth sacred grove of the Heartlands where the Bough-Wards keep the territorial trees; a felled ward-tree is an act of war answerable at the Grove-Moot. [PROPOSED]' },
 ];
 
+
+/* ---- Iteration 3 forests: dark woods and the Elderlight (July 2026).
+   kind:'dark' renders colder greens with sparse pale trunks;
+   kind:'enchanted' gets a faint shimmer in the Painted style. ---- */
+FORESTS.push(
+  { id:'gloamwood', name:'The Gloamwood', x:3550, y:1750, rx:160, ry:90, kind:'dark',
+    info:'Dark forest between Vaelthorne and the Northern marches; the legions burned it twice and it is wider now than before either fire. [PROPOSED]' },
+  { id:'hungrypines', name:'The Hungry Pines', x:5100, y:1950, rx:140, ry:80, kind:'dark',
+    info:'A cold arm of taiga south of the Jotunwood where travelers count their party at every rest, out of habit they cannot name. [PROPOSED]' },
+  { id:'elderlight', name:'The Elderlight Grove', x:5250, y:3150, rx:100, ry:70, kind:'enchanted',
+    info:'An enchanted grove on the Heartlands\u2019 eastern approaches where Divine Flow pools like morning light; the Bough-Wards permit passage and forbid harvest. [PROPOSED]' },
+  { id:'weepingcedars', name:'The Weeping Cedars', x:5950, y:2350, rx:110, ry:70, kind:'dark',
+    info:'Mist-fed cedar dark on the Imperium\u2019s alpine slopes; pilgrim roads bend around it, and the Grey Ledger keeps a file on why. [PROPOSED]' },
+  { id:'jadecanes', name:'The Jade Canes', x:6350, y:3300, rx:120, ry:80, kind:'forest',
+    info:'A bamboo sea on the Jade Empire\u2019s western terraces, harvested on imperial license and haunted by exactly one tiger, according to every village in it. [PROPOSED]' },
+  { id:'thornwild', name:'The Thornwild', x:6250, y:4250, rx:100, ry:65, kind:'dark',
+    info:'Briar-choked dark forest in the Albion\u2013Jade corridor; Merchant\u2019s Haven pays the free towns to keep its one road cut. [PROPOSED]' },
+  { id:'palewood', name:'The Palewood', x:4450, y:2450, rx:90, ry:60, kind:'dark',
+    info:'Haunted birch stand in the northern corridor; white bark, black knots, and a local custom of whistling through it that nobody breaks first. [PROPOSED]' }
+);
+
+/* ---- Iteration 3 rivers: free-corridor water (July 2026) ---- */
+RIVERS.push(
+  { name:'The Waywater', path:[[5350,2900],[5600,3200],[5700,3300],[5850,3700],[5900,3900]] },
+  { name:'The Coldrun', path:[[4650,2350],[4600,1900],[4600,1500],[4600,1150]] },
+  { name:'The Marchflow', path:[[3550,3100],[3300,3300],[3120,3420]] },
+  { name:'The Reachwash', path:[[3450,4200],[3100,4500],[2800,4800],[2600,5000]], seasonal:true,
+    note:'Red Reaches dry-wash: a full stream in the Greening, a dashed memory of one in the Long Dust \u2014 and a flash-flood killer in between. [PROPOSED]' },
+  { name:'The Fairburn', path:[[5600,4000],[5650,4200],[5750,4500]] }
+);
+
+/* ---- Iteration 3 lakes (July 2026) ---- */
+LAKES.push(
+  { id:'mistmere', name:'Mistmere', x:5500, y:3450, rx:45, ry:32,
+    info:'Corridor lake between the Heartlands and the Jade Wall; Waymeet\u2019s water and Pilgrim\u2019s Rest\u2019s mirror. [PROPOSED]' },
+  { id:'thaneswater', name:'Thane\u2019s Water', x:4950, y:2350, rx:40, ry:28,
+    info:'Cold lake of the northern corridor, held in common by Thanesford and Coldwater under an oath older than either. [PROPOSED]' }
+);
+
 /* Seasonal systems data (for the seasonal map layers; see Claude Code handoff spec) */
 const SEASONS = {
   sahel:{ zone:'sunlands', seasons:['The Greening','The Long Dust'],
@@ -272,6 +311,45 @@ const SEASONS = {
     human:'Salvage runs in the Quiet; chant-map revisions after Ashfall; vent-priest forecasts.' },
 };
 
+
+/* ---- Iteration 3 settlements: Ashlands, Vaelthorne, Jade, Albion (July 2026) ---- */
+SETTLEMENTS.push(
+  // Western Ashlands (+5)
+  { id:'sorrowsgate', name:'Sorrow\u2019s Gate', x:2450, y:3050, type:'town', kingdom:'ashlands', pop:'~30,000',
+    info:'The eastern checkpoint town where refugees enter the Ashlands. Everyone who governs it once walked through it the other way. [PROPOSED]' },
+  { id:'hollowharbor', name:'Hollowharbor', x:1150, y:2900, type:'village', kingdom:'ashlands', pop:'~12,000',
+    info:'Salvage port on the poison coast; its divers work the drowned approaches in waxed leathers and short shifts. [PROPOSED]' },
+  { id:'ninefires', name:'The Nine Fires', x:1700, y:3550, type:'town', kingdom:'ashlands', pop:'~20,000',
+    info:'A commune named for nine bonfires that have never been allowed to die: beacons for anyone still walking. Feeding them is the tax; tending them is the honor. [PROPOSED]' },
+  { id:'greywatch', name:'Greywatch', x:2200, y:2600, type:'village', kingdom:'ashlands', pop:'~8,000',
+    info:'Watchtower village on the Blight\u2019s creeping edge, measuring its advance in fence-posts per year. [PROPOSED]' },
+  { id:'foundlingshollow', name:'Foundling\u2019s Hollow', x:1550, y:3800, type:'village', kingdom:'ashlands', pop:'~5,000',
+    info:'A village that takes in abandoned children, no questions, no records. The Broken Chain knows the road here; so does the Underground Railroad. [PROPOSED]' },
+  // Vaelthorne (+4)
+  { id:'castraferrum', name:'Castra Ferrum', x:3400, y:1600, type:'town', kingdom:'vaelthorne', pop:'~40,000',
+    info:'Legion fortress-town on the eastern marches; its walls are drilled as often as its soldiers. [PROPOSED]' },
+  { id:'ludusmagna', name:'Ludus Magna', x:2900, y:1900, type:'town', kingdom:'vaelthorne', pop:'~60,000',
+    info:'The great gladiator training city feeding the Arena-Cursus; freedmen leave through one gate, the fallen through another. [PROPOSED]' },
+  { id:'ashvine', name:'The Ashvine Terraces', x:2650, y:1700, type:'village', kingdom:'vaelthorne', pop:'~25,000',
+    info:'Vineyard town on volcanic slopes; the ash-wine of its terraces is drunk at every triumph and most funerals. [PROPOSED]' },
+  { id:'tribunesgate', name:'Tribune\u2019s Gate', x:3350, y:2050, type:'town', kingdom:'vaelthorne', pop:'~35,000',
+    info:'Mustering town of the Auxilia of the Ash-Provinces, where twenty-five-year terms begin with an oath and end with citizenship. [PROPOSED]' },
+  // Eastern Jade (+3)
+  { id:'pearlwell', name:'Pearl-Well', x:7100, y:4350, type:'town', kingdom:'jade', pop:'~70,000',
+    info:'River-pearl town of the southern delta; its diving families are taxed by the pearl and paid by the season. [PROPOSED]' },
+  { id:'baihe', name:'Baihe Crossing', x:6700, y:3450, type:'town', kingdom:'jade', pop:'~100,000',
+    info:'Grand junction of the canal network where the Ten Thousand Locks meet the Long River trade; the busiest water-crossroads on the continent. [PROPOSED]' },
+  { id:'mistcliff', name:'Mistcliff Monastery', x:7550, y:3050, type:'village', kingdom:'jade', pop:'~15,000',
+    info:'Mountain monastery town in the Jade range where Divine Flow is taught without stones; forty in a hundred survive the trial, and the rest are remembered on the cliff wall. [PROPOSED]' },
+  // Albion Magna (+3)
+  { id:'ironquay', name:'Ironquay', x:5900, y:4900, type:'town', kingdom:'albion', pop:'~90,000',
+    info:'Industrial port where Northern iron becomes Albion cannon; the air tastes of coal-smoke and prize-money. [PROPOSED]' },
+  { id:'foxglovegreen', name:'Foxglove Green', x:6600, y:4550, type:'village', kingdom:'albion', pop:'~40,000',
+    info:'Inland market town of hedgerows and horse-fairs; genteel, gossiping, and richer than it dresses. [PROPOSED]' },
+  { id:'admiraltypoint', name:'Admiralty Point', x:6650, y:5500, type:'town', kingdom:'albion', pop:'~30,000',
+    info:'Naval academy town of the Nine Tides; midshipmen learn the Charter Run on chalkboards before they ever taste salt. [PROPOSED]' }
+);
+
 const HIDDEN = [
   { id:'voidswamp', name:'The Void Queen\u2019s Swamp', x:1500, y:4300, icon:'swamp', r:170,
     info:'90,000 sq mi of black water inside the Forest Ring\u2019s western arc, at the Western Ashlands\u2019 southern border, expanding one square mile a year. The Two Sentinels stand behind it, between the swamp and the sea. The elves ring it; nothing rings her. [Swamp inside the Ring, mountains behind it — RULING, July 2026]' },
@@ -280,9 +358,9 @@ const HIDDEN = [
   { id:'circle1', name:'Circle of Silence — Kingdom Watch', x:520, y:3700, icon:'watchring', r:300, towers:7,
     info:'Seven elven watchtowers, 500 ft tall on artificial coral-anchored islands, ringing the sunken kingdom. Garrison 200 each; light-signal network; 50-mile detection. Ships that enter the forbidden water are never seen again. Sacred duty served in 100-year rotations.' },
   { id:'circle2', name:'Circle of Silence — Weapon Watch', x:640, y:4290, icon:'watchring', r:150, towers:5,
-    info:'A second, tighter ring of watch-points around the Weapon — the Spire of Ascension, the tower built to pierce Aethyria, still standing on the ocean floor apart from the drowned city. [Second ring per RULING, July 2026; identification of the Weapon as the Spire: PROPOSED]' },
-  { id:'weapon', name:'The Weapon (Spire of Ascension)', x:640, y:4290, icon:'spire', r:40,
-    info:'A tower that could pierce Aethyria, standing whole on the seafloor. The single most dangerous object beneath the waves — the reason the second Circle exists. [Identification PROPOSED]' },
+    info:'A second, tighter ring of watch-points around the Weapon — the tree-killing cannon, broken by the Second Chosen One and sunk by the elves, lying sealed on the ocean floor apart from the drowned city. [Second ring per RULING, July 2026; Weapon identified as the cannon: LOCKED]' },
+  { id:'weapon', name:'The Weapon (the Tree-Killing Cannon)', x:640, y:4290, icon:'spire', r:40,
+    info:'The sealed cannon that killed the second World Tree, broken by the Second Chosen One and sunk by the elves. The single most dangerous object beneath the waves — the reason the second Circle exists. [Weapon = the cannon: LOCKED, July 2026. The Spire of Ascension — the tower built to pierce Aethyria — remains a separate drowned structure among Mor\u2019kaleth\u2019s ruins.]' },
   { id:'marshes', name:'Borderland Marshes / Broken Chain settlements', x:2380, y:3950, icon:'camp',
     info:'500,000+ escaped child soldiers, outcasts and refugees, invisible on every official map. \u201cThose aren\u2019t real places,\u201d say the librarians. They are.' },
   { id:'ninesuff', name:'The Nine Sufferings', x:1600, y:2830, icon:'camp',
@@ -300,6 +378,21 @@ const HIDDEN = [
   { id:'grimlock', name:'Grimlock Cult Site', x:1750, y:4150, icon:'cult',
     info:'Wheel-and-serpent hieroglyph carved on hidden altars in the Void Queen\u2019s Swamp\u2019s shadow, where the cult worships what sleeps in the black water. [POSITION per RULING, July 2026]' },
 ];
+
+/* ---- The Red Reaches: secret settlements (July 2026) ---- */
+HIDDEN.push(
+  { id:'sunkencamp', name:'The Sunken Camp', x:2700, y:4350, icon:'camp',
+    info:'Bandit hideout in a collapsed canyon bowl, invisible until you are standing on its rim, at which point it is too late in both directions. [PROPOSED]' },
+  { id:'desertersmesa', name:'Deserter\u2019s Mesa', x:3200, y:4550, icon:'camp',
+    info:'A flat-top refuge of deserters from every army on the continent. One law: no flags. Not even in jest. Especially not in jest. [PROPOSED]' },
+  { id:'redhollow', name:'Red Hollow', x:2500, y:4700, icon:'crime',
+    info:'The robbers\u2019 bazaar of the Reaches, where everything stolen between the Ashlands and the Sunlands is resold with the serial numbers filed off the provenance. [PROPOSED]' },
+  { id:'silentmesa', name:'The Silent Mesa \u2014 the Stone People', x:2950, y:4850, icon:'ruin',
+    info:'Home ground of the Stone People, a hidden folk of the canyons who go still as standing rock when watched. Travelers argue whether it is discipline, magic, or something the Reaches did to them; the Stone People do not settle arguments. [PROPOSED \u2014 nature of the Stone People OPEN for ruling]' },
+  { id:'vulturesshelf', name:'Vulture\u2019s Shelf', x:3350, y:4300, icon:'crime',
+    info:'Raider eyrie on the canyon rim above the Ash Road; tolls are informal, refusals are brief. [PROPOSED]' }
+);
+
 
 /* The Red Reaches: badlands corridor between the Ashlands and the Sunlands.
    Canyon-and-mesa wasteland; the desert does not stop at borders. [PROPOSED, July 2026] */
@@ -343,7 +436,7 @@ const ROUTES = [
   { name:'Crown Road: western spur', path:[[4500,3500],[3800,3450],[3000,3400],[2100,3380]], kind:'road' },
   { name:'Caravan: Sundisk\u2013Golden Coast', path:[[4370,5320],[4900,5420],[5300,5440],[5600,5450]], kind:'caravan' },
   { name:'Caravan: Sundisk\u2013Salt Flats', path:[[4330,5320],[3900,5300],[3550,5270],[3300,5250]], kind:'caravan' },
-  { name:'Caravan: Sundisk\u2013Veth\u2013Coast', path:[[4350,5350],[4310,5600],[4300,5800],[4360,5990],[4380,6095]], kind:'caravan' },
+  { name:'Caravan: Sundisk\u2013Veth\u2013Coast', path:[[4350,5350],[4310,5600],[4300,5800],[4380,5990],[4451,6089]], kind:'caravan' },
   { name:'Caravan: oasis loop', path:[[4350,5320],[3900,5560],[3600,5750]], kind:'caravan' },
   { name:'Sea lane: Crownsburg\u2013Golden Coast', path:[[6350,5200],[6000,5600],[5680,6060],[5600,5480]], kind:'sea' },
   { name:'Sea lane: Drum Harbor slave route', path:[[5150,5950],[4980,6300],[4900,6540]], kind:'sea' },
@@ -353,12 +446,12 @@ const ROUTES = [
   { name:'Caravan: Golden Coast\u2013Crownsburg overland', path:[[5600,5450],[5900,5300],[6100,5200],[6350,5150]], kind:'caravan' },
   { name:'The Incense Road: Celestial City\u2013Trinity', path:[[7050,3600],[6600,3200],[6200,2850],[6000,2900],[5900,2450],[5620,1970]], kind:'caravan' },
   { name:'The Quiet Road: Jade\u2013Ironhaven (via the border towns)', path:[[6500,2900],[5900,2600],[5450,2450],[5000,2450],[4700,2200],[4450,1520]], kind:'caravan' },
-  { name:'The Ash Road: Mournscar\u2013Sundisk', path:[[1950,3350],[2450,3520],[2900,3700],[3050,4300],[3080,5100],[3550,5270],[4330,5320]], kind:'caravan' },
+  { name:'The Ash Road: Mournscar\u2013Sundisk', path:[[1950,3350],[2450,3520],[2900,3700],[3050,4300],[3080,5060],[3260,5058],[3550,5270],[4330,5320]], kind:'caravan' },
   { name:'The Legion\u2019s Bargain: Gladius Prime\u2013Mournscar', path:[[3050,1650],[2800,2100],[2500,2500],[2100,2900],[1950,3350]], kind:'caravan' },
   { name:'Reluctant road: Gladius Prime\u2013Ironhaven', path:[[3050,1650],[3500,1500],[3700,1350],[4050,1550],[4450,1520]], kind:'caravan' },
   { name:'Reluctant road: Gladius Prime\u2013Root City', path:[[3050,1650],[3450,2000],[3900,2100],[4200,2250],[4400,2800],[4500,3470]], kind:'caravan' },
   { name:'Caravan: Trinity\u2013Ironhaven', path:[[5620,1970],[5400,1750],[5000,1700],[4700,1800],[4450,1520]], kind:'caravan' },
-  { name:'Pilgrim Road of the Nine Shrines', path:[[5620,1970],[5750,2150],[5700,2700],[5600,3300],[5450,3700],[5100,3950],[4700,3700],[4500,3530]], kind:'road' },
+  { name:'Pilgrim Road of the Nine Shrines', path:[[5620,1970],[5750,2150],[5700,2700],[5600,3300],[5572,3462],[5450,3700],[5100,3950],[4700,3700],[4500,3530]], kind:'road' },
   { name:'The Wool Road: Root City\u2013Crownsburg', path:[[4500,3530],[5000,3900],[5450,4200],[5650,4400],[6000,4800],[6350,5150]], kind:'caravan' },
   { name:'Border link: Tollgreen\u2013Heron\u2019s Rest', path:[[5900,3900],[6400,4050],[6800,4200]], kind:'caravan' },
   { name:'Border link: Twinwells\u2013Ashford', path:[[3500,3900],[3200,3800],[2900,3700]], kind:'caravan' },

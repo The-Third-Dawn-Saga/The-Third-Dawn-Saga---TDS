@@ -83,6 +83,88 @@ console.log('— seasonal systems —');
   t('activity markers on land', badAct.length===0, badAct.join(','));
 }
 
+console.log('— iteration 3: canon weapon ruling (LOCKED) —');
+{
+  const w=D.HIDDEN.find(h=>h.id==='weapon');
+  t('the Weapon is the tree-killing cannon', /Tree-Killing Cannon/i.test(w.name), w.name);
+  t('LOCKED tag present', w.info.includes('Weapon = the cannon: LOCKED'));
+  t('the Spire stays a separate drowned structure', w.info.includes('Spire of Ascension') && w.info.includes('separate drowned structure'));
+}
+
+console.log('— iteration 3: content merge —');
+{
+  const ids=['sorrowsgate','hollowharbor','ninefires','greywatch','foundlingshollow',
+    'castraferrum','ludusmagna','ashvine','tribunesgate','pearlwell','baihe','mistcliff',
+    'ironquay','foxglovegreen','admiraltypoint'];
+  t('15 new settlements merged', ids.every(id=>D.SETTLEMENTS.some(s=>s.id===id)));
+  const hids=['sunkencamp','desertersmesa','redhollow','silentmesa','vulturesshelf'];
+  t('5 Red Reaches secrets in HIDDEN', hids.every(id=>D.HIDDEN.some(h=>h.id===id)));
+  t('Red Reaches secrets are NOT public settlements', hids.every(id=>!D.SETTLEMENTS.some(s=>s.id===id)));
+  const fids=['gloamwood','hungrypines','elderlight','weepingcedars','jadecanes','thornwild','palewood'];
+  t('7 new forests merged', fids.every(id=>D.FORESTS.some(f=>f.id===id)));
+  t('forest kinds present', D.FORESTS.some(f=>f.kind==='dark') && D.FORESTS.some(f=>f.kind==='enchanted'));
+  const rnames=['The Waywater','The Coldrun','The Marchflow','The Reachwash','The Fairburn'];
+  t('5 new rivers merged', rnames.every(n=>D.RIVERS.some(r=>r.name===n)));
+  t('the Reachwash is seasonal', D.RIVERS.find(r=>r.name==='The Reachwash').seasonal===true);
+  t('2 new lakes merged', ['mistmere','thaneswater'].every(id=>D.LAKES.some(l=>l.id===id)));
+  const newTagged=[...ids.map(id=>D.SETTLEMENTS.find(s=>s.id===id)), ...hids.map(id=>D.HIDDEN.find(h=>h.id===id))];
+  t('all new content tagged [PROPOSED]', newTagged.every(o=>o.info.includes('[PROPOSED')));
+}
+
+console.log('— iteration 3: E-pass audits —');
+{
+  t('E2: no land route crosses water', G.routeWaterAudit().length===0, JSON.stringify(G.routeWaterAudit().slice(0,3)));
+  for(const id of ['hvalvik','fishing','imaru']){
+    const st=D.SETTLEMENTS.find(x=>x.id===id);
+    t('E3: '+id+' outside the Forest Ring band', !G.inForestRing(st.x,st.y));
+  }
+  const lh=D.WONDERS.find(w=>w.id==='lighthouse');
+  t('E3: Sovereign Lighthouse outside the Ring band', !G.inForestRing(lh.x,lh.y));
+  // E5: palette parity — the cosmos texture pixel equals the 2D satellite pixel (same painter)
+  const a=new Uint8ClampedArray(4), b=new Uint8ClampedArray(4);
+  G.paintRegion(a,1,1,4400,5500,4401,5501,{style:'satellite',season:1});
+  G.paintRegion(b,1,1,4400,5500,4401,5501,{style:'satellite',season:1,waterAlpha:0});
+  t('E5: 3D texture pixel == 2D raster pixel (Sunlands)', a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2], a.join()+' vs '+b.join());
+  const sat=[...a];
+  t('E5: Sunlands is desert tan, not white', sat[0]<245 && sat[0]>150 && sat[0]>sat[2], sat.join());
+}
+
+console.log('— iteration 3: Painted style —');
+{
+  t('painted palette exists', !!G.PALETTES.painted && G.PALETTES.painted.bandCols.length===5);
+  // coastal contour banding: shore pixel is brighter turquoise than open ocean
+  const shore=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
+  G.paintRegion(shore,1,1,4500,6620,4501,6621,{style:'painted',season:1}); // just off the south coast
+  G.paintRegion(open_,1,1,900,6600,901,6601,{style:'painted',season:1});   // far ocean corner
+  t('bands: shore brighter than open ocean', (shore[0]+shore[1]+shore[2])>(open_[0]+open_[1]+open_[2])+60,
+    shore.join()+' vs '+open_.join());
+  // painted differs from satellite on land
+  const pl=new Uint8ClampedArray(4), sl=new Uint8ClampedArray(4);
+  G.paintRegion(pl,1,1,4600,3300,4601,3301,{style:'painted',season:1});
+  G.paintRegion(sl,1,1,4600,3300,4601,3301,{style:'satellite',season:1});
+  t('painted land is its own palette', pl.join()!==sl.join());
+}
+
+console.log('— iteration 3: Domains —');
+{
+  const d=G.computeDomains();
+  t('domain boundaries computed', d.segs.length>1000, d.segs.length/5+' segs');
+  t('every great kingdom contributes cells', new Set(Object.values(d.cells).map(c=>c.kingdom)).size>=8);
+  const caps={verdanthome:'heartlands', sundisk:'sunlands', celestial:'jade'};
+  for(const [cid,kid] of Object.entries(caps)){
+    const capArea=d.cells[cid]&&d.cells[cid].area||0;
+    const others=Object.entries(d.cells).filter(([id,c])=>c.kingdom===kid&&id!==cid).map(([,c])=>c.area);
+    t('capital domain visibly largest in '+kid, others.length>0 && capArea>Math.max(...others),
+      capArea+' vs max '+ (others.length?Math.max(...others):0));
+  }
+  t('free towns get circular domains', d.free.length>=10 && d.free.every(f=>f.r>=40&&f.r<=120));
+  const dm=G.domainInfoAt(4350,5250); // near Sundisk
+  t('domainInfoAt resolves', !!dm && !!dm.settlement && dm.area>0, dm&&dm.settlement.name);
+  t('no domains in the Red Reaches', G.domainInfoAt(2900,4600)===null||!G.inPoly(2900,4600,D.BADLANDS.poly));
+  const mask=G.domainInfoAt(2900,4600);
+  t('Red Reaches unclaimed by domains', mask===null, mask&&mask.settlement.name);
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';
@@ -104,7 +186,8 @@ console.log('— built file integrity —');
       count(html,/PROPOSED/g)+' vs '+count(srcData,/PROPOSED/g));
     t('RECONCILE tags preserved', count(html,/RECONCILE/g)>=count(srcData,/RECONCILE/g),
       count(html,/RECONCILE/g)+' vs '+count(srcData,/RECONCILE/g));
-    t('canon markers intact', html.includes('tree-killing cannon')||html.includes('Spire of Ascension'));
+    t('canon markers intact', html.includes('Weapon = the cannon: LOCKED'));
+    t('no Spire-as-Weapon regression', !html.includes('The Weapon (Spire of Ascension)'));
   }
 }
 

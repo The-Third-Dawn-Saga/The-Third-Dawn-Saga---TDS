@@ -6,9 +6,17 @@ no network requests, no server.
 
 ## Views
 
-- **Map** — 2D layered atlas. Satellite/Atlas styles, kingdom borders, mountains,
-  rivers, settlements, Gates (Aetheric + the Nine Thresholds), wonders, trade routes,
-  hidden world, War Powers, travel calculator (foot / mounted / Sun Eater / Gate).
+- **Map** — 2D layered atlas. Three styles: **Satellite** (Blue Marble-style ocean,
+  moisture-driven vegetation, Sahara-like dune banding, NW-light hillshade),
+  **Atlas** (clean reference), and **Painted** (hand-drawn fantasy cartography:
+  coastal contour banding, painterly terrain, illustrated mountain and tree glyphs,
+  cartouche typography, arc-set sea names, a compass rose, dotted parchment routes).
+  Layers: kingdom borders, mountains, rivers, settlements, Gates (Aetheric + the
+  Nine Thresholds), wonders, trade routes, **Domains** (population-weighted interior
+  boundaries per kingdom, clipped to coast and kingdom, never over the Ring, lakes,
+  or the Red Reaches; free towns get circular reaches), hidden world, War Powers,
+  and a label engine with priority decluttering (capitals > kingdoms > towns >
+  villages > features). Travel calculator (foot / mounted / Sun Eater / Gate).
 - **Cosmos** — the World-Cage: bowl, ice wall with carved faces and glowing eyes,
   four pillars, guardian stars (east socket empty), three leviathans, Mor'kaleth and
   the Circles of Silence, World Tree at readable scale. Atmosphere fresnel glow,

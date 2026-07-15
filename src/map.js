@@ -30,6 +30,7 @@ const LAYERS = {
   war:false, borders:true, rivers:true, mountains:true,
   settlements:true, gates:true, wonders:true, routes:true,
   hidden:false, labels:true, migrations:true, activities:true,
+  domains:false,
 };
 
 /* ============================================================
@@ -117,6 +118,20 @@ function renderSync(m){
   G.paintWeather(g,W,H,x0,y0,x1,y1,opts);
   return c;
 }
+const lowResCache=new Map();
+function lowResPlaceholder(style,season){
+  const k=rKey(style,season);
+  let c=lowResCache.get(k);
+  if(c) return c;
+  const W=250,H=194;
+  c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d');
+  const img=g.createImageData(W,H);
+  G.paintRegion(img.data,W,H,0,0,WORLD.w,WORLD.h,{style,season});
+  g.putImageData(img,0,0);
+  lowResCache.set(k,c);
+  return c;
+}
 function requestRaster(style,season,prio){
   const k=rKey(style,season);
   if(rasterCache.has(k)) return Promise.resolve(rasterCache.get(k));
@@ -127,11 +142,10 @@ function requestTile(style,season,n,tx,ty){
   if(tileCache.has(k)) return Promise.resolve(tileCache.get(k));
   return submit('t:'+k, {type:'tile',style,season,n,tx,ty}, 0);
 }
-/* eager background builds: other style at this season, then the other seasons */
+/* eager background builds: other styles at this season, then the other seasons */
 function prebuild(){
   requestRaster(STYLE,SEASON,0).then(()=>{
-    const other=STYLE==='satellite'?'atlas':'satellite';
-    requestRaster(other,SEASON,5);
+    for(const st of ['satellite','atlas','painted']) if(st!==STYLE) requestRaster(st,SEASON,5);
     for(let s=0;s<4;s++) if(s!==SEASON) requestRaster(STYLE,s,8);
   });
 }
@@ -189,9 +203,9 @@ function drawBase(){
   let bm=rasterCache.get(rKey(STYLE,SEASON));
   if(!bm){
     requestRaster(STYLE,SEASON,0);
-    // placeholder: any season of this style, else other style
+    // placeholder: any season of this style, else a quick sync low-res build
     for(let s=0;s<4&&!bm;s++) bm=rasterCache.get(rKey(STYLE,s));
-    if(!bm) for(const[,v] of rasterCache){ bm=v; break; }
+    if(!bm) bm=lowResPlaceholder(STYLE,SEASON);
   }
   bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
   const [ox,oy]=w2s(0,0);
@@ -291,10 +305,19 @@ function drawOverlay(now){
         ctx.lineCap='round';
         ctx.strokeStyle= r.poison ? 'rgba(120,155,70,0.9)' : P.river;
         if(r.underground){ ctx.setLineDash([8*DPR/S,7*DPR/S]); ctx.globalAlpha=0.6; }
+        // E4: seasonal dry-washes (the Reachwash) — full in the Greening,
+        // a dashed memory of a stream in the Long Dust
+        if(r.seasonal && SEASON>=2){
+          ctx.setLineDash([5*DPR/S,8*DPR/S]); ctx.globalAlpha=0.5;
+          ctx.lineWidth=Math.max(1,8*view.scale)*DPR/S;
+        }
         ctx.stroke(p); ctx.setLineDash([]); ctx.globalAlpha=1;
       }
     });
   }
+
+  // A1: painted-style illustrated terrain glyphs (forests under mountains)
+  if(STYLE==='painted'){ drawPaintedForests(); drawPaintedMountains(); }
 
   // kingdom borders (clipped to land)
   if(LAYERS.borders){
@@ -310,6 +333,9 @@ function drawOverlay(now){
       ctx.restore();
     });
   }
+
+  // D: Domains — population-weighted interior boundaries
+  if(LAYERS.domains) drawDomains();
 
   // War Powers overlay
   if(LAYERS.war){
@@ -347,7 +373,14 @@ function drawOverlay(now){
     withWorld(ctx,S=>{
       for(const {r,p} of PATH_ROUTES){
         ctx.lineCap='round';
-        if(r.kind==='road'){ ctx.strokeStyle=P.route; ctx.setLineDash([]); ctx.lineWidth=Math.max(1.6,10*view.scale)*DPR/S; }
+        if(STYLE==='painted'){
+          // A1.5: dotted brown parchment paths
+          if(r.kind==='sea'){ ctx.strokeStyle=P.sea; ctx.setLineDash([2*DPR/S,7*DPR/S]); ctx.lineWidth=1.7*DPR/S; }
+          else if(r.kind==='smuggle'){ ctx.strokeStyle='rgba(110,74,44,0.7)'; ctx.setLineDash([1.5*DPR/S,9*DPR/S]); ctx.lineWidth=1.7*DPR/S; }
+          else { ctx.strokeStyle=P.route; ctx.setLineDash([2*DPR/S,6*DPR/S]);
+                 ctx.lineWidth=(r.kind==='road'?2.2:1.7)*DPR/S; }
+        }
+        else if(r.kind==='road'){ ctx.strokeStyle=P.route; ctx.setLineDash([]); ctx.lineWidth=Math.max(1.6,10*view.scale)*DPR/S; }
         else if(r.kind==='caravan'){ ctx.strokeStyle=P.route; ctx.setLineDash([9*DPR/S,7*DPR/S]); ctx.lineWidth=1.5*DPR/S; }
         else if(r.kind==='sea'){ ctx.strokeStyle=P.sea; ctx.setLineDash([4*DPR/S,7*DPR/S]); ctx.lineWidth=1.5*DPR/S; }
         else { ctx.strokeStyle='rgba(170,110,190,0.85)'; ctx.setLineDash([3*DPR/S,9*DPR/S]); ctx.lineWidth=1.5*DPR/S; }
@@ -399,7 +432,215 @@ function drawOverlay(now){
       pinDot(pb[0],pb[1],'#ea4335','B');
     }
   }
+  if(STYLE==='painted') drawCompassRose();
   drawScaleBar();
+}
+
+/* ============================================================
+   A1: PAINTED-STYLE ILLUSTRATED GLYPHS
+   ============================================================ */
+/* precomputed tree positions: every FORESTS entry + the Ring band */
+let PAINT_TREES=null;
+function paintedTrees(){
+  if(PAINT_TREES) return PAINT_TREES;
+  const out=[];
+  for(const fo of FORESTS){
+    const count=Math.min(110, Math.round(fo.rx*fo.ry/1300));
+    for(let i=0;i<count;i++){
+      const a=G.hash2(i,fo.x)*6.2832, rr=Math.sqrt(G.hash2(i*1.7,fo.y));
+      const x=fo.x+Math.cos(a)*fo.rx*rr*0.92, y=fo.y+Math.sin(a)*fo.ry*rr*0.92;
+      if(G.fbm(x*0.006,y*0.006)<=0.30) continue;      // density by fbm
+      if(G.lakeAt(x,y)||!G.onContinent(x,y)) continue;
+      const kind= fo.kind==='dark' ? 'dark'
+        : fo.kind==='enchanted' ? 'glow'
+        : (fo.y<2400 ? 'pine' : 'round');             // taiga = conical
+      out.push([x,y,kind,0.75+G.hash2(i,3)*0.65]);
+    }
+  }
+  for(let i=0;i<620;i++){                              // the Ring: umbrella pines
+    const a=G.hash2(i,11)*6.2832;
+    const deg=(-a*180/Math.PI+360)%360;
+    if(deg>=FOREST_RING.gapStartDeg&&deg<=FOREST_RING.gapEndDeg) continue;
+    const rr=FOREST_RING.inner+(FOREST_RING.outer-FOREST_RING.inner)*G.hash2(i,17);
+    const c=coastNoise(a);
+    const x=WORLD.cx+Math.cos(a)*WORLD.a*rr*c, y=WORLD.cy+Math.sin(a)*WORLD.b*rr*c;
+    if(G.fbm(x*0.006,y*0.006)<0.24) continue;
+    out.push([x,y,'umbrella',0.8+G.hash2(i,5)*0.55]);
+  }
+  PAINT_TREES=out;
+  return out;
+}
+function drawPaintedForests(){
+  const W=canvas.width,H=canvas.height;
+  for(const [x,y,kind,s] of paintedTrees()){
+    const p=w2s(x,y);
+    if(p[0]<-30||p[1]<-30||p[0]>W+30||p[1]>H+30) continue;
+    let h=Math.max(4.5*DPR, Math.min(24*DPR, 15*s*view.scale*DPR*3));
+    const trunkCol='#5a4126';
+    if(kind==='round'||kind==='glow'){
+      ctx.strokeStyle=trunkCol; ctx.lineWidth=Math.max(1,h*0.09);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.62,h*0.42,0,7);
+      ctx.fillStyle= kind==='glow' ? '#8cc271' : '#4c7a3c';
+      ctx.fill();
+      ctx.strokeStyle='rgba(46,58,30,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      if(kind==='glow'){ ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.62,h*0.16,0,7); ctx.fillStyle='rgba(244,232,150,0.9)'; ctx.fill(); }
+    } else if(kind==='umbrella'){
+      ctx.strokeStyle=trunkCol; ctx.lineWidth=Math.max(1,h*0.09);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.75); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(p[0],p[1]-h*0.78,h*0.55,h*0.24,0,Math.PI,0);
+      ctx.closePath();
+      ctx.fillStyle='#557d3e'; ctx.fill();
+      ctx.strokeStyle='rgba(46,58,30,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+    } else { // pine / dark
+      ctx.beginPath();
+      ctx.moveTo(p[0],p[1]-h);
+      ctx.lineTo(p[0]-h*0.34,p[1]);
+      ctx.lineTo(p[0]+h*0.34,p[1]);
+      ctx.closePath();
+      ctx.fillStyle= kind==='dark' ? '#324a38' : '#3e6034';
+      ctx.fill();
+      ctx.strokeStyle= kind==='dark' ? 'rgba(22,32,24,0.85)' : 'rgba(38,52,28,0.8)';
+      ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      if(kind==='dark'){ // sparse pale trunk
+        ctx.strokeStyle='rgba(216,208,190,0.65)'; ctx.lineWidth=Math.max(0.8,h*0.06);
+        ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.3); ctx.stroke();
+      }
+    }
+  }
+}
+/* overlapping shaded triangle peaks with snowcaps, denser at range
+   midpoints, casting a subtle SE shadow */
+function drawPaintedMountains(){
+  const W=canvas.width,H=canvas.height;
+  for(const m of MOUNTAINS){
+    const g=flowGeo(m.path);
+    if(g.len<1) continue;
+    const n=Math.max(2,Math.round(g.len/52));
+    for(let i=0;i<=n;i++){
+      const s=i/n*g.len;
+      const [x,y,ang]=flowPoint(m.path,g,s);
+      const mid=Math.sin(Math.PI*i/Math.max(1,n));     // 1 at range midpoint
+      for(let row=-1;row<=1;row++){
+        if(row!==0 && G.hash2(i+m.path[0][0],row*7)>0.35+mid*0.45) continue; // denser mid-range
+        const off=row*36+(G.hash2(i*3,row+2)-0.5)*30;
+        const wx=x+Math.cos(ang+Math.PI/2)*off, wy=y+Math.sin(ang+Math.PI/2)*off;
+        if(!G.onContinent(wx,wy)) continue;
+        const p=w2s(wx,wy);
+        if(p[0]<-40||p[1]<-40||p[0]>W+40||p[1]>H+40) continue;
+        let h=(34+mid*24+(G.hash2(i,row)-0.5)*12)*view.scale*DPR;
+        h=Math.max(6.5*DPR, Math.min(46*DPR, h));
+        const w2=h*1.2;
+        // subtle SE shadow
+        ctx.beginPath(); ctx.ellipse(p[0]+h*0.2,p[1]+h*0.12,w2*0.5,h*0.15,0,0,7);
+        ctx.fillStyle='rgba(96,64,40,0.15)'; ctx.fill();
+        // body
+        ctx.beginPath();
+        ctx.moveTo(p[0],p[1]-h);
+        ctx.lineTo(p[0]-w2/2,p[1]);
+        ctx.lineTo(p[0]+w2/2,p[1]);
+        ctx.closePath();
+        ctx.fillStyle='#cbb693'; ctx.fill();
+        // shaded SE face
+        ctx.beginPath();
+        ctx.moveTo(p[0],p[1]-h);
+        ctx.lineTo(p[0]+w2/2,p[1]);
+        ctx.lineTo(p[0]+w2*0.06,p[1]);
+        ctx.closePath();
+        ctx.fillStyle='rgba(122,90,58,0.5)'; ctx.fill();
+        // outline
+        ctx.beginPath();
+        ctx.moveTo(p[0]-w2/2,p[1]);
+        ctx.lineTo(p[0],p[1]-h);
+        ctx.lineTo(p[0]+w2/2,p[1]);
+        ctx.strokeStyle='rgba(74,49,26,0.8)'; ctx.lineWidth=Math.max(0.9,h*0.05); ctx.stroke();
+        // snowcap with a jagged hem
+        ctx.beginPath();
+        ctx.moveTo(p[0],p[1]-h);
+        ctx.lineTo(p[0]-w2*0.16,p[1]-h*0.62);
+        ctx.lineTo(p[0]-w2*0.07,p[1]-h*0.70);
+        ctx.lineTo(p[0]+w2*0.02,p[1]-h*0.60);
+        ctx.lineTo(p[0]+w2*0.10,p[1]-h*0.72);
+        ctx.lineTo(p[0]+w2*0.16,p[1]-h*0.62);
+        ctx.closePath();
+        ctx.fillStyle='#f4efe2'; ctx.fill();
+      }
+    }
+  }
+}
+/* decorative compass rose in the south-eastern ocean */
+function drawCompassRose(){
+  const p=w2s(8420,6280);
+  const R=Math.max(42*DPR, Math.min(120*DPR, 340*view.scale*DPR));
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const ink='#3e2f1c', parch='#ecdfbf';
+  ctx.save();
+  ctx.translate(p[0],p[1]);
+  ctx.strokeStyle='rgba(62,47,28,0.75)'; ctx.lineWidth=1.2*DPR;
+  ctx.beginPath(); ctx.arc(0,0,R*0.72,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,R*0.30,0,7); ctx.stroke();
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4, long=i%2===0;
+    const len=long?R:R*0.55, wid=long?R*0.13:R*0.08;
+    ctx.save(); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(0,-len); ctx.lineTo(-wid,0); ctx.lineTo(0,wid*0.6); ctx.closePath();
+    ctx.fillStyle=parch; ctx.fill(); ctx.strokeStyle=ink; ctx.lineWidth=0.9*DPR; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-len); ctx.lineTo(wid,0); ctx.lineTo(0,wid*0.6); ctx.closePath();
+    ctx.fillStyle='rgba(94,70,42,0.85)'; ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.font=`700 ${Math.round(R*0.24)}px Georgia,serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=ink;
+  ctx.fillText('N',0,-R*1.18);
+  ctx.font=`600 ${Math.round(R*0.17)}px Georgia,serif`;
+  ctx.fillText('E',R*1.14,0); ctx.fillText('S',0,R*1.16); ctx.fillText('W',-R*1.16,0);
+  ctx.restore();
+}
+
+/* ============================================================
+   D: DOMAINS LAYER — dashed administrative interiors
+   ============================================================ */
+let domainsReady=false, domainPaths=null, freePath=null;
+function buildDomainPaths(){
+  const d=G.computeDomains();
+  domainPaths=new Map();      // colorIdx -> Path2D of boundary segments
+  const segs=d.segs;
+  for(let i=0;i<segs.length;i+=5){
+    const ci=segs[i+4];
+    let p=domainPaths.get(ci);
+    if(!p){ p=new Path2D(); domainPaths.set(ci,p); }
+    p.moveTo(segs[i],segs[i+1]); p.lineTo(segs[i+2],segs[i+3]);
+  }
+  freePath=new Path2D();
+  for(const f of d.free) freePath.moveTo(f.x+f.r,f.y), freePath.arc(f.x,f.y,f.r,0,Math.PI*2);
+  domainsReady=true;
+}
+function drawDomains(){
+  if(!domainsReady){ setTimeout(()=>{ buildDomainPaths(); dirty(false,true); },0); return; }
+  withWorld(ctx,S=>{
+    ctx.save(); ctx.clip(PATH_LAND);
+    const inkMode= STYLE==='painted';
+    for(const [ci,p] of domainPaths){
+      const k=KINGDOMS[ci];
+      ctx.strokeStyle= inkMode ? 'rgba(90,65,38,0.6)' : hexA(k.border||'#999', 0.55);
+      ctx.lineWidth=1*DPR/S;
+      ctx.setLineDash([3*DPR/S,3*DPR/S]);
+      ctx.stroke(p);
+    }
+    // free towns: simple circular domains, gray dashed
+    ctx.strokeStyle= inkMode ? 'rgba(90,65,38,0.5)' : 'rgba(170,175,182,0.55)';
+    ctx.lineWidth=1*DPR/S;
+    ctx.setLineDash([4*DPR/S,4*DPR/S]);
+    ctx.stroke(freePath);
+    ctx.setLineDash([]);
+    ctx.restore();
+  });
+}
+function hexA(hex,a){
+  const h=hex.replace('#','');
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 function drawFlows(now){
@@ -570,17 +811,18 @@ function drawWonders(){
       ctx.beginPath(); ctx.arc(p[0],p[1]-h,h*0.6,0,7); ctx.fillStyle=cg; ctx.fill();
     } else {
       ctx.font=`${13*DPR}px ${SANS}`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle= STYLE==='satellite' ? '#f0dc9a' : '#b06000';
+      ctx.fillStyle= STYLE==='painted' ? '#7a5230' : (STYLE==='satellite' ? '#f0dc9a' : '#b06000');
       const glyph={glass:'✦',peak:'▲',arena:'◎',under:'☗',cliffs:'≈',pillars:'‖',scar:'✖',road:'≡',float:'♒'}[w.icon]||'✦';
       ctx.fillText(glyph,p[0],p[1]);
     }
   }
 }
 function drawSettlements(){
+  const painted=STYLE==='painted';
   for(const s of SETTLEMENTS){
     const p=w2s(s.x,s.y);
-    const townCol='#ffffff';
-    const townEdge= STYLE==='satellite' ? 'rgba(0,0,0,0.7)' : '#6b7075';
+    const townCol= painted ? '#3a2a18' : '#ffffff';
+    const townEdge= painted ? 'rgba(240,228,200,0.9)' : (STYLE==='satellite' ? 'rgba(0,0,0,0.7)' : '#6b7075');
     if(s.type==='capital'){
       ctx.beginPath(); ctx.arc(p[0],p[1],5.4*DPR,0,7);
       ctx.fillStyle=townCol; ctx.fill();
@@ -602,72 +844,165 @@ function drawSettlements(){
   }
 }
 function centroid(poly){ let x=0,y=0; for(const p of poly){x+=p[0];y+=p[1];} return [x/poly.length,y/poly.length]; }
+
+/* ============================================================
+   E1: LABEL DECLUTTERING — priority-ordered placement with
+   collision boxes. capitals > kingdoms > towns > villages > features.
+   A1.5: painted cartouche typography + arc-set sea names.
+   ============================================================ */
+let LABEL_BOXES=[];
+function boxFor(text,x,y,size,font){
+  ctx.font=font||`${size*DPR}px ${SANS}`;
+  const w=ctx.measureText(text).width+6*DPR, h=size*DPR*1.35;
+  return {x:x-w/2, y:y-h*0.85, w, h};
+}
+function boxFree(b){
+  for(const o of LABEL_BOXES){
+    if(b.x<o.x+o.w && b.x+b.w>o.x && b.y<o.y+o.h && b.y+b.h>o.y) return false;
+  }
+  return true;
+}
+function tryLabel(text,x,y,size,fill,italic,font){
+  const b=boxFor(text,x,y,size,font);
+  if(!boxFree(b)) return false;
+  LABEL_BOXES.push(b);
+  if(font){ ctx.font=font; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; halo(text,x,y,fill); }
+  else label(text,x,y,size,fill,italic);
+  return true;
+}
+/* painted small-caps kingdom cartouche: letterspaced, double outline */
+function drawCartouche(text,x,y,size){
+  const P=G.PALETTES.painted;
+  ctx.save();
+  const px=size*DPR;
+  ctx.font=`700 ${px}px Georgia,serif`;
+  if('letterSpacing' in ctx) ctx.letterSpacing=(px*0.24)+'px';
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.lineJoin='round';
+  ctx.strokeStyle='rgba(40,28,14,0.9)'; ctx.lineWidth=4.6*DPR; ctx.strokeText(text,x,y);
+  ctx.strokeStyle=P.parchment; ctx.lineWidth=2.2*DPR; ctx.strokeText(text,x,y);
+  ctx.fillStyle=P.ink; ctx.fillText(text,x,y);
+  ctx.restore();
+}
+/* italic sea name set on a gentle arc */
+function drawArcText(text,x,y,size,fill,bend){
+  const px=size*DPR;
+  ctx.font=`italic ${px}px Georgia,serif`;
+  const total=ctx.measureText(text).width;
+  const R=Math.max(total*2.2, 200*DPR)* (bend||1);
+  ctx.save();
+  ctx.translate(x,y+R);
+  let a=-total/2/R;
+  ctx.fillStyle=fill; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  for(const ch of text){
+    const w=ctx.measureText(ch).width;
+    a+=w/2/R;
+    ctx.save(); ctx.rotate(a); ctx.translate(0,-R); ctx.fillText(ch,0,0); ctx.restore();
+    a+=w/2/R;
+  }
+  ctx.restore();
+}
 function drawLabels(){
+  LABEL_BOXES=[];
+  const painted=STYLE==='painted';
   ctx.textAlign='center';
+  const cands=[];
+  // priority 0: capitals
+  for(const s of SETTLEMENTS){
+    if(s.type!=='capital') continue;
+    cands.push({pri:0, text:s.name, x:s.x, y:s.y, dy:14, size:12.5,
+      fill: painted?'#2e2012':(STYLE==='satellite'?'#ffffff':'#202124')});
+  }
+  // priority 1: kingdom names
   for(const k of KINGDOMS){
     const c=k.shape==='circle'?[k.cx,k.cy]:centroid(k.poly);
-    const p=w2s(c[0],c[1]);
-    const size=Math.min(22,Math.max(11,150*view.scale));
-    ctx.font=`500 ${size*DPR}px ${SANS}`;
-    const col= STYLE==='satellite' ? 'rgba(255,255,255,0.92)' : 'rgba(80,86,92,0.95)';
-    halo(k.name.toUpperCase(),p[0],p[1]-8*DPR,col);
+    cands.push({pri:1, kingdom:true, text:k.name.toUpperCase(), x:c[0], y:c[1], dy:-8,
+      size:Math.min(22,Math.max(11,150*view.scale))});
   }
+  // priority 2/3: towns & vassals / villages & sites
   if(view.scale>0.075){
     for(const s of SETTLEMENTS){
-      if(view.scale<0.11 && (s.type==='village'||s.type==='site')) continue;
+      if(s.type==='capital') continue;
+      const isSmall=(s.type==='village'||s.type==='site');
+      if(view.scale<0.11 && isSmall) continue;
       if(view.scale<0.16 && s.type==='site') continue;
-      const p=w2s(s.x,s.y);
-      const size=s.type==='capital'?12.5:10.5;
-      label(s.name,p[0],p[1]+14*DPR,size, s.type==='capital'
-        ? (STYLE==='satellite'?'#ffffff':'#202124')
-        : (STYLE==='satellite'?'rgba(255,255,255,0.95)':'#5f6368'));
+      cands.push({pri:isSmall?3:2, text:s.name, x:s.x, y:s.y, dy:14, size:10.5,
+        fill: painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.95)':'#5f6368')});
     }
+  }
+  // priority 4: features
+  if(view.scale>0.075){
     for(const w of WONDERS){
       if(w.id==='worldtree') continue;
-      const p=w2s(w.x,w.y);
-      label(w.name,p[0],p[1]-13*DPR,10, STYLE==='satellite'?'#f0dc9a':'#b06000', true);
+      cands.push({pri:4, text:w.name, x:w.x, y:w.y, dy:-13, size:10, italic:true,
+        fill: painted?'#7a5230':(STYLE==='satellite'?'#f0dc9a':'#b06000')});
     }
     for(const m of MOUNTAINS){
       const mid=m.path[Math.floor(m.path.length/2)];
-      const p=w2s(mid[0],mid[1]);
-      label(m.name,p[0],p[1]-6*DPR,10.5, STYLE==='satellite'?'rgba(225,229,235,0.95)':'#80868b', true);
+      cands.push({pri:4, text:m.name, x:mid[0], y:mid[1], dy:-6, size:10.5, italic:true,
+        fill: painted?'#6a5232':(STYLE==='satellite'?'rgba(225,229,235,0.95)':'#80868b')});
+    }
+    for(const lk of LAKES){
+      let nm=lk.name;
+      if(lk.id==='faros'&&SEASON>=2) nm+=' (salt)';
+      if(lk.id==='hundredautumns'&&SEASON===3) nm+=' (dry pools)';   // E4: label follows the shrink
+      cands.push({pri:4, text:nm, x:lk.x, y:lk.y, dy:0, size:9.5, italic:true,
+        fill: painted?'#2f6f8c':(STYLE==='satellite'?'rgba(160,205,235,0.95)':'#4a7fae')});
+    }
+    for(const ma of MARSHES){
+      cands.push({pri:4, text:ma.name, x:ma.x, y:ma.y, dy:0, size:9.5, italic:true,
+        fill: painted?'#3f5c38':(STYLE==='satellite'?'rgba(170,215,185,0.9)':'#3f7a5a')});
+    }
+    for(const fo of FORESTS){
+      cands.push({pri:4, text:fo.name, x:fo.x, y:fo.y, dy:0, size:10, italic:true,
+        fill: painted?'#3e5c30':(STYLE==='satellite'?'rgba(150,215,165,0.9)':'#2e7d4f')});
     }
   }
   for(const isl of ISLANDS){
     if(!isl.name) continue;
-    const p=w2s(isl.x,isl.y);
-    label(isl.name,p[0],p[1]+ (isl.ry*view.scale+12)*DPR, 10.5,
-      STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368');
-  }
-  if(view.scale>0.075){
-    for(const lk of LAKES){
-      let nm=lk.name;
-      if(lk.id==='faros'&&SEASON>=2) nm+=' (salt)';
-      const p=w2s(lk.x,lk.y);
-      label(nm,p[0],p[1],9.5, STYLE==='satellite'?'rgba(160,205,235,0.95)':'#4a7fae', true);
-    }
-    for(const ma of MARSHES){
-      const p=w2s(ma.x,ma.y);
-      label(ma.name,p[0],p[1],9.5, STYLE==='satellite'?'rgba(170,215,185,0.9)':'#3f7a5a', true);
-    }
-    for(const fo of FORESTS){
-      const p=w2s(fo.x,fo.y);
-      label(fo.name,p[0],p[1],10, STYLE==='satellite'?'rgba(150,215,165,0.9)':'#2e7d4f', true);
-    }
-  }
-  for(const s of SEAMARKS){
-    const p=w2s(s.x,s.y);
-    ctx.save(); ctx.translate(p[0],p[1]); if(s.rot) ctx.rotate(s.rot*Math.PI/180);
-    ctx.font=`italic ${(s.sea?14:11)*DPR}px ${SANS}`;
-    ctx.fillStyle= STYLE==='satellite' ? 'rgba(140,180,215,0.9)' : 'rgba(90,140,190,0.95)';
-    ctx.textAlign='center'; ctx.fillText(s.name,0,0); ctx.restore();
+    cands.push({pri:4, text:isl.name, x:isl.x, y:isl.y, dyPx:(isl.ry*view.scale+12), size:10.5,
+      fill: painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368')});
   }
   if(view.scale>0.07){
-    const bp=w2s(2900,4500);
-    label('THE RED REACHES',bp[0],bp[1],11, STYLE==='satellite'?'rgba(226,170,130,0.95)':'#a05a30', true);
+    cands.push({pri:4, text:'THE RED REACHES', x:2900, y:4500, dy:0, size:11, italic:true,
+      fill: painted?'#8a4a26':(STYLE==='satellite'?'rgba(226,170,130,0.95)':'#a05a30')});
   }
-  const frp=w2s(WORLD.cx, WORLD.cy-WORLD.b*0.91*coastNoise(-Math.PI/2));
-  label('ELVEN FOREST RING', frp[0], frp[1], 11.5, STYLE==='satellite'?'rgba(150,230,175,0.95)':'#188038', true);
+  cands.push({pri:4, text:'ELVEN FOREST RING', x:WORLD.cx, y:WORLD.cy-WORLD.b*0.91*coastNoise(-Math.PI/2), dy:0, size:11.5, italic:true,
+    fill: painted?'#3e5c30':(STYLE==='satellite'?'rgba(150,230,175,0.95)':'#188038')});
+
+  cands.sort((a,b)=>a.pri-b.pri);
+  for(const c of cands){
+    const p=w2s(c.x,c.y);
+    const y=p[1]+(c.dyPx!=null?c.dyPx*DPR:(c.dy||0)*DPR);
+    if(c.kingdom){
+      const b=boxFor(c.text,p[0],y,c.size,`700 ${c.size*DPR}px Georgia,serif`);
+      if(painted){ const grow=b.w*0.26; b.x-=grow/2; b.w+=grow; }  // letterspacing
+      if(!boxFree(b)) continue;
+      LABEL_BOXES.push(b);
+      if(painted) drawCartouche(c.text,p[0],y,c.size);
+      else {
+        ctx.font=`500 ${c.size*DPR}px ${SANS}`;
+        halo(c.text,p[0],y, STYLE==='satellite'?'rgba(255,255,255,0.92)':'rgba(80,86,92,0.95)');
+      }
+    } else {
+      tryLabel(c.text,p[0],y,c.size,c.fill,c.italic);
+    }
+  }
+  // sea names: on gentle arcs in painted, straight elsewhere; still collision-tracked
+  for(const s of SEAMARKS){
+    const p=w2s(s.x,s.y);
+    const size=s.sea?14:11;
+    const fill= painted ? 'rgba(32,84,108,0.95)' : (STYLE==='satellite'?'rgba(140,180,215,0.9)':'rgba(90,140,190,0.95)');
+    const b=boxFor(s.name,p[0],p[1],size);
+    if(!boxFree(b)) continue;
+    LABEL_BOXES.push(b);
+    if(painted && s.sea && !s.rot){ drawArcText(s.name,p[0],p[1],size,fill,1); }
+    else {
+      ctx.save(); ctx.translate(p[0],p[1]); if(s.rot) ctx.rotate(s.rot*Math.PI/180);
+      ctx.font=`italic ${size*DPR}px ${painted?'Georgia,serif':SANS}`;
+      ctx.fillStyle=fill;
+      ctx.textAlign='center'; ctx.fillText(s.name,0,0); ctx.restore();
+    }
+  }
 }
 function drawWarLegend(){
   const lx=canvas.width-320*DPR, ly=18*DPR, lw=300*DPR;
@@ -714,7 +1049,7 @@ function drawScaleBar(){
   miles=nice.reduce((a,b)=>Math.abs(b-miles)<Math.abs(a-miles)?b:a);
   const px=miles*view.scale*DPR;
   const x=20*DPR,y=canvas.height-26*DPR;
-  const col= STYLE==='satellite'?'#e8dcb0':'#5f6368';
+  const col= STYLE==='painted'?'#5a4326':(STYLE==='satellite'?'#e8dcb0':'#5f6368');
   ctx.strokeStyle=col; ctx.lineWidth=2*DPR;
   ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+px,y);
   ctx.moveTo(x,y-5*DPR); ctx.lineTo(x,y+5*DPR);
@@ -787,6 +1122,11 @@ function featureAt(wx,wy){
   if(G.onContinent(wx,wy)&&G.inForestRing(wx,wy)) return {kind:'ring',o:FOREST_RING};
   if(G.onContinent(wx,wy)){
     for(const m of MOUNTAINS){ if(G.distToPath(wx,wy,m.path)<110) return {kind:'mountain',o:m}; }
+    // D4: with the Domains layer on, empty ground resolves to its domain
+    if(LAYERS.domains){
+      const dm=G.domainInfoAt(wx,wy);
+      if(dm) return {kind:'domain',o:dm};
+    }
     const k=G.kingdomAt(wx,wy);
     if(k) return {kind:'kingdom',o:k};
   }
@@ -826,6 +1166,11 @@ function showInfo(f){
     h=`<div class="ip-kicker">${f.o.type.toUpperCase()}</div><h2>${f.o.name}</h2>
        <div class="ip-grid"><div><label>Population</label>${f.o.pop}</div></div>
        <div class="ip-sect">${f.o.info}</div>`;
+    if(LAYERS.domains){
+      const dm=G.domainInfoAt(f.o.x,f.o.y);
+      if(dm&&dm.settlement.id===f.o.id)
+        h+=`<div class="ip-sect"><label>Domain</label>Domain of ${f.o.name} — roughly ${dm.area.toLocaleString('en-US')} sq mi${dm.free?' (free-town reach)':''}. [Domains layer PROPOSED]</div>`;
+    }
   } else if(f.kind==='gate'){
     fly={x:f.o.x,y:f.o.y,name:f.o.name};
     h=`<div class="ip-kicker">AETHERIC GATE${f.o.embargo?' — EMBARGO':''}</div><h2>${f.o.name}</h2>
@@ -876,6 +1221,14 @@ function showInfo(f){
        <div class="ip-grid"><div><label>Season</label>${localName}</div><div><label>Wheel</label>${SEASON_STOPS[SEASON].label}</div></div>
        <div class="ip-sect">${mg.info}</div>
        <div class="ip-sect"><label>Flow</label>${FLOW_NOTE}</div>`;
+  } else if(f.kind==='domain'){
+    const st=f.o.settlement;
+    fly={x:st.x,y:st.y,name:st.name};
+    const kk=st.kingdom?KINGDOMS.find(q=>q.id===st.kingdom):null;
+    h=`<div class="ip-kicker">DOMAIN${kk?' — '+kk.name.toUpperCase():' — FREE TOWN'}</div><h2>${st.name}</h2>
+       <div class="ip-grid"><div><label>Population</label>${st.pop}</div><div><label>Domain</label>roughly ${f.o.area.toLocaleString('en-US')} sq mi</div></div>
+       <div class="ip-sect">${st.info}</div>
+       <div class="ip-sect"><label>Note</label>Domain of ${st.name} — roughly ${f.o.area.toLocaleString('en-US')} sq mi${f.o.free?' (free-town reach, unsworn to any throne)':''}. Interior boundaries are population-weighted and stop at the Ring, the lakes, and the Red Reaches. [Domains layer PROPOSED]</div>`;
   } else if(f.kind==='activity'){
     const a=f.o;
     fly={x:a.x,y:a.y,name:a.name};
@@ -1013,4 +1366,6 @@ updateSeasonCal();
 window.addEventListener('resize',resize);
 resize();
 prebuild();
+setTimeout(()=>{ if(!domainsReady) buildDomainPaths(); }, 3500); // warm the Domains layer off the critical path
+window.__domains=function(){ return G.computeDomains(); };
 })();

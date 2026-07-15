@@ -42,6 +42,17 @@ await mapShot('satellite', 1, 'map_satellite_high');
 await mapShot('satellite', 3, 'map_satellite_deep');
 await mapShot('atlas', 1, 'map_atlas_high');
 await mapShot('atlas', 3, 'map_atlas_deep');
+await mapShot('painted', 1, 'map_painted_high');
+await mapShot('painted', 3, 'map_painted_deep');
+
+// the Domains layer over satellite
+await page.evaluate(() => { window.__setStyle('satellite'); window.__setSeason(1); });
+await page.evaluate(() => window.__rasterReady());
+await page.evaluate(() => { document.querySelector('input[data-layer=domains]').click(); });
+await page.waitForTimeout(800);
+await page.screenshot({ path: shot('map_satellite_domains') });
+console.log('shot map_satellite_domains');
+await page.evaluate(() => { document.querySelector('input[data-layer=domains]').click(); });
 
 // migration flows visible (Late season has the most); zoom to the Jade rivers
 await page.evaluate(() => window.__go('map'));

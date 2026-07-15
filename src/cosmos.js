@@ -268,11 +268,24 @@ function init(){
       lamp.position.copy(tw.position); lamp.position.y=38; grp.add(lamp);
     }
     const wx=mx+55, wz=mz+185;
+    // the Spire of Ascension: a separate drowned structure among the ruins (LOCKED ruling)
     const spire=new THREE.Mesh(new THREE.ConeGeometry(6,86,8),
       new THREE.MeshStandardMaterial({color:0x2a2038,emissive:0x6a3c9a,emissiveIntensity:0.55}));
-    spire.position.set(wx,4,wz);
-    spire.userData={name:'The Weapon (Spire of Ascension)',info:HIDDEN.find(h=>h.id==='weapon').info};
+    spire.position.set(mx-42,8,mz-72);
+    spire.userData={name:'The Spire of Ascension (drowned)',
+      info:'The tower built to pierce Aethyria, standing whole on the seafloor among Mor\u2019kaleth\u2019s ruins \u2014 a separate structure from the Weapon under the second Circle. [Weapon = the cannon: LOCKED, July 2026]'};
     pickables.push(spire); grp.add(spire);
+    // the Weapon itself: the tree-killing cannon, broken and sealed
+    const weap=HIDDEN.find(h=>h.id==='weapon');
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(7,10,105,10),
+      new THREE.MeshStandardMaterial({color:0x191420,metalness:0.7,roughness:0.5,emissive:0x4a2a68,emissiveIntensity:0.35}));
+    barrel.rotation.z=Math.PI/2.35; barrel.position.set(wx,-6,wz);
+    barrel.userData={name:weap.name,info:weap.info};
+    const breach=new THREE.Mesh(new THREE.SphereGeometry(15,10,8),
+      new THREE.MeshStandardMaterial({color:0x14101c,metalness:0.6,roughness:0.6}));
+    breach.position.set(wx-36,-18,wz);
+    breach.userData=barrel.userData;
+    pickables.push(barrel,breach); grp.add(barrel,breach);
     for(let i=0;i<5;i++){
       const a=i/5*Math.PI*2;
       const tw=new THREE.Mesh(new THREE.CylinderGeometry(2.6,3.6,34,8),
@@ -287,10 +300,13 @@ function init(){
   /* the continent: fbm-painted from the shared palettes, bump-mapped */
   {
     const tex=texFromCanvas(paintContinentPlaceholder,2048,1524);
-    const bump=buildBumpTexture(1024,762);
     const geo=new THREE.CircleGeometry(1,192);
-    contMat=new THREE.MeshStandardMaterial({map:tex,roughness:0.95,transparent:true,
-      bumpMap:bump,bumpScale:9,alphaTest:0.35});
+    // A3/E5 fix: an UNLIT material — scene lights were over-driving the light
+    // palette colors (the Southern Sunlands washed to white). The texture is
+    // painted by the same paintRegion as the 2D map (satellite now carries its
+    // own baked hillshade), so 3D land == 2D palette, pixel for pixel.
+    // Day/night is applied as a color multiplier in applyTimeOfDay.
+    contMat=new THREE.MeshBasicMaterial({map:tex,transparent:true,alphaTest:0.35});
     const m=new THREE.Mesh(geo,contMat);
     m.scale.set(R_CONT_A*1.13,R_CONT_B*1.13,1);
     m.rotation.x=-Math.PI/2; m.position.y=6;
@@ -441,18 +457,33 @@ function init(){
   /* luminous kingdom borders (toggleable) */
   {
     borderGroup=new THREE.Group();
+    const mat=new THREE.LineBasicMaterial({color:0xd8c27a,transparent:true,opacity:0.55});
     for(const k of KINGDOMS){
-      let pts=[];
+      // world-space outline, densely sampled so it can be clipped to the coast
+      const wpts=[];
       if(k.shape==='circle'){
-        for(let i=0;i<=64;i++){ const a=i/64*Math.PI*2;
-          pts.push(new THREE.Vector3(wx2s(k.cx+Math.cos(a)*k.rx),9,wy2s(k.cy+Math.sin(a)*k.ry))); }
+        for(let i=0;i<=96;i++){ const a=i/96*Math.PI*2;
+          wpts.push([k.cx+Math.cos(a)*k.rx, k.cy+Math.sin(a)*k.ry]); }
       } else {
-        pts=k.poly.map(p=>new THREE.Vector3(wx2s(p[0]),9,wy2s(p[1])));
-        pts.push(pts[0].clone());
+        for(let i=0;i<k.poly.length;i++){
+          const a=k.poly[i], b=k.poly[(i+1)%k.poly.length];
+          const L=Math.hypot(b[0]-a[0],b[1]-a[1]), n=Math.max(1,Math.ceil(L/25));
+          for(let j=0;j<n;j++) wpts.push([a[0]+(b[0]-a[0])*j/n, a[1]+(b[1]-a[1])*j/n]);
+        }
+        wpts.push(wpts[0]);
       }
-      const g=new THREE.BufferGeometry().setFromPoints(pts);
-      const line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xd8c27a,transparent:true,opacity:0.55}));
-      borderGroup.add(line);
+      // A3: keep only the on-land portions — same clip the 2D map applies
+      const segs=[];
+      for(let i=0;i<wpts.length-1;i++){
+        const a=wpts[i], b=wpts[i+1];
+        if(G.onContinent(a[0],a[1]) && G.onContinent(b[0],b[1])){
+          segs.push(new THREE.Vector3(wx2s(a[0]),9,wy2s(a[1])),
+                    new THREE.Vector3(wx2s(b[0]),9,wy2s(b[1])));
+        }
+      }
+      if(!segs.length) continue;
+      const g=new THREE.BufferGeometry().setFromPoints(segs);
+      borderGroup.add(new THREE.LineSegments(g,mat));
     }
     scene.add(borderGroup);
   }
@@ -624,6 +655,7 @@ function applyTimeOfDay(){
   const bg=new THREE.Color(0x02050a).lerp(new THREE.Color(0x01020a), t);
   scene.background=bg; scene.fog.color=bg;
   if(nightLights) nightLights.children.forEach(p=>{ p.material.opacity=Math.max(0,(t-0.35)/0.65)*0.95; });
+  if(contMat){ const l=1-0.72*t; contMat.color.setRGB(l, l*(1-0.06*t), Math.min(1,l*(1+0.16*t))); }
   if(wallMat) wallMat.emissiveIntensity=1.4+t*1.6;
   if(starPoints) starPoints.material.opacity=0.5+t*0.5;
   if(cloudDisc){ cloudDisc.material.opacity=0.5-0.28*t; cloudDisc2.material.opacity=0.32-0.18*t; }
