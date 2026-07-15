@@ -111,18 +111,26 @@ function vnoise(x,y){
 }
 function fbm(x,y){ return vnoise(x,y)*0.6+vnoise(x*2.7,y*2.7)*0.28+vnoise(x*6.1,y*6.1)*0.12; }
 
-/* ---------- palettes (shared by 2D raster and cosmos texture) ---------- */
+/* ---------- palettes (shared by 2D raster and cosmos texture) ----------
+   E5: this object is the single palette source for BOTH views — the
+   cosmos continent texture is painted by the same paintRegion below. */
 const PALETTES={
 satellite:{
-  deep:[10,38,74], mid:[15,52,96], shelf:[38,92,140], shallow:[78,140,178],
+  /* A2: Blue Marble ocean — deep navy base, abyssal noise, pale shelf */
+  deep:[10,42,82], mid:[14,58,106], shelf:[42,98,150], shallow:[92,154,190],
+  abyss:[6,30,62],
   plains:[[74,107,58],[93,124,68]], heart:[60,116,60],
-  desert:[[217,199,145],[224,207,160]], glass:[232,224,192], salt:[238,234,223],
+  vegLush:[46,92,40], vegDry:[112,119,62],
+  desert:[[212,192,138],[226,206,152]], hamada:[172,146,100],
+  glass:[232,224,192], salt:[238,234,223],
   snow:[[226,233,238],[240,245,248]], waste:[[90,84,76],[107,98,88]], zark:[[76,68,62],[88,76,66]],
   swamp:[30,45,30], ring:[40,74,38], ridge:[110,106,98], snowcap:[240,244,248],
+  darkForest:[26,52,34], enchanted:[74,142,84],
   badA:[150,96,62], badB:[190,138,92], badCanyon:[92,56,40],
   scar:[16,12,16], lavadot:[255,110,50],
   seaIce:[214,230,240], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
-  border:'rgba(255,255,255,0.85)', label:'#ffffff', halo:'rgba(0,0,0,0.65)',
+  border:'rgba(255,255,255,0.55)',           /* A2: thin translucent white */
+  label:'#ffffff', halo:'rgba(0,0,0,0.65)',
   town:'#ffffff', river:'#3b7fae', sea:'#7fb2d9', route:'#f0dc9a',
   haze:'rgba(212,182,132,', ash:'rgba(120,116,110,',
 },
@@ -132,12 +140,35 @@ atlas:{
   desert:[[245,241,230],[240,235,220]], glass:[240,236,222], salt:[248,246,240],
   snow:[[232,234,237],[244,245,247]], waste:[[229,225,218],[221,216,208]], zark:[[224,218,210],[216,208,198]],
   swamp:[195,222,204], ring:[164,212,180], ridge:[214,210,203], snowcap:[248,249,250],
+  darkForest:[142,182,152], enchanted:[172,224,172],
   badA:[232,212,192], badB:[222,198,176], badCanyon:[198,172,152],
   scar:[206,200,196], lavadot:[230,150,110],
   seaIce:[236,244,248], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
   border:'#9aa0a6', label:'#3c4043', halo:'rgba(255,255,255,0.85)',
   town:'#5f6368', river:'#8ec7ea', sea:'#6699cc', route:'#b8860b',
   haze:'rgba(226,206,168,', ash:'rgba(190,186,180,',
+},
+/* A1: "Painted" — hand-drawn fantasy cartography. Coastal contour
+   banding is carried by bandCols/bandDist in the water pass;
+   mountain and tree glyphs are drawn as vector overlays in map.js. */
+painted:{
+  bandCols:[[127,212,216],[79,179,196],[47,143,168],[31,111,140],[20,82,107]],
+  bandDist:[25,60,110,180],
+  deep:[20,82,107], mid:[31,111,140], shelf:[79,179,196], shallow:[127,212,216],
+  plains:[[167,157,95],[186,174,110]], heart:[150,158,92],
+  desert:[[213,177,115],[227,193,129]],
+  glass:[236,220,178], salt:[242,234,214],
+  snow:[[243,239,227],[252,250,242]], snowShadow:[178,196,214],
+  waste:[[124,110,92],[140,124,102]], zark:[[112,98,84],[126,110,92]],
+  swamp:[44,56,40], ring:[96,128,74], ridge:[168,148,116], snowcap:[248,246,238],
+  darkForest:[52,78,56], enchanted:[136,188,112],
+  badA:[164,96,58], badB:[198,138,88], badCanyon:[110,62,38],
+  scar:[60,48,44], lavadot:[220,110,60],
+  seaIce:[226,234,232], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
+  border:'rgba(74,53,32,0.75)', label:'#4a3520', halo:'rgba(240,228,200,0.9)',
+  town:'#3a2a18', river:'#3f7fa0', sea:'#2f6f8c', route:'#7a5230',
+  haze:'rgba(216,186,132,', ash:'rgba(140,124,104,',
+  ink:'#4a3520', parchment:'#ecdfbf',
 },
 };
 function lerpC(a,b,t){ return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
@@ -217,6 +248,32 @@ function terrainAt(x,y){
   return 'plains';
 }
 
+/* approximate distance (miles) from a sea point to the nearest land:
+   the continent coast along the ray, and every island's rim. */
+let ISLE_CUT=null;
+function seaDistToLand(x,y,th,cr,er){
+  const Rth=Math.hypot(WORLD.a*Math.cos(th), WORLD.b*Math.sin(th))*cr;
+  let d=(er-cr)*Rth;
+  if(!ISLE_CUT) ISLE_CUT=ISLANDS.map(s=>Math.max(s.rx,s.ry)*1.6+200);
+  for(let i=0;i<ISLANDS.length;i++){
+    const s=ISLANDS[i], cut=ISLE_CUT[i];
+    const adx=x-s.x; if(adx>cut||adx<-cut) continue;
+    const ady=y-s.y; if(ady>cut||ady<-cut) continue;
+    // elliptical distance so the contour bands follow each island's shape
+    const rn=Math.hypot(adx/s.rx,ady/s.ry);
+    const di=(rn-0.92)*(s.rx+s.ry)*0.5;
+    if(di<d) d=di;
+  }
+  return Math.max(0,d);
+}
+/* relief height proxy for hillshading */
+function reliefAt(x,y){
+  const md=MTNFIELD.sample(x,y);
+  if(md>=110) return 0;
+  const t=1-md/110;
+  return t*(0.6+fbm(x*0.02,y*0.02)*0.7);
+}
+
 /* ---------- the raster painter ----------
    Fills a W×H RGBA buffer for the world rect [x0,y0]→[x1,y1].
    Sub-rects give LOD tiles and the cosmos continent texture.
@@ -239,20 +296,42 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
       const isl = er>cr*0.98 ? islandAt(x,y) : null;
       const onCont = er<=cr;
       if(!onCont && !isl){
-        let depth=1;
-        const margin=er/cr;
-        if(margin<1.045) depth=0;
-        else if(margin<1.10) depth=(margin-1.045)/0.055;
-        if(depth>0){
-          for(const s of ISLANDS){
-            const dx=(x-s.x)/s.rx, dy=(y-s.y)/s.ry;
-            const r=Math.sqrt(dx*dx+dy*dy);
-            if(r<1.6){ const dd=Math.max(0,(r-1.0)/0.6); depth=Math.min(depth,dd); }
-          }
-        }
         const dn=n*0.5+0.5;
-        if(depth<=0) col=lerpC(P.shelf,P.shallow, dn*0.6);
-        else col=lerpC(P.mid,P.deep, Math.min(1,depth*0.7+dn*0.3));
+        if(style==='painted'){
+          // A1.1: coastal contour banding — discrete turquoise→teal steps
+          // hugging the noisy coast, every island, strait and cluster.
+          const dj=seaDistToLand(x,y,th,cr,er) + (fbm(x*0.012,y*0.012)-0.5)*14;
+          const B=P.bandCols, T=P.bandDist;
+          let bi=B.length-1;
+          for(let b=0;b<T.length;b++){ if(dj<T[b]){ bi=b; break; } }
+          col=B[bi];
+          col=lerpC(col,[col[0]*0.93,col[1]*0.95,col[2]*0.97], n*0.6); // brush grain
+        } else if(style==='satellite'){
+          // A2: deep navy base, abyssal ridge noise, pale shelf ring,
+          // slightly lighter basins toward the map-centre latitude.
+          const d=seaDistToLand(x,y,th,cr,er);
+          if(d<38) col=lerpC(P.shallow,P.shelf, Math.min(1,d/38)*0.8+dn*0.2);
+          else if(d<95) col=lerpC(P.shelf,P.mid,(d-38)/57*(0.75+dn*0.25));
+          else col=lerpC(P.mid,P.deep, Math.min(1,(d-95)/220)*0.8+dn*0.2);
+          const ab=fbm(x*0.0009+7,y*0.0009+13);           // abyssal ridges
+          if(d>95) col=lerpC(col,P.abyss,(ab-0.45)*0.9*Math.min(1,(d-95)/150));
+          const eq=Math.max(0,1-Math.abs(y-WORLD.cy)/(WORLD.h*0.5)); // equator-analog
+          col=lerpC(col,[col[0]+14,col[1]+18,col[2]+20], eq*eq*0.35);
+        } else {
+          let depth=1;
+          const margin=er/cr;
+          if(margin<1.045) depth=0;
+          else if(margin<1.10) depth=(margin-1.045)/0.055;
+          if(depth>0){
+            for(const s of ISLANDS){
+              const dx=(x-s.x)/s.rx, dy=(y-s.y)/s.ry;
+              const r=Math.sqrt(dx*dx+dy*dy);
+              if(r<1.6){ const dd=Math.max(0,(r-1.0)/0.6); depth=Math.min(depth,dd); }
+            }
+          }
+          if(depth<=0) col=lerpC(P.shelf,P.shallow, dn*0.6);
+          else col=lerpC(P.mid,P.deep, Math.min(1,depth*0.7+dn*0.3));
+        }
         // seasonal sea ice: the edge moves south in deep winter
         if(y<iceLine+180){
           const f=Math.min(1,Math.max(0,(iceLine+180-y)/360));
@@ -280,7 +359,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           }
         }
         // lakes (season-aware) and named forests override terrain
-        let lakeState=null;
+        let lakeState=null, foKind=null;
         const lk=lakeAt(x,y);
         if(lk) lakeState=lakePixel(x,y,lk,season);
         if(!lakeState){
@@ -291,19 +370,45 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(terr!=='swamp'){
             for(const fo of FORESTS){
               const dx=(x-fo.x)/fo.rx, dy=(y-fo.y)/fo.ry;
-              if(dx*dx+dy*dy<=1 && fbm(x*0.006,y*0.006)>0.32){ terr='ring'; break; }
+              if(dx*dx+dy*dy<=1 && fbm(x*0.006,y*0.006)>0.32){ terr='ring'; foKind=fo.kind||'forest'; break; }
             }
           }
         }
-        if(lakeState==='water') col=lerpC(P.shelf,P.shallow,n*0.7);
+        if(lakeState==='water') col= style==='painted' ? lerpC(P.shallow,P.shelf,n*0.5) : lerpC(P.shelf,P.shallow,n*0.7);
         else if(lakeState==='toxic') col= style==='satellite' ? [130,160,70] : [200,220,150];
         else if(lakeState==='salt') col=P.salt;
         else if(lakeState==='ice') col=lerpC(P.seaIce,P.snowcap,n*0.6);
         else if(lakeState==='mud') col=lerpC(P.mudflat,P.desert[0],n*0.4);
-        else if(terr==='plains') col=lerpC(P.plains[0],P.plains[1],n);
-        else if(terr==='heart') col=lerpC(P.heart,P.plains[1],n*0.6);
+        else if(terr==='plains'||terr==='heart'){
+          if(style==='satellite'){
+            // A2: moisture/latitude-driven vegetation instead of flat washes —
+            // lusher near the Heartlands and coasts, drier toward desert margins.
+            const edge=er/cr;                                        // 0 centre → 1 coast
+            const coastal=Math.max(0,Math.min(1,(edge-0.66)/0.30));
+            const heartProx=Math.max(0,1-Math.hypot(x-4500,y-3500)/1500);
+            const dryS=Math.max(0,Math.min(1,(y-3550)/1500));        // toward the Sunlands
+            let moist=0.40+0.38*heartProx+0.22*coastal-0.38*dryS+(n-0.5)*0.42;
+            if(terr==='heart') moist+=0.14;
+            col=lerpC(P.vegDry,P.vegLush,Math.max(0,Math.min(1,moist)));
+          } else if(style==='painted'){
+            const nn=Math.max(0,Math.min(1,n*1.55-0.28));            // brush-noise amplitude
+            col= terr==='heart' ? lerpC(P.heart,P.plains[1],nn) : lerpC(P.plains[0],P.plains[1],nn);
+          } else {
+            col= terr==='heart' ? lerpC(P.heart,P.plains[1],n*0.6) : lerpC(P.plains[0],P.plains[1],n);
+          }
+        }
         else if(terr==='desert'){
           col=lerpC(P.desert[0],P.desert[1],n);
+          if(style==='satellite'){
+            // A2: not one flat tan — dune-field banding + darker rocky hamada
+            const dune=Math.sin(x*0.013 + fbm(x*0.004,y*0.004)*7)*0.5+0.5;
+            col=lerpC(col,P.desert[1],dune*0.4);
+            const hm=fbm(x*0.0016+9,y*0.0016+3);
+            if(hm<0.44) col=lerpC(col,P.hamada,Math.min(0.55,(0.44-hm)*2.4));
+          } else if(style==='painted'){
+            const nn=Math.max(0,Math.min(1,n*1.5-0.25));
+            col=lerpC(P.desert[0],P.desert[1],nn);
+          }
           if(!isl && y>SAHEL_BAND.y0 && y<SAHEL_BAND.y1){
             // the Sahel belt: green-gold in the Greening, bleached in the Long Dust
             const band=Math.sin((y-SAHEL_BAND.y0)/(SAHEL_BAND.y1-SAHEL_BAND.y0)*Math.PI);
@@ -313,11 +418,33 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
         }
         else if(terr==='glass') col=P.glass;
         else if(terr==='salt') col=P.salt;
-        else if(terr==='snow') col=lerpC(P.snow[0],P.snow[1],n);
-        else if(terr==='waste') col=lerpC(P.waste[0],P.waste[1],n);
+        else if(terr==='snow'){
+          col=lerpC(P.snow[0],P.snow[1],n);
+          if(style==='painted'){
+            // cream-white with blue shadow pooling in the hollows
+            const sh=fbm(x*0.01+5,y*0.01+11);
+            if(sh<0.44) col=lerpC(col,P.snowShadow,(0.44-sh)*1.6);
+          }
+        }
+        else if(terr==='waste') col=lerpC(P.waste[0],P.waste[1], style==='painted'?Math.max(0,Math.min(1,n*1.5-0.25)):n);
         else if(terr==='zark') col=lerpC(P.zark[0],P.zark[1],n);
-        else if(terr==='swamp') col=P.swamp;
-        else if(terr==='ring') col=lerpC(P.ring,P.plains[0],n*0.4);
+        else if(terr==='swamp') col= style==='painted' ? lerpC(P.swamp,[P.swamp[0]+26,P.swamp[1]+30,P.swamp[2]+20],n) : P.swamp;
+        else if(terr==='ring'){
+          col=lerpC(P.ring,P.plains[0],n*0.4);
+          // C: forest kinds — 'dark' colder/deeper with sparse pale trunks,
+          // 'enchanted' with a faint emissive shimmer in the Painted style
+          if(foKind==='dark'){
+            col=lerpC(col,P.darkForest,0.78);
+            const tk=fbm(x*0.05,y*0.05);
+            if(tk>0.865) col=lerpC(col,[214,208,192],0.55);          // pale trunks
+          } else if(foKind==='enchanted'){
+            col=lerpC(col,P.enchanted,0.5);
+            if(style==='painted'){
+              const sp=fbm(x*0.045+3,y*0.045+17);
+              if(sp>0.8) col=lerpC(col,[240,234,168],(sp-0.8)*4);    // shimmer
+            }
+          }
+        }
         else if(terr==='scar') col=P.scar;
         else if(terr==='badlands'){
           const strata=Math.sin(y*0.02 + fbm(x*0.008,y*0.008)*6);
@@ -356,10 +483,21 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(md<110){
             const t=1-md/110;
             const ridge=fbm(x*0.02,y*0.02);
-            col=lerpC(col,P.ridge, t*0.8);
             const elev=t*(0.6+ridge*0.7);
+            if(style==='satellite'||style==='painted'){
+              // A2: fake NW-light hillshade — brighten NW-facing slopes,
+              // darken SE-facing ones — instead of flat gray ridge blending.
+              const dd=14;
+              const shade=reliefAt(x+dd,y+dd)-reliefAt(x-dd,y-dd);
+              const rock= style==='painted' ? 0.3 : 0.42;
+              col=lerpC(col,P.ridge, t*rock);
+              const k=Math.max(-0.42,Math.min(0.42, shade*(style==='painted'?0.9:1.5)));
+              col=[col[0]*(1+k),col[1]*(1+k),col[2]*(1+k)];
+            } else {
+              col=lerpC(col,P.ridge, t*0.8);
+            }
             if(elev>capT) col=lerpC(col,P.snowcap,Math.min(1,(elev-capT)/0.35));
-            else col=lerpC(col,[col[0]*0.7,col[1]*0.7,col[2]*0.7], (ridge-0.5)*t);
+            else if(style==='atlas') col=lerpC(col,[col[0]*0.7,col[1]*0.7,col[2]*0.7], (ridge-0.5)*t);
           }
         } else if(isl && isl.kind==='pillar'){
           col=lerpC(P.ridge,[30,26,24], style==='satellite'?0.6:0.0);
@@ -477,7 +615,131 @@ function computeJourney(a,b,season){
   return {straight,out,seasonal,embargoSkipped,seasonNote:seasonal?SEASON_TRAVEL.note:null};
 }
 
-/* ---------- land verification (the __landCheck contract) ---------- */
+/* ============================================================
+   D. DOMAINS — population-weighted Voronoi partition per kingdom
+   (multiplicative weights: nearest seed by d/w, w = pop^0.30, so
+   capitals hold visibly larger cells). Rendered as thin dashed
+   interior boundaries; strictly clipped to kingdom + coastline;
+   never over the Forest Ring, lakes, or the Red Reaches.
+   ============================================================ */
+const DOMAIN_STEP=8; // grid resolution, miles
+function popOf(s){ const m=String(s.pop||'').replace(/[^0-9]/g,''); return +m||3000; }
+function insideKingdom(k,x,y){
+  return k.shape==='circle' ? Math.hypot(x-k.cx,y-k.cy)<=k.rx : inPoly(x,y,k.poly);
+}
+function domainSeeds(k){
+  return SETTLEMENTS
+    .filter(s=>s.kingdom===k.id && s.type!=='site' && insideKingdom(k,s.x,s.y) && landAt(s.x,s.y))
+    .map(s=>({s, w:Math.pow(popOf(s)+800, 0.30)}));
+}
+function domainMaskOK(x,y){
+  if(!onContinent(x,y)) return false;          // coastline clip
+  if(inForestRing(x,y)) return false;          // the Ring is the elves'
+  if(lakeAt(x,y)) return false;                // not over lakes
+  if(inPoly(x,y,BADLANDS.poly)) return false;  // the Red Reaches: unclaimed
+  return true;
+}
+function domainOwner(seeds,x,y){
+  let best=null,bs=1e18;
+  for(const e of seeds){
+    const d=Math.hypot(x-e.s.x,y-e.s.y)/e.w;
+    if(d<bs){bs=d;best=e;}
+  }
+  return best;
+}
+const FREE_TOWN_TYPES=new Set(['town','village','vassal']);
+function freeTownDomains(){
+  return SETTLEMENTS
+    .filter(s=>!s.kingdom && FREE_TOWN_TYPES.has(s.type) && onContinent(s.x,s.y))
+    .map(s=>({id:s.id, name:s.name, x:s.x, y:s.y,
+      r:Math.round(40+80*Math.max(0,Math.min(1,(popOf(s)-4000)/40000)))}));
+}
+let DOMAINS=null;
+function computeDomains(){
+  if(DOMAINS) return DOMAINS;
+  const cellA=DOMAIN_STEP*DOMAIN_STEP;
+  const segs=[];            // [x1,y1,x2,y2,...] world coords
+  const cells={};           // settlementId -> {area, name, kingdom}
+  const kOf={};             // settlementId -> border color source
+  for(const k of KINGDOMS){
+    const seeds=domainSeeds(k);
+    if(seeds.length<2) continue;
+    let bx0,by0,bx1,by1;
+    if(k.shape==='circle'){ bx0=k.cx-k.rx; bx1=k.cx+k.rx; by0=k.cy-k.ry; by1=k.cy+k.ry; }
+    else {
+      bx0=bx1=k.poly[0][0]; by0=by1=k.poly[0][1];
+      for(const p of k.poly){ bx0=Math.min(bx0,p[0]); bx1=Math.max(bx1,p[0]); by0=Math.min(by0,p[1]); by1=Math.max(by1,p[1]); }
+    }
+    const nx=Math.ceil((bx1-bx0)/DOMAIN_STEP), ny=Math.ceil((by1-by0)/DOMAIN_STEP);
+    const lab=new Int16Array(nx*ny).fill(-1);
+    for(let jy=0;jy<ny;jy++){
+      const y=by0+(jy+0.5)*DOMAIN_STEP;
+      for(let jx=0;jx<nx;jx++){
+        const x=bx0+(jx+0.5)*DOMAIN_STEP;
+        if(!insideKingdom(k,x,y)||!domainMaskOK(x,y)) continue;
+        const own=domainOwner(seeds,x,y);
+        const idx=seeds.indexOf(own);
+        lab[jy*nx+jx]=idx;
+        const id=own.s.id;
+        (cells[id]||(cells[id]={area:0,name:own.s.name,kingdom:k.id})).area+=cellA;
+        kOf[id]=k.border||'#999';
+      }
+    }
+    // boundary segments on the dual grid where neighbouring labels differ
+    for(let jy=0;jy<ny;jy++) for(let jx=0;jx<nx;jx++){
+      const a=lab[jy*nx+jx];
+      if(a<0) continue;
+      const rt= jx+1<nx ? lab[jy*nx+jx+1] : -1;
+      const dn= jy+1<ny ? lab[(jy+1)*nx+jx] : -1;
+      const X=bx0+(jx+1)*DOMAIN_STEP, Y=by0+(jy+1)*DOMAIN_STEP;
+      if(rt>=0&&rt!==a) segs.push(X, Y-DOMAIN_STEP, X, Y, seedColorIdx(k));
+      if(dn>=0&&dn!==a) segs.push(X-DOMAIN_STEP, Y, X, Y, seedColorIdx(k));
+    }
+  }
+  DOMAINS={segs, cells, colors:KINGDOMS.map(k=>k.border||'#999'), free:freeTownDomains()};
+  return DOMAINS;
+}
+function seedColorIdx(k){ return KINGDOMS.indexOf(k); }
+/* which domain (if any) a clicked point belongs to */
+function domainInfoAt(x,y){
+  const d=computeDomains();
+  const k=kingdomAt(x,y);
+  if(k && domainMaskOK(x,y)){
+    const seeds=domainSeeds(k);
+    if(seeds.length>=2){
+      const own=domainOwner(seeds,x,y);
+      if(own && d.cells[own.s.id]) return {settlement:own.s, area:d.cells[own.s.id].area, free:false};
+    }
+  }
+  for(const f of d.free){
+    if(Math.hypot(x-f.x,y-f.y)<=f.r){
+      const s=SETTLEMENTS.find(t=>t.id===f.id);
+      return {settlement:s, area:Math.round(Math.PI*f.r*f.r), free:true};
+    }
+  }
+  return null;
+}
+
+/* ---------- E2: route audit — non-sea routes must stay on land ---------- */
+function routeWaterAudit(){
+  const bad=[];
+  for(const r of D.ROUTES){
+    if(r.kind==='sea'||r.kind==='smuggle') continue;   // sea lanes + smuggler runs may sail
+    const path=r.path;
+    for(let i=0;i<path.length-1;i++){
+      const [ax,ay]=path[i], [bx,by]=path[i+1];
+      const L=Math.hypot(bx-ax,by-ay), steps=Math.max(2,Math.ceil(L/12));
+      for(let sIdx=1;sIdx<steps;sIdx++){
+        const t=sIdx/steps, x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+        if(terrainAt(x,y)==='water') bad.push({route:r.name, seg:i, x:Math.round(x), y:Math.round(y)});
+      }
+    }
+  }
+  return bad;
+}
+
+/* ---------- land verification (the __landCheck contract) ----------
+   E6: extended to every merged feature class. */
 function landCheck(){
   const bad=[];
   for(const s of SETTLEMENTS){ if(!landAt(s.x,s.y)) bad.push('settlement:'+s.id); }
@@ -485,13 +747,22 @@ function landCheck(){
   for(const w of WONDERS){ if(w.id!=='drowningpillars'&&!landAt(w.x,w.y)) bad.push('wonder:'+w.id); }
   for(const isl of ISLANDS){ if(!islandAt(isl.x,isl.y)) bad.push('island-center:'+isl.id); }
   for(const rg of RING_GATES){ const[x,y]=ringGatePos(rg.deg); if(!onContinent(x,y)) bad.push('ringgate:'+rg.id); }
+  for(const fo of FORESTS){ if(!landAt(fo.x,fo.y)) bad.push('forest:'+fo.id); }
+  for(const lk of LAKES){ if(!onContinent(lk.x,lk.y)) bad.push('lake:'+lk.id); }
+  for(const ma of MARSHES){ if(!landAt(ma.x,ma.y)) bad.push('marsh:'+ma.id); }
+  for(const r of RIVERS){ if(!landAt(r.path[0][0],r.path[0][1])) bad.push('river-source:'+r.name); }
+  for(const h of HIDDEN){
+    if(h.x!=null && ['camp','crime','ruin','rail','cult'].includes(h.icon) && !landAt(h.x,h.y)) bad.push('hidden:'+h.id);
+  }
+  if(D.SEASON_ACTIVITIES) for(const a of D.SEASON_ACTIVITIES){ if(!landAt(a.x,a.y)) bad.push('activity:'+a.id); }
   return bad;
 }
 
 return { thetaOf, ellipseR, coastRadiusAt, onContinent, islandAt, landAt, angDeg,
   inForestRing, inPoly, distToPath, kingdomAt, lakeAt, MTNFIELD, hash2, vnoise, fbm,
   PALETTES, lerpC, SEASONPAR, HA_POOLS, terrainAt, paintRegion, paintWeather,
-  seasonalMult, sampleTerrainSpeeds, fmtDays, nearestGate, computeJourney, landCheck };
+  seasonalMult, sampleTerrainSpeeds, fmtDays, nearestGate, computeJourney, landCheck,
+  computeDomains, domainInfoAt, routeWaterAudit, popOf, seaDistToLand };
 })(typeof TDA_DATA !== 'undefined' ? TDA_DATA : require('./data.js'));
 if (typeof module !== 'undefined' && module.exports) module.exports = TDA_GEO;
 if (typeof globalThis !== 'undefined') globalThis.TDA_GEO = TDA_GEO;
