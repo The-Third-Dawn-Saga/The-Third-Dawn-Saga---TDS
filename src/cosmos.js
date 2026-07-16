@@ -407,6 +407,28 @@ function init(){
     }
   }
 
+  /* the Celestial Circle: a tiny ring of standing stones, faintly lit */
+  {
+    const cc=WONDERS.find(w=>w.id==='celestialcircle');
+    if(cc){
+      const cx=wx2s(cc.x), cz=wy2s(cc.y);
+      const grp=new THREE.Group();
+      const stoneMat=new THREE.MeshStandardMaterial({color:0xb8b2a4,roughness:0.85,emissive:0x8a8474,emissiveIntensity:0.25});
+      for(let i=0;i<6;i++){
+        const a=i/6*Math.PI*2;
+        const stone=new THREE.Mesh(new THREE.BoxGeometry(2.2,7.5,3),stoneMat);
+        stone.position.set(cx+Math.cos(a)*10,9.5,cz+Math.sin(a)*10);
+        stone.rotation.y=-a;
+        grp.add(stone);
+      }
+      grp.children.forEach(st=>{ st.userData={name:cc.name,info:cc.info}; pickables.push(st); });
+      const l=new THREE.PointLight(0xffffff,0.35,130);
+      l.position.set(cx,16,cz);
+      grp.add(l);
+      scene.add(grp);
+    }
+  }
+
   /* World Tree (readable scale) + glow shell */
   {
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(6,10,150,10),

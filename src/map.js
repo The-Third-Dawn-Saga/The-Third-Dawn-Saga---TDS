@@ -809,6 +809,21 @@ function drawWonders(){
       const cg=ctx.createRadialGradient(p[0],p[1]-h,1,p[0],p[1]-h,h*0.66);
       cg.addColorStop(0,'rgba(120,235,150,0.95)'); cg.addColorStop(1,'rgba(40,140,70,0.12)');
       ctx.beginPath(); ctx.arc(p[0],p[1]-h,h*0.6,0,7); ctx.fillStyle=cg; ctx.fill();
+    } else if(w.icon==='circle'){
+      // the Celestial Circle: a small ring of standing-stone dots
+      const accent= STYLE==='painted' ? '#7a5230' : (STYLE==='satellite' ? '#f0dc9a' : '#b06000');
+      const R=8*DPR;
+      if(STYLE==='painted'){ // faint radiance halo
+        const rad=ctx.createRadialGradient(p[0],p[1],1,p[0],p[1],14*DPR);
+        rad.addColorStop(0,'rgba(244,226,160,0.55)'); rad.addColorStop(1,'rgba(244,226,160,0)');
+        ctx.beginPath(); ctx.arc(p[0],p[1],14*DPR,0,7); ctx.fillStyle=rad; ctx.fill();
+      }
+      ctx.fillStyle=accent;
+      for(let i=0;i<6;i++){
+        const a=i/6*Math.PI*2-Math.PI/2;
+        ctx.beginPath(); ctx.arc(p[0]+Math.cos(a)*R,p[1]+Math.sin(a)*R,1.7*DPR,0,7);
+        ctx.fill();
+      }
     } else {
       ctx.font=`${13*DPR}px ${SANS}`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle= STYLE==='painted' ? '#7a5230' : (STYLE==='satellite' ? '#f0dc9a' : '#b06000');
@@ -912,6 +927,13 @@ function drawLabels(){
     cands.push({pri:0, text:s.name, x:s.x, y:s.y, dy:14, size:12.5,
       fill: painted?'#2e2012':(STYLE==='satellite'?'#ffffff':'#202124')});
   }
+  // priority 0: landmark sites (the Celestial Circle) — label sits BELOW the
+  // glyph so it clears Pilgrim's Rest to the north-west
+  if(view.scale>=0.08){
+    const cc=WONDERS.find(w=>w.id==='celestialcircle');
+    if(cc) cands.push({pri:0, text:cc.name, x:cc.x, y:cc.y, dy:20, size:10.5, italic:true,
+      fill: painted?'#7a5230':(STYLE==='satellite'?'#f0dc9a':'#b06000')});
+  }
   // priority 1: kingdom names
   for(const k of KINGDOMS){
     const c=k.shape==='circle'?[k.cx,k.cy]:centroid(k.poly);
@@ -932,7 +954,7 @@ function drawLabels(){
   // priority 4: features
   if(view.scale>0.075){
     for(const w of WONDERS){
-      if(w.id==='worldtree') continue;
+      if(w.id==='worldtree'||w.id==='celestialcircle') continue;
       cands.push({pri:4, text:w.name, x:w.x, y:w.y, dy:-13, size:10, italic:true,
         fill: painted?'#7a5230':(STYLE==='satellite'?'#f0dc9a':'#b06000')});
     }

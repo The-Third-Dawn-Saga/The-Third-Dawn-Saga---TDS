@@ -165,6 +165,21 @@ console.log('— iteration 3: Domains —');
   t('Red Reaches unclaimed by domains', mask===null, mask&&mask.settlement.name);
 }
 
+console.log('— the Celestial Circle —');
+{
+  const w=D.WONDERS.find(w=>w.id==='celestialcircle');
+  t('present in WONDERS', !!w);
+  t('on land (covered by __landCheck)', !!G.landAt(w.x,w.y) && G.landCheck().length===0);
+  t('within ~60 mi of the calibrated point', Math.hypot(w.x-5290,w.y-3860)<=60);
+  t('outside the Heartlands circle (>800 mi)', Math.hypot(w.x-4500,w.y-3500)>800,
+    Math.hypot(w.x-4500,w.y-3500).toFixed(0)+' mi');
+  t('inside no kingdom polygon', G.kingdomAt(w.x,w.y)===null);
+  t('a mountain-shoulder site (Spine of Heaven band)', G.terrainAt(w.x,w.y)==='mountain');
+  t('revelation text + tags verbatim', w.info.includes('Rhy Sunfire as the next Chosen One')
+    && w.info.includes('the reincarnation of Aurelion')
+    && w.info.includes('[Placement PROPOSED per ruling, July 2026; revelation event canon per author]'));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

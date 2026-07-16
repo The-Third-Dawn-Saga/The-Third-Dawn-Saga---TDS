@@ -215,6 +215,13 @@ WONDERS.push(
     info:'A beacon from before the Forgetting whose light needs no fuel. The Admiralty charts every sea-lane by it and forbids asking how it burns. [PROPOSED]' }
 );
 
+
+/* ---- The Celestial Circle: revelation site of Rhy and Ashran (July 2026) ---- */
+WONDERS.push(
+  { id:'celestialcircle', name:'The Celestial Circle', x:5290, y:3860, icon:'circle',
+    info:'A ring of ancient standing stones on the Spine of Heaven\u2019s western shoulder, above the pilgrim road. Here the Circle burned with divine light and two were revealed before the world: Rhy Sunfire as the next Chosen One, and Ashran as the reincarnation of Aurelion. Pilgrims now walk the ring sunwise and leave nothing behind; the stones are said to remember who stands inside them. [Placement PROPOSED per ruling, July 2026; revelation event canon per author]' }
+);
+
 const LAKES = [
   { id:'hundredautumns', name:'The Lake of a Hundred Autumns', x:6900, y:3900, rx:120, ry:85,
     info:'The great crane lake of the Jade Empire, shrinking into a hundred smaller lakes each dry season as half a million birds arrive. An imperial edict bans fishing for a decade at a time; enforcement is a Xun-Wei duty and a smuggler\u2019s opportunity. [PROPOSED]' },
