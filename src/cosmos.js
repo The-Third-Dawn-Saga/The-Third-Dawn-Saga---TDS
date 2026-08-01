@@ -346,7 +346,9 @@ function init(){
     for(const fo of FORESTS){
       for(let i=0;i<130;i++){
         const a=G.hash2(i,fo.x)*Math.PI*2, r=Math.sqrt(G.hash2(i,fo.y));
-        spots.push([fo.x+Math.cos(a)*fo.rx*r, fo.y+Math.sin(a)*fo.ry*r, 0.8+G.hash2(i,5)]);
+        const x=fo.x+Math.cos(a)*fo.rx*r, y=fo.y+Math.sin(a)*fo.ry*r;
+        if(fo.hole && Math.hypot(x-fo.hole.x,y-fo.hole.y)<=fo.hole.r) continue;  // the Wardwood's clearing
+        spots.push([x, y, 0.8+G.hash2(i,5)]);
       }
     }
     const geo=new THREE.ConeGeometry(4.4,15,5);
@@ -389,6 +391,7 @@ function init(){
   /* islands */
   {
     for(const isl of ISLANDS){
+      if(isl.hidden) continue;          // the hidden isles belong to the map's Hidden World layer
       const sx=wx2s(isl.x), sz=wy2s(isl.y);
       const col={lush:0x2f7a44,snow:0xdfe8ee,sand:0xd6c491,rock:0x6b6660,pirate:0x3f7a4e,pillar:0x241f1c}[isl.kind]||0x555;
       const m=new THREE.Mesh(new THREE.CylinderGeometry(isl.rx*KX,isl.rx*KX*1.12,isl.kind==='pillar'?26:10, 12),

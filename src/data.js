@@ -19,7 +19,7 @@ const KINGDOMS = [
     poly:[[3300,900],[4200,620],[5150,750],[5450,1250],[5100,1850],[4300,2050],[3550,1850],[3200,1350]],
     cap:[4450,1500], pop:'5,000,000', territory:'2.5M sq mi', age:'~500 years (youngest great kingdom)',
     ruler:'The Iron King', power:'Controls 60% of continental iron. Arms dealer to every kingdom. The Underkeep shelters 60% of the population underground through ten-month winters.',
-    facts:'Crystal Lakes freeze ten months a year. Iron Cubs child-soldier program (45% survival). Secret alliance with the Eastern Jade Empire. Underground railroad helping children escape operates from here. Proud, warlike jarl culture of Germanic root: internal feuds are constant, and unification holds only under the Iron King\u2019s fist.' },
+    facts:'Crystal Lakes freeze ten months a year. Iron Cubs child-soldier program (45% survival). Secret alliance with the Eastern Jade Empire. Underground railroad helping children escape operates from here. Proud, warlike jarl culture of Germanic root: internal feuds are constant, and unification holds only under the Iron King\u2019s fist. Sixty percent of its people live underground \u2014 founded belief says the mountains protect them; the older cause walks across the ice each winter. [LOCKED]' },
   { id:'imperium', name:'Holy Imperium', capital:'Trinity Citadel', color:'#5b4a7d', border:'#8f7ab8',
     poly:[[5150,1550],[5900,1450],[6250,1850],[6050,2350],[5450,2500],[5100,2150]],
     cap:[5620,1950], pop:'7,000,000', territory:'1M sq mi', age:'~2,768 years',
@@ -42,7 +42,7 @@ const KINGDOMS = [
     cap:[1950,3350], pop:'2,500,000', territory:'1.75M sq mi', age:'~9,500 years (oldest)',
     ruler:'None recognised — the Forsaken govern themselves',
     power:'Power through what it hides: 500,000 escaped child soldiers, outcasts and refugees live invisibly in the Borderland Marshes. Corrupted by Serathane\u2019s blood; the Blight expands yearly.',
-    facts:'Poison rivers kill in minutes. Permanent grey sky. Forsaken Legion (15% survival). Kaelen was found here. Maps mark it empty; it is not.' },
+    facts:'Poison rivers kill in minutes. Permanent grey sky. Forsaken Legion (15% survival). Kaelen was found here. Maps mark it empty; it is not. The Forest of the Forgetting stands in its interior over the inverted Tree of Knowledge; the Ashlands have lived beside an amnesia field since before any kingdom had a name, which is why the oldest people on the continent never once rose. [LOCKED]' },
   { id:'jade', name:'Eastern Jade Empire', capital:'Celestial City', color:'#1f5c40', border:'#3f9c6e',
     poly:[[6150,2500],[7250,2350],[7950,2900],[8000,3900],[7500,4650],[6600,4600],[6150,3700]],
     cap:[7050,3600], pop:'14,000,000 (largest)', territory:'3.75M sq mi', age:'~2,000 years',
@@ -216,6 +216,15 @@ WONDERS.push(
 );
 
 
+/* ---- The Salt and the Unknown One: the temple on the western Crown Road
+   (July 2026 lockdown). Nudged 11 mi along the road from the calibrated
+   (3700,3455) so it sits ON the spur exactly where it crosses the
+   Heartlands' 800-mile boundary. ---- */
+WONDERS.push(
+  { id:'unknowntemple', name:'The Temple of the Unknown One', x:3702, y:3444, icon:'circle',
+    info:'A stone temple on the western Crown Road at the point where it enters the Central Heartlands, as old as the self-repairing roads themselves. Its walls are carved edge to edge with inscriptions no living person can read; the order that keeps it, the Unlettered, has no doctrine because the doctrine was in the writing. But the temple protects: harvests near it hold, sickness turns aside, children born in its shadow live. So they sweep the floors, wash the words they cannot read, and pray at a wall addressed to nobody. The temple is Aethu’s; the erasure is Serathane’s; Aethu answers anyway. [LOCKED — The Salt and the Unknown One, July 2026]' }
+);
+
 /* ---- The Celestial Circle: revelation site of Rhy and Ashran (July 2026) ---- */
 WONDERS.push(
   { id:'celestialcircle', name:'The Celestial Circle', x:5290, y:3860, icon:'circle',
@@ -250,7 +259,7 @@ const FORESTS = [
   { id:'jotunwood', name:'The Jotunwood', x:4300, y:1780, rx:250, ry:120,
     info:'The old-growth taiga of the Northern Throne; reindeer-kin winter beneath its lichen snow, and the jarls\u2019 law ends at its eaves. [PROPOSED]' },
   { id:'whisperwood', name:'The Whisperwood', x:4850, y:3150, rx:140, ry:95,
-    info:'An old-growth sacred grove of the Heartlands where the Bough-Wards keep the territorial trees; a felled ward-tree is an act of war answerable at the Grove-Moot. [PROPOSED]' },
+    info:'An old-growth sacred grove of the Heartlands where the Bough-Wards keep the territorial trees; a felled ward-tree is an act of war answerable at the Grove-Moot. [PROPOSED] [RECONCILE note: read as a named grove within the greater Wardwood.]' },
 ];
 
 
@@ -259,7 +268,7 @@ const FORESTS = [
    kind:'enchanted' gets a faint shimmer in the Painted style. ---- */
 FORESTS.push(
   { id:'gloamwood', name:'The Gloamwood', x:3550, y:1750, rx:160, ry:90, kind:'dark',
-    info:'Dark forest between Vaelthorne and the Northern marches; the legions burned it twice and it is wider now than before either fire. [PROPOSED]' },
+    info:'Dark forest between Vaelthorne and the Northern marches; the legions burned it twice and it is wider now than before either fire. [PROPOSED] [RECONCILE note: read as Vargholt’s burned southern arm.]' },
   { id:'hungrypines', name:'The Hungry Pines', x:5100, y:1950, rx:140, ry:80, kind:'dark',
     info:'A cold arm of taiga south of the Jotunwood where travelers count their party at every rest, out of habit they cannot name. [PROPOSED]' },
   { id:'elderlight', name:'The Elderlight Grove', x:5250, y:3150, rx:100, ry:70, kind:'enchanted',
@@ -272,6 +281,24 @@ FORESTS.push(
     info:'Briar-choked dark forest in the Albion\u2013Jade corridor; Merchant\u2019s Haven pays the free towns to keep its one road cut. [PROPOSED]' },
   { id:'palewood', name:'The Palewood', x:4450, y:2450, rx:90, ry:60, kind:'dark',
     info:'Haunted birch stand in the northern corridor; white bark, black knots, and a local custom of whistling through it that nobody breaks first. [PROPOSED]' }
+);
+
+/* ---- The Unhealed: the four canon scars (July 2026 lockdown).
+   The four places the world never finished healing after the Dark Ages.
+   Distinct from the Elven Forest Ring.
+   kind:'grey' renders desaturated grey-green with a pale mist stipple in
+   the Painted style — the Forgetting must read wrong, not lush.
+   `hole` carves a clear annulus centre (the Wardwood rings the World Tree,
+   so Verdanthome and Root City stay legible inside it). ---- */
+FORESTS.push(
+  { id:'forgetting', name:'The Forest of the Forgetting', x:1800, y:3250, rx:160, ry:105, kind:'grey',
+    info:'The forest that grew over the inverted Tree of Knowledge, where Serathane rammed the drained tree into the earth and poured himself in. The pulse that took the world’s memory went out from here, and the ground has never stopped leaking: cross the treeline and by nightfall you cannot say who lit your fire. The only armor is knowing thyself. Ashlands folk call it the Grey Miles; the druids of the Wardwood call it the Orchard, and nobody outside the order understands the joke. This is why the Ashlands never rose: they have lived beside an amnesia field since before any kingdom had a name. [LOCKED — The Unhealed, July 2026]' },
+  { id:'vargholt', name:'Vargholt', x:3450, y:1290, rx:200, ry:110, kind:'dark',
+    info:'The great cold wood of the northern wilds between the Northern Throne and the Vaelthorne highlands, where the Flow never came all the way back. The folk who live in it are descendants of the communities that stayed on the surface through the Dark Ages: they change with the moon, they have villages and a language cousin to Northern speech, and there is no curse and no cure because there is nothing to cure. The Northern Throne has hunted them as vermin for five centuries. [LOCKED — The Unhealed. Placement note: the Gloamwood to its south is read as Vargholt’s burned southern arm — RECONCILE pending ruling]' },
+  { id:'widowwood', name:'The Widow Wood', x:5500, y:4300, rx:110, ry:75, kind:'dark',
+    info:'A normal-looking wood on the overland route between Albion Magna and the Heartlands, named by the villages on its edge for what happens to the wives of men who go in. There is no mist and no gate. Men walk in on purpose, to see their aunt. [LOCKED — The Unhealed]' },
+  { id:'wardwood', name:'The Wardwood', x:4450, y:3400, rx:230, ry:155, kind:'forest', hole:{ x:4500, y:3500, r:70 },
+    info:'The druidic woodland of the Central Heartlands, ringing the surviving Tree of Life. The druids are not pacifists; they are a watch: they tend the last standing tree, keep the record of what lies under the Ashlands, and hold the only reliable knowledge of how to enter the Forgetting and come out. Three empires walked across them and never asked what the wardens were warding. Wardwood timber is the only hull that reaches the far shore, and the druids give it, never sell it, and decide who receives it. [LOCKED — The Unhealed. RECONCILE note: the Whisperwood is read as a named grove WITHIN the Wardwood]' }
 );
 
 /* ---- Iteration 3 rivers: free-corridor water (July 2026) ---- */
@@ -401,6 +428,17 @@ HIDDEN.push(
 );
 
 
+/* ---- The Unhealed: hidden-world sites (July 2026 lockdown) ---- */
+HIDDEN.push(
+  { id:'undercroft', name:'The Old Cathedral — the Undercroft', x:5750, y:1900, icon:'cult',
+    info:'A great deconsecrated cathedral in the Holy Imperium, its dedication struck from the rolls, built over a pit. The pit opens into a cave system running under most of the Imperium and out beneath the sea, and the vampire city that fills it is called the Undercroft: the Imperium named it before it forgot it had. Its people are the Signed, made by the same soul contract as the Void Queen’s Three — the aristocracy came from this population. At night, from the cathedral floor, you can hear a grand piano. [LOCKED — The Unhealed. The piano is never explained.]' },
+  { id:'auntscottage', name:'The Aunt’s Cottage', x:5520, y:4330, icon:'cult',
+    info:'The villages do not say her name; they say a man has gone to see his aunt, and everyone understands, and nobody stops him. She reads futures honestly and well, and her fee is your other name — the one the dead know you by. A person without a soul name does not die and does not leave. The animals around her cottage are the point. There are a great many of them, and some of them are very old. [LOCKED — The Unhealed; what she is remains OPEN]' },
+  { id:'iceedge', name:'The Ice Edge — the Winter Crossing', x:4550, y:780, icon:'ruin',
+    info:'When the northern ocean freezes, the sirens walk. They do not fly the crossing, and nobody knows why, and the walking is worse to watch. Hundreds of men die every winter; the Stone-Ears — children deafened in infancy by families honored for it — hold the line and cannot hear the war they are fighting. This, not the Vaelthorne, is why the North went underground. [LOCKED — The Unhealed]' }
+);
+
+
 /* The Red Reaches: badlands corridor between the Ashlands and the Sunlands.
    Canyon-and-mesa wasteland; the desert does not stop at borders. [PROPOSED, July 2026] */
 const BADLANDS = { name:'The Red Reaches',
@@ -422,6 +460,13 @@ const MAELSTROMS = [
   { id:'vortex_n', name:'The Northern Vortex', x:5300, y:320, r:90, vortex:true,
     info:'The Veiled Vortex\u2019s twin in the Northern Frozen Sea. Dormant except at the alignment, when the two turn as one wheel and the passage opens. The Deep Watch ledger records it turning exactly four times in three centuries. [Established prior session; atlas placement PROPOSED]' },
 ];
+
+/* ---- The white eel whirlpool behind the drowned kingdom (July 2026
+   lockdown). Name is descriptive pending ruling. ---- */
+MAELSTROMS.push(
+  { id:'m_eelway', name:'The Drowned Kingdom Whirlpool', x:250, y:3200, r:55,
+    info:'The whirlpool in the sea behind Serathane\u2019s drowned kingdom, beside the elven seal at Mor\u2019kaleth. It connects to others elsewhere, which is why white eels \u2014 the fish of the waters above the sunken kingdom \u2014 turn up, rarely and inexplicably, in seas thousands of miles away. Fishermen in four kingdoms have caught one in a lifetime and been called liars. [LOCKED \u2014 The Unhealed. OPEN: whether the whirlpools are a distinct phenomenon or old routes drowned and running unattended.]' }
+);
 
 /* Straits through the Forest Ring & seas */
 const SEAMARKS = [
@@ -596,6 +641,17 @@ const ISLANDS = [
   { id:'pillar2', name:'', x:7660, y:920, rx:20, ry:14, seed:2.6, kind:'pillar', info:'The Drowning Pillars \u2014 submarine volcano.' },
   { id:'pillar3', name:'', x:7430, y:960, rx:17, ry:12, seed:4.2, kind:'pillar', info:'The Drowning Pillars \u2014 submarine volcano.' },
 ];
+
+/* ---- The Unhealed / The Angels Door: the two far-northern isles
+   (July 2026 lockdown). hidden:true keeps them out of the raster, the
+   terrain model and the coastal banding entirely \u2014 they draw, label and
+   hit-test only while the Hidden World layer is on. ---- */
+ISLANDS.push(
+  { id:'lastdoor', name:'The Isle of the Last Door', x:7300, y:350, rx:55, ry:38, seed:4.4, kind:'rock', hidden:true,
+    info:'Northeast of the continent, past the last of the northern islands: ringed by whirlpools and jagged rock, sirens roosting on the stones. The clouds above it are red and drop sparks instead of rain; the ground is black; the water for a mile out is grey and does not reflect. The gate on it is an angelic repair built from the remains of the Tree of Souls \u2014 given mockingly by Serathane, through whom the road to the dead now runs. The gate works. The dead come, and it is genuinely them. The price is a soul name, and the names feed his frozen archive; he holds only the souls who passed before his consumption of the Tree. Only a hull of Wardwood timber reaches it. [LOCKED \u2014 The Unhealed + The Angels Door amendment, July 2026]' },
+  { id:'lostisle', name:'The Lost Isle', x:4300, y:250, rx:48, ry:32, seed:1.7, kind:'rock', hidden:true,
+    info:'Among the many islands of the Northern Sea, beyond the shores of the Northern Throne. It is on no chart, no ship has ever reached it on purpose, and roughly one crew a generation reaches it by accident and does not return. The sirens roost here: a woman\u2019s head, a woman\u2019s hands, enormous wings, the body of a raptor \u2014 and cloaks, which is the detail that should not belong on a monster. [LOCKED \u2014 The Unhealed. PROPOSED: they are psychopomps; never stated on the page.]' }
+);
 
 /* ---- elven ring gates: passage to and from the coast ---- */
 const RING_GATES = [

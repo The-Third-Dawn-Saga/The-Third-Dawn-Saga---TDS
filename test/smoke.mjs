@@ -180,6 +180,142 @@ console.log('— the Celestial Circle —');
     && w.info.includes('[Placement PROPOSED per ruling, July 2026; revelation event canon per author]'));
 }
 
+console.log('— July 2026 lockdowns: the four canon scars —');
+{
+  const F=id=>D.FORESTS.find(f=>f.id===id);
+  const ids=['forgetting','vargholt','widowwood','wardwood'];
+  t('four new forests merged', ids.every(id=>!!F(id)));
+  t('all four tagged [LOCKED', ids.every(id=>F(id).info.includes('[LOCKED')));
+  t('the Forgetting is the grey kind', F('forgetting').kind==='grey');
+  t('grey kind paints differently from a plain forest', (()=>{
+    const a=new Uint8ClampedArray(4), b=new Uint8ClampedArray(4);
+    // same fbm phase, one inside the Forgetting and one inside the Wardwood body
+    G.paintRegion(a,1,1,1800,3250,1801,3251,{style:'painted',season:1});
+    G.paintRegion(b,1,1,4350,3400,4351,3401,{style:'painted',season:1});
+    return a.join()!==b.join();
+  })());
+  t('the Forgetting reads desaturated, not lush', (()=>{
+    const px=new Uint8ClampedArray(4);
+    G.paintRegion(px,1,1,1800,3250,1801,3251,{style:'satellite',season:1});
+    return Math.abs(px[0]-px[1])<40 && Math.abs(px[1]-px[2])<40;   // low chroma
+  })());
+  // the Wardwood is an annulus: the World Tree, Verdanthome and the Gate stay clear
+  t('Wardwood ellipse would swallow the World Tree', (()=>{
+    const w=F('wardwood');
+    return Math.hypot((4500-w.x)/w.rx,(3500-w.y)/w.ry)<=1;
+  })());
+  t('Wardwood clearing keeps the World Tree legible', G.forestAt(4500,3500)===null);
+  t('Wardwood clearing covers Root City + the World Tree Gate',
+    G.forestAt(4500,3500)===null && G.forestAt(4500,3470)===null);
+  t('Wardwood body is still forest', (G.forestAt(4350,3400)||{}).id==='wardwood' && G.terrainAt(4350,3400)==='forest');
+  // the Widow Wood sits on the Wool Road
+  {
+    const wool=D.ROUTES.find(r=>r.name==='The Wool Road: Root City–Crownsburg');
+    const w=F('widowwood');
+    let inside=0;
+    for(let i=0;i<wool.path.length-1;i++){
+      const [ax,ay]=wool.path[i],[bx,by]=wool.path[i+1];
+      const L=Math.hypot(bx-ax,by-ay), steps=Math.max(2,Math.ceil(L/5));
+      for(let s=0;s<steps;s++){ const tt=s/steps;
+        if(G.inForestBody(ax+(bx-ax)*tt, ay+(by-ay)*tt, w)) inside++; }
+    }
+    t('the Wool Road runs visibly through the Widow Wood', inside>=10, inside*5+' mi of road inside');
+  }
+  // Vargholt: distinct from the Elven Forest Ring, north of the Gloamwood
+  t('Vargholt stands clear of the Elven Forest Ring band', !G.inForestRing(F('vargholt').x,F('vargholt').y));
+  t('Vargholt sits north of the Gloamwood', F('vargholt').y < F('gloamwood').y);
+  t('the Gloamwood carries its RECONCILE note', F('gloamwood').info.includes('[RECONCILE note: read as Vargholt’s burned southern arm.]'));
+  t('the Whisperwood carries its RECONCILE note', F('whisperwood').info.includes('[RECONCILE note: read as a named grove within the greater Wardwood.]'));
+  // the Weeping Wastes marker must not be swallowed by the Forgetting
+  const ww=D.WONDERS.find(w=>w.id==='weepingwastes');
+  t('the Weeping Wastes marker clears the Forgetting', !G.inForestBody(ww.x,ww.y,F('forgetting')));
+}
+
+console.log('— July 2026 lockdowns: the new sites —');
+{
+  const tm=D.WONDERS.find(w=>w.id==='unknowntemple');
+  t('the Temple of the Unknown One is in WONDERS', !!tm);
+  t('temple within ~30 mi of the calibrated point', Math.hypot(tm.x-3700,tm.y-3455)<=30,
+    Math.hypot(tm.x-3700,tm.y-3455).toFixed(1)+' mi');
+  const spur=D.ROUTES.find(r=>r.name==='Crown Road: western spur');
+  t('the temple sits ON the western Crown Road spur', G.distToPath(tm.x,tm.y,spur.path)<3,
+    G.distToPath(tm.x,tm.y,spur.path).toFixed(2)+' mi off the road');
+  t('the temple sits at the Heartlands boundary', Math.abs(Math.hypot(tm.x-4500,tm.y-3500)-800)<12,
+    Math.hypot(tm.x-4500,tm.y-3500).toFixed(1)+' mi from the World Tree (boundary 800)');
+  t('temple tag verbatim', tm.info.includes('[LOCKED — The Salt and the Unknown One, July 2026]'));
+
+  const H=id=>D.HIDDEN.find(h=>h.id===id);
+  for(const id of ['undercroft','auntscottage','iceedge']){
+    t('hidden site '+id+' merged and on land', !!H(id) && !!G.landAt(H(id).x,H(id).y));
+    t('hidden site '+id+' tagged [LOCKED', H(id).info.includes('[LOCKED'));
+  }
+  const w=D.FORESTS.find(f=>f.id==='widowwood'), ac=H('auntscottage');
+  t("the Aunt's Cottage stands inside the Widow Wood", G.inForestBody(ac.x,ac.y,w));
+  const ie=H('iceedge');
+  t('the Ice Edge is on the northern coastal strip', G.onContinent(ie.x,ie.y) && !G.inForestRing(ie.x,ie.y),
+    'er/cr='+(G.ellipseR(ie.x,ie.y)/G.coastRadiusAt(ie.x,ie.y)).toFixed(4));
+  t('the Ice Edge is outside the Ring band, not in the sea',
+    G.ellipseR(ie.x,ie.y)/G.coastRadiusAt(ie.x,ie.y) > D.FOREST_RING.outer);
+}
+
+console.log('— July 2026 lockdowns: the hidden isles + the white eel whirlpool —');
+{
+  const I=id=>D.ISLANDS.find(s=>s.id===id);
+  for(const id of ['lastdoor','lostisle']){
+    const s=I(id);
+    t('hidden isle '+id+' merged with hidden:true', !!s && s.hidden===true);
+    t('hidden isle '+id+' stands in open water', !G.onContinent(s.x,s.y));
+    t('hidden isle '+id+' is hit-testable only as hidden',
+      (G.hiddenIslandAt(s.x,s.y)||{}).id===id && G.islandAt(s.x,s.y)===null);
+    t('hidden isle '+id+' is absent from the terrain model', G.terrainAt(s.x,s.y)==='water');
+    t('hidden isle '+id+' tagged [LOCKED', s.info.includes('[LOCKED'));
+  }
+  const vn=D.MAELSTROMS.find(m=>m.id==='vortex_n');
+  for(const id of ['lastdoor','lostisle']){
+    const s=I(id);
+    t(id+' clears the Northern Vortex by 400+ mi', Math.hypot(s.x-vn.x,s.y-vn.y)>=400,
+      Math.hypot(s.x-vn.x,s.y-vn.y).toFixed(0)+' mi');
+  }
+  t('the two isles clear each other', Math.hypot(I('lastdoor').x-I('lostisle').x, I('lastdoor').y-I('lostisle').y)>=400);
+  // hidden isles must be invisible to the water painter: the Painted style's
+  // coastal contour banding is driven by seaDistToLand, which must not see them
+  const dist=(x,y)=>G.seaDistToLand(x,y,G.thetaOf(x,y),G.coastRadiusAt(x,y),G.ellipseR(x,y));
+  t('hidden isles register as open sea, not land', (()=>{
+    const charted=dist(D.ISLANDS.find(s=>s.id==='shard_w').x, D.ISLANDS.find(s=>s.id==='shard_w').y);
+    return dist(7300,350)>300 && dist(4300,250)>300 && charted<1;
+  })(), 'lastdoor '+dist(7300,350).toFixed(0)+' mi, lostisle '+dist(4300,250).toFixed(0)+' mi from any land');
+  t('hidden isles are excluded from VISIBLE_ISLANDS',
+    G.VISIBLE_ISLANDS.length===D.ISLANDS.length-2 && G.HIDDEN_ISLANDS.length===2);
+
+  const ms=D.MAELSTROMS.find(m=>m.id==='m_eelway');
+  t('the white eel whirlpool merged', !!ms && ms.name==='The Drowned Kingdom Whirlpool');
+  t('the whirlpool is in open water', !G.landAt(ms.x,ms.y));
+  const mk=D.HIDDEN.find(h=>h.id==='morkaleth'), wp=D.HIDDEN.find(h=>h.id==='weapon');
+  t('whirlpool keeps 450+ mi from Mor’kaleth', Math.hypot(ms.x-mk.x,ms.y-mk.y)>=450,
+    Math.hypot(ms.x-mk.x,ms.y-mk.y).toFixed(0)+' mi');
+  t('whirlpool keeps 350+ mi from the Weapon', Math.hypot(ms.x-wp.x,ms.y-wp.y)>=350,
+    Math.hypot(ms.x-wp.x,ms.y-wp.y).toFixed(0)+' mi');
+  t('whirlpool tag verbatim + name left descriptive',
+    ms.info.includes('[LOCKED — The Unhealed. OPEN: whether the whirlpools are a distinct phenomenon or old routes drowned and running unattended.]'));
+}
+
+console.log('— July 2026 lockdowns: info-text updates + deliberate omissions —');
+{
+  const ash=D.KINGDOMS.find(k=>k.id==='ashlands');
+  t('Western Ashlands entry carries the amnesia-field sentence',
+    ash.facts.includes('The Forest of the Forgetting stands in its interior over the inverted Tree of Knowledge; the Ashlands have lived beside an amnesia field since before any kingdom had a name, which is why the oldest people on the continent never once rose. [LOCKED]'));
+  const nor=D.KINGDOMS.find(k=>k.id==='northern');
+  t('Northern Throne entry carries the underground sentence',
+    nor.facts.includes('Sixty percent of its people live underground — founded belief says the mountains protect them; the older cause walks across the ice each winter. [LOCKED]'));
+  // DO NOT MAP: unmappable by canon design
+  const allIds=[...D.SETTLEMENTS,...D.HIDDEN,...D.WONDERS,...D.ISLANDS,...D.FORESTS,...D.LAKES].map(o=>o.id).join(' ');
+  const allNames=[...D.SETTLEMENTS,...D.HIDDEN,...D.WONDERS,...D.ISLANDS,...D.FORESTS,...D.LAKES].map(o=>o.name||'').join(' | ');
+  for(const banned of ['The Vault','the Mystic','The Old Man','Loomhouse','Scarlet Seer','God’s Library','Library of Aethu'])
+    t('not mapped: '+banned, !allNames.includes(banned));
+  for(const banned of ['vault','mystic','oldman','loomhouse','scarletseer','godslibrary'])
+    t('no id for: '+banned, !new RegExp('\\b'+banned+'\\b').test(allIds));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

@@ -19,8 +19,14 @@ function ellipseR(x,y){
 }
 function coastRadiusAt(x,y){ return coastNoise(thetaOf(x,y)); }
 function onContinent(x,y){ return ellipseR(x,y) <= coastRadiusAt(x,y); }
-function islandAt(x,y){
-  for(const isl of ISLANDS){
+/* Hidden isles (the Last Door, the Lost Isle) belong to the Hidden World
+   layer alone: they are excluded from the raster, the terrain model and the
+   coastal contour banding, and drawn as vectors by the map when that layer
+   is on. VISIBLE_ISLANDS is everything the world at large can chart. */
+const VISIBLE_ISLANDS = ISLANDS.filter(s=>!s.hidden);
+const HIDDEN_ISLANDS  = ISLANDS.filter(s=>s.hidden);
+function islandHit(x,y,list){
+  for(const isl of list){
     const dx=(x-isl.x)/isl.rx, dy=(y-isl.y)/isl.ry;
     const r=Math.sqrt(dx*dx+dy*dy);
     if(r<=1.35){
@@ -30,6 +36,8 @@ function islandAt(x,y){
   }
   return null;
 }
+function islandAt(x,y){ return islandHit(x,y,VISIBLE_ISLANDS); }
+function hiddenIslandAt(x,y){ return islandHit(x,y,HIDDEN_ISLANDS); }
 function landAt(x,y){
   if(onContinent(x,y)) return {type:'continent'};
   const isl=islandAt(x,y);
@@ -79,6 +87,19 @@ function lakeAt(x,y){
   }
   return null;
 }
+/* A named forest covers a point when it is inside the ellipse and outside
+   any carved clearing. The Wardwood's `hole` is the annulus that keeps the
+   World Tree, Verdanthome and Root City legible inside the ring of trees. */
+function inForestBody(x,y,fo){
+  const dx=(x-fo.x)/fo.rx, dy=(y-fo.y)/fo.ry;
+  if(dx*dx+dy*dy>1) return false;
+  if(fo.hole && Math.hypot(x-fo.hole.x,y-fo.hole.y)<=fo.hole.r) return false;
+  return true;
+}
+function forestAt(x,y){
+  for(const fo of FORESTS) if(inForestBody(x,y,fo)) return fo;
+  return null;
+}
 
 /* coarse mountain-distance field (for raster + relief speed) */
 const MTNFIELD={ w:360, h:280, data:null,
@@ -125,7 +146,7 @@ satellite:{
   glass:[232,224,192], salt:[238,234,223],
   snow:[[226,233,238],[240,245,248]], waste:[[90,84,76],[107,98,88]], zark:[[76,68,62],[88,76,66]],
   swamp:[30,45,30], ring:[40,74,38], ridge:[110,106,98], snowcap:[240,244,248],
-  darkForest:[26,52,34], enchanted:[74,142,84],
+  darkForest:[26,52,34], enchanted:[74,142,84], greyForest:[86,96,84], greyMist:[178,182,172],
   badA:[150,96,62], badB:[190,138,92], badCanyon:[92,56,40],
   scar:[16,12,16], lavadot:[255,110,50],
   seaIce:[214,230,240], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
@@ -140,7 +161,7 @@ atlas:{
   desert:[[245,241,230],[240,235,220]], glass:[240,236,222], salt:[248,246,240],
   snow:[[232,234,237],[244,245,247]], waste:[[229,225,218],[221,216,208]], zark:[[224,218,210],[216,208,198]],
   swamp:[195,222,204], ring:[164,212,180], ridge:[214,210,203], snowcap:[248,249,250],
-  darkForest:[142,182,152], enchanted:[172,224,172],
+  darkForest:[142,182,152], enchanted:[172,224,172], greyForest:[188,196,186], greyMist:[226,228,222],
   badA:[232,212,192], badB:[222,198,176], badCanyon:[198,172,152],
   scar:[206,200,196], lavadot:[230,150,110],
   seaIce:[236,244,248], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
@@ -161,7 +182,7 @@ painted:{
   snow:[[243,239,227],[252,250,242]], snowShadow:[178,196,214],
   waste:[[124,110,92],[140,124,102]], zark:[[112,98,84],[126,110,92]],
   swamp:[44,56,40], ring:[96,128,74], ridge:[168,148,116], snowcap:[248,246,238],
-  darkForest:[52,78,56], enchanted:[136,188,112],
+  darkForest:[52,78,56], enchanted:[136,188,112], greyForest:[112,118,104], greyMist:[206,206,196],
   badA:[164,96,58], badB:[198,138,88], badCanyon:[110,62,38],
   scar:[60,48,44], lavadot:[220,110,60],
   seaIce:[226,234,232], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
@@ -223,10 +244,7 @@ function terrainAt(x,y){
     return {lush:'plains',snow:'snow',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain'}[land.isl.kind]||'plains';
   }
   if(lakeAt(x,y)) return 'water';
-  for(const fo of FORESTS){
-    const dx=(x-fo.x)/fo.rx, dy=(y-fo.y)/fo.ry;
-    if(dx*dx+dy*dy<=1) return 'forest';
-  }
+  if(forestAt(x,y)) return 'forest';
   for(const ma of MARSHES){
     const dx=(x-ma.x)/ma.rx, dy=(y-ma.y)/ma.ry;
     if(dx*dx+dy*dy<=1) return 'swamp';
@@ -254,9 +272,9 @@ let ISLE_CUT=null;
 function seaDistToLand(x,y,th,cr,er){
   const Rth=Math.hypot(WORLD.a*Math.cos(th), WORLD.b*Math.sin(th))*cr;
   let d=(er-cr)*Rth;
-  if(!ISLE_CUT) ISLE_CUT=ISLANDS.map(s=>Math.max(s.rx,s.ry)*1.6+200);
-  for(let i=0;i<ISLANDS.length;i++){
-    const s=ISLANDS[i], cut=ISLE_CUT[i];
+  if(!ISLE_CUT) ISLE_CUT=VISIBLE_ISLANDS.map(s=>Math.max(s.rx,s.ry)*1.6+200);
+  for(let i=0;i<VISIBLE_ISLANDS.length;i++){
+    const s=VISIBLE_ISLANDS[i], cut=ISLE_CUT[i];
     const adx=x-s.x; if(adx>cut||adx<-cut) continue;
     const ady=y-s.y; if(ady>cut||ady<-cut) continue;
     // elliptical distance so the contour bands follow each island's shape
@@ -323,7 +341,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(margin<1.045) depth=0;
           else if(margin<1.10) depth=(margin-1.045)/0.055;
           if(depth>0){
-            for(const s of ISLANDS){
+            for(const s of VISIBLE_ISLANDS){
               const dx=(x-s.x)/s.rx, dy=(y-s.y)/s.ry;
               const r=Math.sqrt(dx*dx+dy*dy);
               if(r<1.6){ const dd=Math.max(0,(r-1.0)/0.6); depth=Math.min(depth,dd); }
@@ -369,8 +387,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           }
           if(terr!=='swamp'){
             for(const fo of FORESTS){
-              const dx=(x-fo.x)/fo.rx, dy=(y-fo.y)/fo.ry;
-              if(dx*dx+dy*dy<=1 && fbm(x*0.006,y*0.006)>0.32){ terr='ring'; foKind=fo.kind||'forest'; break; }
+              if(inForestBody(x,y,fo) && fbm(x*0.006,y*0.006)>0.32){ terr='ring'; foKind=fo.kind||'forest'; break; }
             }
           }
         }
@@ -442,6 +459,14 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
             if(style==='painted'){
               const sp=fbm(x*0.045+3,y*0.045+17);
               if(sp>0.8) col=lerpC(col,[240,234,168],(sp-0.8)*4);    // shimmer
+            }
+          } else if(foKind==='grey'){
+            // the Forgetting: desaturated grey-green, and in the Painted
+            // style a faint pale mist stipple. It must read wrong, not lush.
+            col=lerpC(col,P.greyForest,0.82);
+            if(style==='painted'){
+              const mist=fbm(x*0.03+23,y*0.03+41);
+              if(mist>0.56) col=lerpC(col,P.greyMist,Math.min(0.5,(mist-0.56)*1.5));
             }
           }
         }
@@ -745,7 +770,20 @@ function landCheck(){
   for(const s of SETTLEMENTS){ if(!landAt(s.x,s.y)) bad.push('settlement:'+s.id); }
   for(const g of GATES){ if(!landAt(g.x,g.y)) bad.push('gate:'+g.id); }
   for(const w of WONDERS){ if(w.id!=='drowningpillars'&&!landAt(w.x,w.y)) bad.push('wonder:'+w.id); }
-  for(const isl of ISLANDS){ if(!islandAt(isl.x,isl.y)) bad.push('island-center:'+isl.id); }
+  for(const isl of VISIBLE_ISLANDS){ if(!islandAt(isl.x,isl.y)) bad.push('island-center:'+isl.id); }
+  /* Hidden isles are charted as water features: they must stand in open sea,
+     clear of the continent and of every island the world can see. */
+  for(const isl of HIDDEN_ISLANDS){
+    if(!hiddenIslandAt(isl.x,isl.y)) bad.push('hidden-island-center:'+isl.id);
+    if(onContinent(isl.x,isl.y)) bad.push('hidden-island-on-land:'+isl.id);
+    for(const other of VISIBLE_ISLANDS){
+      if(Math.hypot(isl.x-other.x,isl.y-other.y) < Math.max(isl.rx,isl.ry)*1.4+Math.max(other.rx,other.ry)*1.4)
+        bad.push('hidden-island-overlap:'+isl.id+'/'+other.id);
+    }
+  }
+  if(D.MAELSTROMS) for(const ms of D.MAELSTROMS){
+    if(landAt(ms.x,ms.y)||hiddenIslandAt(ms.x,ms.y)) bad.push('maelstrom-on-land:'+ms.id);
+  }
   for(const rg of RING_GATES){ const[x,y]=ringGatePos(rg.deg); if(!onContinent(x,y)) bad.push('ringgate:'+rg.id); }
   for(const fo of FORESTS){ if(!landAt(fo.x,fo.y)) bad.push('forest:'+fo.id); }
   for(const lk of LAKES){ if(!onContinent(lk.x,lk.y)) bad.push('lake:'+lk.id); }
@@ -758,7 +796,8 @@ function landCheck(){
   return bad;
 }
 
-return { thetaOf, ellipseR, coastRadiusAt, onContinent, islandAt, landAt, angDeg,
+return { thetaOf, ellipseR, coastRadiusAt, onContinent, islandAt, hiddenIslandAt, landAt, angDeg,
+  VISIBLE_ISLANDS, HIDDEN_ISLANDS, inForestBody, forestAt,
   inForestRing, inPoly, distToPath, kingdomAt, lakeAt, MTNFIELD, hash2, vnoise, fbm,
   PALETTES, lerpC, SEASONPAR, HA_POOLS, terrainAt, paintRegion, paintWeather,
   seasonalMult, sampleTerrainSpeeds, fmtDays, nearestGate, computeJourney, landCheck,

@@ -12,7 +12,7 @@ const D=TDA_DATA, G=TDA_GEO;
 const { WORLD, KINGDOMS, FOREST_RING, MOUNTAINS, RIVERS, LAKES, MARSHES, FORESTS,
   SETTLEMENTS, GATES, RING_GATES, WONDERS, HIDDEN, ISLANDS, SEAMARKS, ROUTES,
   BADLANDS, MAELSTROMS, WAR, SEASON_STOPS, SEASON_NAMES, MIGRATIONS,
-  SEASON_ACTIVITIES, SEASON_TRAVEL, FLOW_NOTE, coastNoise, ringGatePos } = D;
+  SEASON_ACTIVITIES, SEASON_TRAVEL, FLOW_NOTE, coastNoise, islandNoise, ringGatePos } = D;
 
 const DPR=Math.min(2, window.devicePixelRatio||1);
 const base=document.getElementById('mapBase');
@@ -404,8 +404,8 @@ function drawOverlay(now){
   // seasonal human-activity markers
   if(LAYERS.activities) drawActivities(now||performance.now());
 
-  // hidden world
-  if(LAYERS.hidden) drawHidden();
+  // hidden world (the two far-northern isles sit under the site markers)
+  if(LAYERS.hidden){ drawHiddenIslands(); drawHidden(); }
 
   // gates + ring gates
   if(LAYERS.gates) drawGates();
@@ -451,8 +451,10 @@ function paintedTrees(){
       const x=fo.x+Math.cos(a)*fo.rx*rr*0.92, y=fo.y+Math.sin(a)*fo.ry*rr*0.92;
       if(G.fbm(x*0.006,y*0.006)<=0.30) continue;      // density by fbm
       if(G.lakeAt(x,y)||!G.onContinent(x,y)) continue;
+      if(fo.hole && Math.hypot(x-fo.hole.x,y-fo.hole.y)<=fo.hole.r) continue;  // the Wardwood's clearing
       const kind= fo.kind==='dark' ? 'dark'
         : fo.kind==='enchanted' ? 'glow'
+        : fo.kind==='grey' ? 'grey'
         : (fo.y<2400 ? 'pine' : 'round');             // taiga = conical
       out.push([x,y,kind,0.75+G.hash2(i,3)*0.65]);
     }
@@ -485,6 +487,16 @@ function drawPaintedForests(){
       ctx.fill();
       ctx.strokeStyle='rgba(46,58,30,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
       if(kind==='glow'){ ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.62,h*0.16,0,7); ctx.fillStyle='rgba(244,232,150,0.9)'; ctx.fill(); }
+    } else if(kind==='grey'){
+      // the Forgetting: bare grey boles under a pale mist stipple —
+      // the canopy is there, and it is the wrong colour.
+      ctx.strokeStyle='#6e6a5e'; ctx.lineWidth=Math.max(1,h*0.09);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.55); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.66,h*0.40,0,7);
+      ctx.fillStyle='rgba(122,130,116,0.85)'; ctx.fill();
+      ctx.strokeStyle='rgba(74,78,70,0.75)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0]+h*0.22,p[1]-h*0.86,h*0.26,0,7);
+      ctx.fillStyle='rgba(214,216,206,0.28)'; ctx.fill();          // mist
     } else if(kind==='umbrella'){
       ctx.strokeStyle=trunkCol; ctx.lineWidth=Math.max(1,h*0.09);
       ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.75); ctx.stroke();
@@ -707,6 +719,42 @@ function drawActivities(now){
     ctx.fillStyle= STYLE==='satellite'?'#f0dc9a':'#7a5f14';
     ctx.fillText(a.glyph,p[0],p[1]);
     if(LAYERS.labels&&view.scale>0.11) label(a.name,p[0],p[1]+15*DPR,9.5, STYLE==='satellite'?'#e2c268':'#8a6d1c', true);
+  }
+}
+/* The hidden isles are absent from the raster by design (see geo.js
+   VISIBLE_ISLANDS), so the Hidden World layer draws them itself: the same
+   islandNoise rim the raster uses for every other island, over a slick of
+   grey water that does not reflect. */
+const HIDDEN_ISLE_PATH=new Map();
+function hiddenIslePath(isl){
+  let p=HIDDEN_ISLE_PATH.get(isl.id);
+  if(p) return p;
+  p=new Path2D();
+  for(let i=0;i<=96;i++){
+    const th=i/96*Math.PI*2, R=islandNoise(th,isl.seed)*0.85;
+    const x=isl.x+Math.cos(th)*isl.rx*R, y=isl.y+Math.sin(th)*isl.ry*R;
+    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
+  }
+  p.closePath();
+  HIDDEN_ISLE_PATH.set(isl.id,p);
+  return p;
+}
+function drawHiddenIslands(){
+  const P=G.PALETTES[STYLE];
+  const purple= STYLE==='satellite' ? '#c99ae0' : '#8b5bb0';
+  for(const isl of G.HIDDEN_ISLANDS){
+    const p=w2s(isl.x,isl.y);
+    const rx=isl.rx*view.scale*DPR, ry=isl.ry*view.scale*DPR;
+    if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) continue;
+    // the grey, unreflecting water for a mile out
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.1,ry*2.1,0,0,7);
+    ctx.fillStyle= STYLE==='painted' ? 'rgba(126,126,120,0.30)' : 'rgba(120,124,128,0.34)';
+    ctx.fill();
+    withWorld(ctx,S=>{
+      const path=hiddenIslePath(isl);
+      ctx.fillStyle=`rgb(${P.ridge.join(',')})`; ctx.fill(path);
+      ctx.strokeStyle=purple; ctx.lineWidth=1.6*DPR/S; ctx.stroke(path);
+    });
   }
 }
 function drawHidden(){
@@ -981,8 +1029,10 @@ function drawLabels(){
   }
   for(const isl of ISLANDS){
     if(!isl.name) continue;
+    if(isl.hidden && !LAYERS.hidden) continue;      // the hidden isles are on no chart
     cands.push({pri:4, text:isl.name, x:isl.x, y:isl.y, dyPx:(isl.ry*view.scale+12), size:10.5,
-      fill: painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368')});
+      fill: isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
+        : (painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368'))});
   }
   if(view.scale>0.07){
     cands.push({pri:4, text:'THE RED REACHES', x:2900, y:4500, dy:0, size:11, italic:true,
@@ -1126,16 +1176,18 @@ function featureAt(wx,wy){
   for(const ms of MAELSTROMS){
     if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
   }
+  if(LAYERS.hidden){
+    const hIsl=G.hiddenIslandAt(wx,wy);
+    if(hIsl) return {kind:'island',o:hIsl};
+  }
   const isl=G.islandAt(wx,wy);
   if(isl){ const named = isl.name ? isl : ISLANDS.find(s=>s.name && s.id.replace(/\d+$/,'')===isl.id.replace(/\d+$/,'')) || isl;
     return {kind:'island',o:named}; }
   if(LAYERS.hidden){ for(const h of HIDDEN){ if(h.r&&Math.hypot(h.x-wx,h.y-wy)<h.r) return {kind:'hidden',o:h}; } }
   const lk=G.lakeAt(wx,wy);
   if(lk) return {kind:'lake',o:lk};
-  for(const fo of FORESTS){
-    const dx=(wx-fo.x)/fo.rx, dy=(wy-fo.y)/fo.ry;
-    if(dx*dx+dy*dy<=1) return {kind:'forest',o:fo};
-  }
+  const fo=G.forestAt(wx,wy);
+  if(fo) return {kind:'forest',o:fo};
   for(const ma of MARSHES){
     const dx=(wx-ma.x)/ma.rx, dy=(wy-ma.y)/ma.ry;
     if(dx*dx+dy*dy<=1) return {kind:'marsh',o:ma};
@@ -1383,6 +1435,23 @@ window.__tilesReady=function(){
 window.__rasterStats=function(){
   return { rasters:[...rasterCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
 };
+/* click-test hook: resolve a world point exactly as a canvas click would,
+   open the info panel, and report what the reader ends up looking at. */
+window.__pick=function(wx,wy){
+  const f=featureAt(wx,wy);
+  showInfo(f);
+  const panel=document.getElementById('infoPanel');
+  return f ? { kind:f.kind, id:f.o&&f.o.id, name:f.o&&f.o.name,
+               open:panel.classList.contains('open'),
+               heading:(panel.querySelector('h2')||{}).textContent||'',
+               body:panel.textContent||'' } : null;
+};
+window.__setLayer=function(name,on){
+  const el=document.querySelector(`input[data-layer=${name}]`);
+  if(el && el.checked!==!!on) el.click(); else { LAYERS[name]=!!on; dirty(true,true); }
+  return LAYERS[name];
+};
+window.__setView=function(x,y,scale){ view={x,y,scale}; dirty(true,true); return {...view}; };
 
 updateSeasonCal();
 window.addEventListener('resize',resize);

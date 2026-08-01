@@ -14,7 +14,10 @@ no network requests, no server.
   Layers: kingdom borders, mountains, rivers, settlements, Gates (Aetheric + the
   Nine Thresholds), wonders, trade routes, **Domains** (population-weighted interior
   boundaries per kingdom, clipped to coast and kingdom, never over the Ring, lakes,
-  or the Red Reaches; free towns get circular reaches), hidden world, War Powers,
+  or the Red Reaches; free towns get circular reaches), **hidden world** (secret
+  sites plus the two far-northern isles, which are absent from the raster, the
+  terrain model and the coastal banding entirely — they draw, label and hit-test
+  only while the layer is on), War Powers,
   and a label engine with priority decluttering (capitals > kingdoms > towns >
   villages > features). Travel calculator (foot / mounted / Sun Eater / Gate).
 - **Cosmos** — the World-Cage: bowl, ice wall with carved faces and glowing eyes,
@@ -56,6 +59,7 @@ npm install        # esbuild + playwright-core (dev only)
 npm run build      # → Third_Dawn_Definitive_Atlas.html + index.html
 npm test           # canon smoke tests (land check, fishing-village ruling, embargo, seasons)
 npm run screenshots  # browser verification + review screenshot set
+npm run verify:canon # July 2026 lockdowns: click-tests every new feature + review shots
 npm run perf       # FPS probe (flows animating + drag pan @1080p)
 ```
 
@@ -69,7 +73,13 @@ npm run perf       # FPS probe (flows animating + drag pan @1080p)
 
 Test hooks exposed on `window`: `__landCheck`, `__setStyle`, `__setSeason`,
 `__journey`, `__mapResize`, `__rasterReady`, `__tilesReady`, `__cosmosStart`,
-`__cosmosFlyTo`.
+`__cosmosFlyTo`, plus `__pick(x,y)` (resolve a world point exactly as a canvas
+click would and report the opened panel), `__setLayer(name,on)` and
+`__setView(x,y,scale)`.
+
+`__landCheck()` also water-checks the features that must *not* be on land: the
+hidden isles and every maelstrom.
 
 `screenshots/` holds the review set (satellite/atlas × High/Deep, migrations,
-LOD zoom, cosmos day/night/flyTo) for Rush's ratification pass.
+LOD zoom, cosmos day/night/flyTo) plus the `canon_*` set for the July 2026
+lockdowns, for Rush's ratification pass.
