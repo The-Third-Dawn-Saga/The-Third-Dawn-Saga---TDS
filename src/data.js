@@ -231,8 +231,11 @@ WONDERS.push(
    and every one is drawn with a hard offset shadow on the water beneath it —
    the shadow is what sells the altitude. `sea:true` marks it as a wonder
    that legitimately stands over water, so __landCheck() exempts it. ---- */
+/* [ITEM 4, this round: vortex + isles moved together to the southern ocean
+   between the Sunlands and Albion Magna — vortex (5450,6760), cluster
+   directly above at (5450,6620); the 140-mile vertical pairing preserved.] */
 WONDERS.push(
-  { id:'floatingisles', name:'The Floating Isles — Gate of the World Engine', x:3600, y:6620, icon:'float', sea:true,
+  { id:'floatingisles', name:'The Floating Isles — Gate of the World Engine', x:5450, y:6620, icon:'float', sea:true,
     isles:[[-92,-26,52],[26,-58,60],[104,14,36],[-24,44,30],[68,66,24]],
     info:'Above the Veiled Vortex, shrouded inside a standing tornado and a permanent crown of cloud, hang the floating isles that hold the gate to the World Engine. Passage opens only at the stellar alignment, when the southern vortex turns as one wheel with its northern twin; the way beyond leads to the one dry, green place in the Ice Wall. The Engine opens only to those who surrender the will to dominate while retaining the will to serve. [Established prior sessions; rendering PROPOSED]' }
 );
@@ -467,7 +470,7 @@ const MAELSTROMS = [
     info:'A maelstrom of the Poison Sea, far north of the drowned kingdom. Its spray kills sails and skin alike; the Smuggler\u2019s Gap pilots swing wide around it. [PROPOSED]' },
   { id:'m_widow', name:'The Widow\u2019s Wheel', x:280, y:5100, r:60,
     info:'The southwestern maelstrom, kept at a respectful distance from the elven watch-waters. Port Royale wreckers fish its rim for what it spits back out. [PROPOSED]' },
-  { id:'vortex_s', name:'The Veiled Vortex', x:3600, y:6760, r:110, vortex:true,
+  { id:'vortex_s', name:'The Veiled Vortex', x:5450, y:6760, r:110, vortex:true,
     info:'The great vortex of the southern ocean. Above it, shrouded inside an enormous standing tornado and a permanent crown of cloud, hang the floating islands that hold the gate to the God Engine. Passage is possible only when the stars align and the southern vortex connects to its northern twin. The way beyond leads to the one place in the Ice Wall that is dry land: green, dense, heavy, and holy. [Established prior session; atlas placement PROPOSED]' },
   { id:'vortex_n', name:'The Northern Vortex', x:5300, y:320, r:90, vortex:true,
     info:'The Veiled Vortex\u2019s twin in the Northern Frozen Sea. Dormant except at the alignment, when the two turn as one wheel and the passage opens. The Deep Watch ledger records it turning exactly four times in three centuries. [Established prior session; atlas placement PROPOSED]' },

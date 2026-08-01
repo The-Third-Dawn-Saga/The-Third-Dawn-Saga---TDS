@@ -242,15 +242,15 @@ await page.evaluate(() => window.__setLayer('hidden', false));
     r && r.id === 'landofthedead' && r.open, r && `${r.kind}:${r.id}`);
   t('the Far Shore panel carries its LOCKED tag',
     r && r.body.includes('the far shore lies beyond the world’s edge'), r && r.id);
-  const fi = await pick(3626, 6562, { zoom: 0.55 });
+  const fi = await pick(5476, 6562, { zoom: 0.55 });
   t('a floating isle body is clickable', fi && fi.id === 'floatingisles', fi && `${fi.kind}:${fi.id}`);
   t('the Floating Isles panel carries its info',
     fi && fi.body.includes('surrender the will to dominate while retaining the will to serve'), fi && fi.id);
 }
 await capture('canon_l_far_shore', { x: 8500, y: 320, scale: 0.42 });
 await capture('canon_l2_far_shore_painted', { x: 8500, y: 320, scale: 0.42, style: 'painted' });
-await capture('canon_m_floating_isles', { x: 3600, y: 6680, scale: 0.95 });
-await capture('canon_m2_floating_isles_painted', { x: 3600, y: 6680, scale: 0.95, style: 'painted' });
+await capture('canon_m_floating_isles', { x: 5450, y: 6680, scale: 0.95 });
+await capture('canon_m2_floating_isles_painted', { x: 5450, y: 6680, scale: 0.95, style: 'painted' });
 // item 2 re-proof: Deep season ice in Painted, and season extent ordering
 await capture('canon_n_deep_ice_painted', { x: 4500, y: 1200, scale: 0.22, season: 3, style: 'painted' });
 {

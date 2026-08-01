@@ -1061,13 +1061,20 @@ function drawMaelstroms(){
     }
     ctx.stroke();
     if(ms.vortex){
-      // the permanent crown of cloud: a thick double ring, not a hairline
+      // the permanent crown of cloud: a thick double ring, not a hairline.
+      // ITEM 4: the southern vortex's crown is centred on the FLOATING ISLES
+      // cluster hanging above it, not on the spiral itself.
+      let cx=p[0], cy=p[1];
+      if(ms.id==='vortex_s'){
+        const fi=WONDERS.find(w=>w.id==='floatingisles');
+        if(fi){ const q=w2s(fi.x,fi.y); cx=q[0]; cy=q[1]; }
+      }
       ctx.strokeStyle='rgba(228,233,242,0.72)'; ctx.setLineDash([7*DPR,6*DPR]);
       ctx.lineWidth=5.5*DPR;
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.35,R0*1.08,0,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.35,R0*1.08,0,0,7); ctx.stroke();
       ctx.strokeStyle='rgba(228,233,242,0.40)'; ctx.setLineDash([4*DPR,7*DPR]);
       ctx.lineWidth=3*DPR;
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.68,R0*1.34,0,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.68,R0*1.34,0,0,7); ctx.stroke();
       ctx.setLineDash([]);
     }
     if(LAYERS.labels && view.scale>0.07)

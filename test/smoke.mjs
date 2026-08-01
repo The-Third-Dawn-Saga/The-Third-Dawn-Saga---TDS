@@ -524,7 +524,22 @@ console.log('— ITEM 6: The Floating Isles of the World Engine —');
 {
   const f=D.WONDERS.find(w=>w.id==='floatingisles');
   t('floatingisles merged into WONDERS', !!f);
-  t('anchored above the Veiled Vortex', f.x===3600 && f.y===6620 && f.icon==='float');
+  t('ITEM 4: anchored above the Veiled Vortex at (5450,6620)', f.x===5450 && f.y===6620 && f.icon==='float');
+  {
+    const vs4=D.MAELSTROMS.find(m=>m.id==='vortex_s');
+    t('ITEM 4: vortex at (5450,6760), 140-mi vertical pairing preserved',
+      vs4.x===5450 && vs4.y===6760 && vs4.y-f.y===140);
+    const sun=[4900,6560], ember=D.ISLANDS.find(i=>i.id==='ember');
+    const pts=[[f.x,f.y],[vs4.x,vs4.y],...f.isles.map(i=>[f.x+i[0],f.y+i[1]])];
+    t('ITEM 4: 450+ mi from the Sunset Islands reference (4900,6560)',
+      pts.every(([x,y])=>Math.hypot(x-sun[0],y-sun[1])>=450),
+      pts.map(([x,y])=>Math.hypot(x-sun[0],y-sun[1]).toFixed(0)).join(','));
+    t('ITEM 4: 450+ mi from Ember Cays',
+      pts.every(([x,y])=>Math.hypot(x-ember.x,y-ember.y)>=450));
+    const gs=D.SEAMARKS.find(x=>x.name==='The Golden Strait');
+    t('ITEM 4: clear of the Golden Strait label (500+ mi)',
+      Math.hypot(f.x-gs.x,f.y-gs.y)>=500, Math.hypot(f.x-gs.x,f.y-gs.y).toFixed(0));
+  }
   const vs=D.MAELSTROMS.find(m=>m.id==='vortex_s');
   t('sits above (north of) the vortex spiral', f.y < vs.y, `isles y=${f.y}, vortex y=${vs.y}`);
   t('within the vortex cloud crown', Math.hypot(f.x-vs.x,f.y-vs.y) < vs.r*1.6,
