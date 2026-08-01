@@ -319,7 +319,9 @@ console.log('— July 2026 lockdowns: info-text updates + deliberate omissions �
 console.log('— Kaelen’s Sanctuary: shrunk and moved to deep water —');
 {
   const s=D.ISLANDS.find(i=>i.id==='lastlight');
-  t('still named the Isle of Last Light', s.name==='Isle of Last Light');
+  t('ITEM 2: display name is Kaelen’s Sanctuary (Isle of Last Light)',
+    s.name==='Kaelen’s Sanctuary (Isle of Last Light)', s.name);
+  t('ITEM 2: data id unchanged', s.id==='lastlight');
   t("shrunk to a town's footprint", s.rx<=30 && s.ry<=20, `rx${s.rx} ry${s.ry}`);
   t('at most a quarter of its former area', (s.rx*s.ry)/(300*210) <= 0.25,
     ((s.rx*s.ry)/(300*210)*100).toFixed(1)+'% of the old footprint');
@@ -350,10 +352,36 @@ console.log('— The Isle of the Last Fish —');
 {
   const m=D.ISLANDS.find(i=>i.id==='lastfish');
   t('main isle merged', !!m && m.kind==='rock');
-  t('placed between the Imperium and Zar’kaine longitudes', m.x>=5100 && m.x<=7620, String(m.x));
-  t('far out in the northern ocean, off the continent', !G.onContinent(m.x,m.y)
-    && G.terrainAt(m.x, m.y+m.ry*2.4)==='water' && G.terrainAt(m.x+m.rx*2.4, m.y)==='water');
+  t('ITEM 1: relocated to the deep eastern ocean', m.x===8600 && m.y===2190, `(${m.x},${m.y})`);
+  t('ITEM 1: between Zar’kaine’s arc and the Jade arc', m.x>8000 && m.y>1900 && m.y<2700);
+  t('far out in the eastern ocean, off the continent', !G.onContinent(m.x,m.y)
+    && G.terrainAt(m.x, m.y+m.ry*2.4)==='water' && G.terrainAt(m.x-m.rx*2.4, m.y)==='water');
   t('its centre resolves to it', (G.islandAt(m.x,m.y)||{}).id==='lastfish');
+  // ITEM 1: the complex moved as a UNIT — every relative offset preserved
+  {
+    const rel={lastfish_n:[0,-150],lastfish_e:[165,0],lastfish_s:[0,150],lastfish_w:[-165,0]};
+    t('ITEM 1: satellite offsets preserved exactly', Object.entries(rel).every(([id,[dx,dy]])=>{
+      const s=D.ISLANDS.find(i=>i.id===id); return s.x===m.x+dx && s.y===m.y+dy; }));
+    const wrel={m_fish_w:[-300,230],m_fish_e:[310,210]};
+    t('ITEM 1: whirlpool offsets preserved exactly', Object.entries(wrel).every(([id,[dx,dy]])=>{
+      const w=D.MAELSTROMS.find(x=>x.id===id); return w.x===m.x+dx && w.y===m.y+dy; }));
+    const dw=D.MAELSTROMS.find(x=>x.id==='m_drowned');
+    const named=[m,...Object.keys(rel).map(id=>D.ISLANDS.find(i=>i.id===id)),
+                 ...Object.keys(wrel).map(id=>D.MAELSTROMS.find(x=>x.id===id))];
+    t('ITEM 1: every isle + whirlpool 450+ mi from the Drowned Wheel',
+      named.every(o=>Math.hypot(o.x-dw.x,o.y-dw.y)>=450),
+      named.map(o=>Math.hypot(o.x-dw.x,o.y-dw.y).toFixed(0)).join(','));
+    const sg=D.MAELSTROMS.find(x=>x.id==='m_sulphur');
+    t('ITEM 1: complex 450+ mi from the Sulphur Gyre',
+      named.every(o=>Math.hypot(o.x-sg.x,o.y-sg.y)>=450));
+    const zq=D.ISLANDS.find(i=>i.id==='zhardei');
+    t('ITEM 1: complex 300+ mi from Zhar’dei',
+      named.every(o=>Math.hypot(o.x-zq.x,o.y-zq.y)>=300)
+      && D.SEAMOUNTS.every(s=>Math.hypot(s.x-zq.x,s.y-zq.y)>=300));
+    t('ITEM 1: outermost seamount inside the map (x ≤ 8960)',
+      Math.max(...D.SEAMOUNTS.map(s=>s.x))<=8960,
+      Math.max(...D.SEAMOUNTS.map(s=>s.x)).toFixed(0));
+  }
   t('tag verbatim', m.info.includes('[Event canon per author; name and placement PROPOSED, July 2026]'));
   // four outer isles
   const sats=['lastfish_n','lastfish_e','lastfish_s','lastfish_w'].map(id=>D.ISLANDS.find(i=>i.id===id));
@@ -404,8 +432,8 @@ console.log('— The Isle of the Last Fish —');
     m.info.includes('The clouds above it are black') && ld.info.includes('The clouds above it are red'));
   // grey, unreflective water inside the ring
   const grey=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
-  G.paintRegion(grey,1,1,m.x+150,m.y,m.x+151,m.y+1,{style:'satellite',season:1});
-  G.paintRegion(open_,1,1,m.x+800,m.y,m.x+801,m.y+1,{style:'satellite',season:1});
+  G.paintRegion(grey,1,1,m.x-150,m.y,m.x-149,m.y+1,{style:'satellite',season:1});
+  G.paintRegion(open_,1,1,m.x,m.y+800,m.x+1,m.y+801,{style:'satellite',season:1});
   t('water inside the ring is greyer than the open sea',
     Math.abs(grey[2]-grey[0])<Math.abs(open_[2]-open_[0]), grey.join()+' vs '+open_.join());
 }
@@ -496,7 +524,22 @@ console.log('— ITEM 6: The Floating Isles of the World Engine —');
 {
   const f=D.WONDERS.find(w=>w.id==='floatingisles');
   t('floatingisles merged into WONDERS', !!f);
-  t('anchored above the Veiled Vortex', f.x===3600 && f.y===6620 && f.icon==='float');
+  t('ITEM 4: anchored above the Veiled Vortex at (5450,6620)', f.x===5450 && f.y===6620 && f.icon==='float');
+  {
+    const vs4=D.MAELSTROMS.find(m=>m.id==='vortex_s');
+    t('ITEM 4: vortex at (5450,6760), 140-mi vertical pairing preserved',
+      vs4.x===5450 && vs4.y===6760 && vs4.y-f.y===140);
+    const sun=[4900,6560], ember=D.ISLANDS.find(i=>i.id==='ember');
+    const pts=[[f.x,f.y],[vs4.x,vs4.y],...f.isles.map(i=>[f.x+i[0],f.y+i[1]])];
+    t('ITEM 4: 450+ mi from the Sunset Islands reference (4900,6560)',
+      pts.every(([x,y])=>Math.hypot(x-sun[0],y-sun[1])>=450),
+      pts.map(([x,y])=>Math.hypot(x-sun[0],y-sun[1]).toFixed(0)).join(','));
+    t('ITEM 4: 450+ mi from Ember Cays',
+      pts.every(([x,y])=>Math.hypot(x-ember.x,y-ember.y)>=450));
+    const gs=D.SEAMARKS.find(x=>x.name==='The Golden Strait');
+    t('ITEM 4: clear of the Golden Strait label (500+ mi)',
+      Math.hypot(f.x-gs.x,f.y-gs.y)>=500, Math.hypot(f.x-gs.x,f.y-gs.y).toFixed(0));
+  }
   const vs=D.MAELSTROMS.find(m=>m.id==='vortex_s');
   t('sits above (north of) the vortex spiral', f.y < vs.y, `isles y=${f.y}, vortex y=${vs.y}`);
   t('within the vortex cloud crown', Math.hypot(f.x-vs.x,f.y-vs.y) < vs.r*1.6,

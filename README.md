@@ -22,7 +22,8 @@ no network requests, no server.
   villages > features). Travel calculator (foot / mounted / Sun Eater / Gate).
 - **Cosmos** — the World-Cage: bowl, ice wall with carved faces and glowing eyes,
   four pillars, guardian stars (east socket empty), three leviathans swimming the
-  outer ocean between the coast and the wall, Mor'kaleth and
+  hidden waters OUTSIDE the wall (1.18-1.34 x its radius, with a runtime clamp
+  at 1.05x — canon corrected July 2026), Mor'kaleth and
   the Circles of Silence, World Tree at readable scale. The wall stands a
   continent's width off the coast — the gap is 85% of the continent's own major
   radius, so the ocean reads as vast rather than as a moat; every scale-dependent

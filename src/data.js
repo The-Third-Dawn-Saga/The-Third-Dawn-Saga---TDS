@@ -231,8 +231,11 @@ WONDERS.push(
    and every one is drawn with a hard offset shadow on the water beneath it —
    the shadow is what sells the altitude. `sea:true` marks it as a wonder
    that legitimately stands over water, so __landCheck() exempts it. ---- */
+/* [ITEM 4, this round: vortex + isles moved together to the southern ocean
+   between the Sunlands and Albion Magna — vortex (5450,6760), cluster
+   directly above at (5450,6620); the 140-mile vertical pairing preserved.] */
 WONDERS.push(
-  { id:'floatingisles', name:'The Floating Isles — Gate of the World Engine', x:3600, y:6620, icon:'float', sea:true,
+  { id:'floatingisles', name:'The Floating Isles — Gate of the World Engine', x:5450, y:6620, icon:'float', sea:true,
     isles:[[-92,-26,52],[26,-58,60],[104,14,36],[-24,44,30],[68,66,24]],
     info:'Above the Veiled Vortex, shrouded inside a standing tornado and a permanent crown of cloud, hang the floating isles that hold the gate to the World Engine. Passage opens only at the stellar alignment, when the southern vortex turns as one wheel with its northern twin; the way beyond leads to the one dry, green place in the Ice Wall. The Engine opens only to those who surrender the will to dominate while retaining the will to serve. [Established prior sessions; rendering PROPOSED]' }
 );
@@ -467,7 +470,7 @@ const MAELSTROMS = [
     info:'A maelstrom of the Poison Sea, far north of the drowned kingdom. Its spray kills sails and skin alike; the Smuggler\u2019s Gap pilots swing wide around it. [PROPOSED]' },
   { id:'m_widow', name:'The Widow\u2019s Wheel', x:280, y:5100, r:60,
     info:'The southwestern maelstrom, kept at a respectful distance from the elven watch-waters. Port Royale wreckers fish its rim for what it spits back out. [PROPOSED]' },
-  { id:'vortex_s', name:'The Veiled Vortex', x:3600, y:6760, r:110, vortex:true,
+  { id:'vortex_s', name:'The Veiled Vortex', x:5450, y:6760, r:110, vortex:true,
     info:'The great vortex of the southern ocean. Above it, shrouded inside an enormous standing tornado and a permanent crown of cloud, hang the floating islands that hold the gate to the God Engine. Passage is possible only when the stars align and the southern vortex connects to its northern twin. The way beyond leads to the one place in the Ice Wall that is dry land: green, dense, heavy, and holy. [Established prior session; atlas placement PROPOSED]' },
   { id:'vortex_n', name:'The Northern Vortex', x:5300, y:320, r:90, vortex:true,
     info:'The Veiled Vortex\u2019s twin in the Northern Frozen Sea. Dormant except at the alignment, when the two turn as one wheel and the passage opens. The Deep Watch ledger records it turning exactly four times in three centuries. [Established prior session; atlas placement PROPOSED]' },
@@ -480,11 +483,12 @@ MAELSTROMS.push(
     info:'The whirlpool in the sea behind Serathane\u2019s drowned kingdom, beside the elven seal at Mor\u2019kaleth. It connects to others elsewhere, which is why white eels \u2014 the fish of the waters above the sunken kingdom \u2014 turn up, rarely and inexplicably, in seas thousands of miles away. Fishermen in four kingdoms have caught one in a lifetime and been called liars. [LOCKED \u2014 The Unhealed. OPEN: whether the whirlpools are a distinct phenomenon or old routes drowned and running unattended.]' }
 );
 
-/* ---- The two guardian whirlpools flanking the approach to the Last Fish ---- */
+/* ---- The two guardian whirlpools flanking the approach to the Last Fish
+   (translated with the complex: same +2350,+1860 offset) ---- */
 MAELSTROMS.push(
-  { id:'m_fish_w', name:'Guardian Whirlpool \u2014 western gate', x:5950, y:560, r:40,
+  { id:'m_fish_w', name:'Guardian Whirlpool \u2014 western gate', x:8300, y:2420, r:40,
     info:'Guardian whirlpool of the Last Fish ring. [PROPOSED]' },
-  { id:'m_fish_e', name:'Guardian Whirlpool \u2014 eastern gate', x:6560, y:540, r:40,
+  { id:'m_fish_e', name:'Guardian Whirlpool \u2014 eastern gate', x:8910, y:2400, r:40,
     info:'Guardian whirlpool of the Last Fish ring. [PROPOSED]' }
 );
 
@@ -590,7 +594,7 @@ function islandNoise(theta,seed){
 
 /* ---- islands: the shards of the drowned kingdom, and more ---- */
 const ISLANDS = [
-  { id:'lastlight', name:'Isle of Last Light', x:8650, y:4550, rx:28, ry:18, seed:3.1, kind:'lush',
+  { id:'lastlight', name:'Kaelen’s Sanctuary (Isle of Last Light)', x:8650, y:4550, rx:28, ry:18, seed:3.1, kind:'lush',
     info:'The eastern island Kaelen travels to and from across the Eastern Ocean \u2014 one town\u2019s footprint of land, alone in the deep water between the Albion and Jade arcs, some 770 miles off the nearest coast. Identified as his Sanctuary of Last Light: hundreds of near-extinct creatures \u2014 Nightfall the black pegasus, a raised dragon, one of the last unicorns \u2014 protected behind twelve thousand years of lethal privacy. \u201cI\u2019ve killed enough. Here, I save what I can.\u201d Known only to the Immortal Three and Nerathis; it appears on no in-world map. [Island position LOCKED per ruling \u2014 shrunk to a town\u2019s footprint and moved to the deep southeastern ocean, July 2026; sanctuary identification PROPOSED]' },
   { id:'ironisles', name:'Iron Islands', x:5450, y:790, rx:120, ry:70, seed:1.2, kind:'snow',
     info:'Offshore vassal chain of the Northern Throne in the Northern Frozen Sea.' },
@@ -663,29 +667,35 @@ const ISLANDS = [
 ];
 
 /* ---- The Isle of the Last Fish, the Dying King's Isle (July 2026).
-   A ring complex far out in the northern ocean between the Imperium's
-   longitude and Zar'kaine's: the main isle, four outer isles, a broken ring
-   of sea-mountains beyond them, and two guardian whirlpools flanking the
-   approach. Its clouds are BLACK and drop sparks — deliberately NOT the
-   Isle of the Last Door, whose clouds are red. ---- */
+   A ring complex far out in the deep eastern ocean between Zar'kaine's arc
+   and the Eastern Jade Empire's: the main isle, four outer isles, a broken
+   ring of sea-mountains beyond them, and two guardian whirlpools flanking
+   the approach. Its clouds are BLACK and drop sparks — deliberately NOT the
+   Isle of the Last Door, whose clouds are red.
+   [ITEM 1, this round: the whole complex translated as a unit by
+   (+2350,+1860) from its first placement beside the Northern Throne. The
+   calibrated target was (8600,2100); nudged 90 mi south so every isle and
+   whirlpool clears the Drowned Wheel by 450+.] ---- */
 ISLANDS.push(
-  { id:'lastfish', name:'The Isle of the Last Fish', x:6250, y:330, rx:85, ry:55, seed:3.9, kind:'rock',
-    volcanoes:[[6212,352],[6288,348],[6252,300]],   // two at the fore (south), one behind
-    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. It lies far out in the northern ocean, ringed by sea-mountains at its front, sides, and back, and by whirlpools beyond them. The clouds above it are black; the ground is black; the water is grey; and sparks fall where rain should. Three volcanoes stand on it, two at the fore and one behind. [Event canon per author; name and placement PROPOSED, July 2026]' },
-  { id:'lastfish_n', name:'', x:6250, y:180, rx:26, ry:18, seed:1.15, kind:'rock',
+  { id:'lastfish', name:'The Isle of the Last Fish', x:8600, y:2190, rx:85, ry:55, seed:3.9, kind:'rock',
+    volcanoes:[[8562,2212],[8638,2208],[8602,2160]],   // two at the fore (south), one behind
+    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. It lies far out in the eastern ocean, ringed by sea-mountains at its front, sides, and back, and by whirlpools beyond them. The clouds above it are black; the ground is black; the water is grey; and sparks fall where rain should. Three volcanoes stand on it, two at the fore and one behind. [Event canon per author; name and placement PROPOSED, July 2026]' },
+  { id:'lastfish_n', name:'', x:8600, y:2040, rx:26, ry:18, seed:1.15, kind:'rock',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_e', name:'', x:6415, y:330, rx:30, ry:20, seed:2.65, kind:'rock',
+  { id:'lastfish_e', name:'', x:8765, y:2190, rx:30, ry:20, seed:2.65, kind:'rock',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_s', name:'', x:6250, y:480, rx:32, ry:22, seed:4.05, kind:'rock',
+  { id:'lastfish_s', name:'', x:8600, y:2340, rx:32, ry:22, seed:4.05, kind:'rock',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_w', name:'', x:6085, y:330, rx:24, ry:16, seed:5.35, kind:'rock',
+  { id:'lastfish_w', name:'', x:8435, y:2190, rx:24, ry:16, seed:5.35, kind:'rock',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' }
 );
 
 /* Sea-mountains: jagged seamount markers, not full islands. A broken ring,
    denser on the south-facing (front) arc, thinner at the sides and rear. */
 const SEAMOUNT_RINGS = [
-  { id:'lastfish_ring', name:'The Sea-Mountains of the Last Fish', cx:6250, cy:330, r:235,
+  /* hx/hy are hash anchors frozen at the ring's ORIGINAL centre, so the
+     relocation is an exact translation: every peak keeps its jitter. */
+  { id:'lastfish_ring', name:'The Sea-Mountains of the Last Fish', cx:8600, cy:2190, r:235, hx:6250, hy:330,
     info:'The ring of sea-mountains standing out of the grey water around the Isle of the Last Fish — thickest across its front, thinning at the sides, never quite closing behind. Hulls that clear the whirlpools still have to thread these. [PROPOSED, July 2026]' },
 ];
 function seamountHash(a,b){ const h=Math.sin(a*127.1+b*311.7)*43758.5453; return h-Math.floor(h); }
@@ -705,7 +715,8 @@ const SEAMOUNTS = (()=>{
     for(const arc of SEAMOUNT_ARCS){
       for(let i=0;i<arc.n;i++,k++){
         if(i===arc.gap) continue;                          // the break in the ring
-        const h=seamountHash(k,ring.cx), h2=seamountHash(k+13,ring.cy);
+        const h=seamountHash(k, ring.hx!=null?ring.hx:ring.cx),
+              h2=seamountHash(k+13, ring.hy!=null?ring.hy:ring.cy);
         const deg=arc.from+(arc.to-arc.from)*((i+0.5)/arc.n)+(h2-0.5)*7;
         const a=deg*Math.PI/180;
         const rr=ring.r*(0.90+h*0.22);

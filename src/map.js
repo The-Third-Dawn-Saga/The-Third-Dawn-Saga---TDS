@@ -374,6 +374,8 @@ function drawOverlay(now){
   drawLastFishSky();
   // the Far Shore: pale mist along the beach at the edge of the world
   drawFarShoreMist();
+  // Kaelen's Sanctuary: the warm glow of an Immortal's isle
+  drawSanctuaryGlow();
 
   // routes
   if(LAYERS.routes){
@@ -881,6 +883,23 @@ function drawFloatingIsles(){
   }
 }
 
+/* ITEM 2: Kaelen's Sanctuary — a faint warm glow halo around the isle of an
+   Immortal. The same treatment in all three styles; only the alpha differs
+   slightly so it stays subtle on the Atlas style's light water. */
+function drawSanctuaryGlow(){
+  const isl=ISLANDS.find(s=>s.id==='lastlight');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const R=Math.max(16*DPR, 130*view.scale*DPR);
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const a= STYLE==='atlas' ? 0.30 : 0.42;
+  const g2=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
+  g2.addColorStop(0,`rgba(255,214,140,${a})`);
+  g2.addColorStop(0.55,`rgba(255,196,110,${a*0.45})`);
+  g2.addColorStop(1,'rgba(255,196,110,0)');
+  ctx.beginPath(); ctx.arc(p[0],p[1],R,0,7); ctx.fillStyle=g2; ctx.fill();
+}
+
 /* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
    is painted by the raster (ashen, no vegetation); this is the shoreline
    haze that marks it as the edge of the world. */
@@ -1042,13 +1061,20 @@ function drawMaelstroms(){
     }
     ctx.stroke();
     if(ms.vortex){
-      // the permanent crown of cloud: a thick double ring, not a hairline
+      // the permanent crown of cloud: a thick double ring, not a hairline.
+      // ITEM 4: the southern vortex's crown is centred on the FLOATING ISLES
+      // cluster hanging above it, not on the spiral itself.
+      let cx=p[0], cy=p[1];
+      if(ms.id==='vortex_s'){
+        const fi=WONDERS.find(w=>w.id==='floatingisles');
+        if(fi){ const q=w2s(fi.x,fi.y); cx=q[0]; cy=q[1]; }
+      }
       ctx.strokeStyle='rgba(228,233,242,0.72)'; ctx.setLineDash([7*DPR,6*DPR]);
       ctx.lineWidth=5.5*DPR;
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.35,R0*1.08,0,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.35,R0*1.08,0,0,7); ctx.stroke();
       ctx.strokeStyle='rgba(228,233,242,0.40)'; ctx.setLineDash([4*DPR,7*DPR]);
       ctx.lineWidth=3*DPR;
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.68,R0*1.34,0,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.68,R0*1.34,0,0,7); ctx.stroke();
       ctx.setLineDash([]);
     }
     if(LAYERS.labels && view.scale>0.07)
@@ -1244,12 +1270,16 @@ function drawLabels(){
   for(const isl of ISLANDS){
     if(!isl.name) continue;
     if(isl.hidden && !LAYERS.hidden) continue;      // the hidden isles are on no chart
-    cands.push({pri: isl.special==='farshore'?1:4,
+    // ITEM 2: Kaelen's Sanctuary is landmark rank — one town's footprint of
+    // land would otherwise vanish under the declutterer at default zoom
+    const sanctuary = isl.id==='lastlight';
+    cands.push({pri: sanctuary?0 : isl.special==='farshore'?1:4,
       text:isl.name, x:isl.x, y:isl.y,
       dyPx:(isl.special==='farshore'? 0 : isl.ry*view.scale+12),
-      size: isl.special==='farshore'?12:10.5,
-      italic: isl.special==='farshore',
-      fill: isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
+      size: sanctuary?11.5 : isl.special==='farshore'?12:10.5,
+      italic: sanctuary||isl.special==='farshore',
+      fill: sanctuary ? (painted?'#8a5a20':(STYLE==='satellite'?'#ffd9a0':'#a06a10'))
+        : isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
         : isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
         : (painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368'))});
   }
@@ -1385,6 +1415,12 @@ function featureAt(wx,wy){
   let best=null,bd=1e18;
   for(const f of pools){ const d=Math.hypot(f.x-wx,f.y-wy); if(d<bd){bd=d;best=f;} }
   if(best&&bd<tol) return best;
+  // maelstroms resolve BEFORE migration flows: a compact whirlpool must win
+  // over a long flow line crossing it (the whale track runs through the
+  // relocated western Guardian Whirlpool's water)
+  for(const ms of MAELSTROMS){
+    if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
+  }
   if(LAYERS.migrations){
     for(const mg of MIGRATIONS){
       if(mg.seasons[SEASON]===undefined) continue;
@@ -1398,9 +1434,6 @@ function featureAt(wx,wy){
       const dx=(wx-(fi.x+is[0]))/is[2], dy=(wy-(fi.y+is[1]))/(is[2]*0.62);
       if(dx*dx+dy*dy<=1.2) return {kind:'wonder',o:fi};
     }
-  }
-  for(const ms of MAELSTROMS){
-    if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
   }
   if(LAYERS.hidden){
     const hIsl=G.hiddenIslandAt(wx,wy);
