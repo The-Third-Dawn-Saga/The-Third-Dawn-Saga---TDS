@@ -1415,6 +1415,12 @@ function featureAt(wx,wy){
   let best=null,bd=1e18;
   for(const f of pools){ const d=Math.hypot(f.x-wx,f.y-wy); if(d<bd){bd=d;best=f;} }
   if(best&&bd<tol) return best;
+  // maelstroms resolve BEFORE migration flows: a compact whirlpool must win
+  // over a long flow line crossing it (the whale track runs through the
+  // relocated western Guardian Whirlpool's water)
+  for(const ms of MAELSTROMS){
+    if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
+  }
   if(LAYERS.migrations){
     for(const mg of MIGRATIONS){
       if(mg.seasons[SEASON]===undefined) continue;
@@ -1428,9 +1434,6 @@ function featureAt(wx,wy){
       const dx=(wx-(fi.x+is[0]))/is[2], dy=(wy-(fi.y+is[1]))/(is[2]*0.62);
       if(dx*dx+dy*dy<=1.2) return {kind:'wonder',o:fi};
     }
-  }
-  for(const ms of MAELSTROMS){
-    if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
   }
   if(LAYERS.hidden){
     const hIsl=G.hiddenIslandAt(wx,wy);
