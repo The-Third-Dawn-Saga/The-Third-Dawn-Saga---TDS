@@ -319,7 +319,9 @@ console.log('— July 2026 lockdowns: info-text updates + deliberate omissions �
 console.log('— Kaelen’s Sanctuary: shrunk and moved to deep water —');
 {
   const s=D.ISLANDS.find(i=>i.id==='lastlight');
-  t('still named the Isle of Last Light', s.name==='Isle of Last Light');
+  t('ITEM 2: display name is Kaelen’s Sanctuary (Isle of Last Light)',
+    s.name==='Kaelen’s Sanctuary (Isle of Last Light)', s.name);
+  t('ITEM 2: data id unchanged', s.id==='lastlight');
   t("shrunk to a town's footprint", s.rx<=30 && s.ry<=20, `rx${s.rx} ry${s.ry}`);
   t('at most a quarter of its former area', (s.rx*s.ry)/(300*210) <= 0.25,
     ((s.rx*s.ry)/(300*210)*100).toFixed(1)+'% of the old footprint');

@@ -591,7 +591,7 @@ function islandNoise(theta,seed){
 
 /* ---- islands: the shards of the drowned kingdom, and more ---- */
 const ISLANDS = [
-  { id:'lastlight', name:'Isle of Last Light', x:8650, y:4550, rx:28, ry:18, seed:3.1, kind:'lush',
+  { id:'lastlight', name:'Kaelen’s Sanctuary (Isle of Last Light)', x:8650, y:4550, rx:28, ry:18, seed:3.1, kind:'lush',
     info:'The eastern island Kaelen travels to and from across the Eastern Ocean \u2014 one town\u2019s footprint of land, alone in the deep water between the Albion and Jade arcs, some 770 miles off the nearest coast. Identified as his Sanctuary of Last Light: hundreds of near-extinct creatures \u2014 Nightfall the black pegasus, a raised dragon, one of the last unicorns \u2014 protected behind twelve thousand years of lethal privacy. \u201cI\u2019ve killed enough. Here, I save what I can.\u201d Known only to the Immortal Three and Nerathis; it appears on no in-world map. [Island position LOCKED per ruling \u2014 shrunk to a town\u2019s footprint and moved to the deep southeastern ocean, July 2026; sanctuary identification PROPOSED]' },
   { id:'ironisles', name:'Iron Islands', x:5450, y:790, rx:120, ry:70, seed:1.2, kind:'snow',
     info:'Offshore vassal chain of the Northern Throne in the Northern Frozen Sea.' },

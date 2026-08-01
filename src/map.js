@@ -374,6 +374,8 @@ function drawOverlay(now){
   drawLastFishSky();
   // the Far Shore: pale mist along the beach at the edge of the world
   drawFarShoreMist();
+  // Kaelen's Sanctuary: the warm glow of an Immortal's isle
+  drawSanctuaryGlow();
 
   // routes
   if(LAYERS.routes){
@@ -881,6 +883,23 @@ function drawFloatingIsles(){
   }
 }
 
+/* ITEM 2: Kaelen's Sanctuary — a faint warm glow halo around the isle of an
+   Immortal. The same treatment in all three styles; only the alpha differs
+   slightly so it stays subtle on the Atlas style's light water. */
+function drawSanctuaryGlow(){
+  const isl=ISLANDS.find(s=>s.id==='lastlight');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const R=Math.max(16*DPR, 130*view.scale*DPR);
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const a= STYLE==='atlas' ? 0.30 : 0.42;
+  const g2=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
+  g2.addColorStop(0,`rgba(255,214,140,${a})`);
+  g2.addColorStop(0.55,`rgba(255,196,110,${a*0.45})`);
+  g2.addColorStop(1,'rgba(255,196,110,0)');
+  ctx.beginPath(); ctx.arc(p[0],p[1],R,0,7); ctx.fillStyle=g2; ctx.fill();
+}
+
 /* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
    is painted by the raster (ashen, no vegetation); this is the shoreline
    haze that marks it as the edge of the world. */
@@ -1244,12 +1263,16 @@ function drawLabels(){
   for(const isl of ISLANDS){
     if(!isl.name) continue;
     if(isl.hidden && !LAYERS.hidden) continue;      // the hidden isles are on no chart
-    cands.push({pri: isl.special==='farshore'?1:4,
+    // ITEM 2: Kaelen's Sanctuary is landmark rank — one town's footprint of
+    // land would otherwise vanish under the declutterer at default zoom
+    const sanctuary = isl.id==='lastlight';
+    cands.push({pri: sanctuary?0 : isl.special==='farshore'?1:4,
       text:isl.name, x:isl.x, y:isl.y,
       dyPx:(isl.special==='farshore'? 0 : isl.ry*view.scale+12),
-      size: isl.special==='farshore'?12:10.5,
-      italic: isl.special==='farshore',
-      fill: isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
+      size: sanctuary?11.5 : isl.special==='farshore'?12:10.5,
+      italic: sanctuary||isl.special==='farshore',
+      fill: sanctuary ? (painted?'#8a5a20':(STYLE==='satellite'?'#ffd9a0':'#a06a10'))
+        : isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
         : isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
         : (painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368'))});
   }
