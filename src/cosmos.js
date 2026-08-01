@@ -399,6 +399,47 @@ function init(){
     const l2=new THREE.PointLight(0xff6a30,0.4,420); l2.position.set(wx2s(6500),70,wy2s(1050)); scene.add(l2);
   }
 
+  /* ITEM 6: the Veiled Vortex's standing tornado, and the Floating Isles
+     suspended inside its crown of cloud. */
+  {
+    const fi=WONDERS.find(w=>w.id==='floatingisles');
+    const vs=(D.MAELSTROMS||[]).find(m=>m.id==='vortex_s');
+    if(fi&&vs){
+      const ud={name:fi.name,info:fi.info};
+      const bx=wx2s(vs.x), bz=wy2s(vs.y);
+      // the funnel: narrow at the water, opening upward into the cloud crown
+      const funnel=new THREE.Mesh(
+        new THREE.CylinderGeometry(vs.r*KX*1.9, vs.r*KX*0.30, 210, 28, 1, true),
+        new THREE.MeshBasicMaterial({color:0xcfd8e8,transparent:true,opacity:0.20,
+          side:THREE.DoubleSide,depthWrite:false}));
+      funnel.position.set(bx,100,bz);
+      funnel.userData=ud; pickables.push(funnel); scene.add(funnel);
+      const funnel2=new THREE.Mesh(
+        new THREE.CylinderGeometry(vs.r*KX*1.35, vs.r*KX*0.20, 190, 24, 1, true),
+        new THREE.MeshBasicMaterial({color:0xe6edf8,transparent:true,opacity:0.14,
+          side:THREE.DoubleSide,depthWrite:false}));
+      funnel2.position.set(bx,96,bz);
+      scene.add(funnel2);
+      // the isles themselves, suspended in and above the funnel's mouth
+      const rock=new THREE.MeshStandardMaterial({color:0x5d5a52,roughness:0.95});
+      const cap =new THREE.MeshStandardMaterial({color:0x4f8a52,roughness:0.85,
+        emissive:0x143d1c,emissiveIntensity:0.35});
+      fi.isles.forEach((is,i)=>{
+        const ix=wx2s(fi.x+is[0]), iz=wy2s(fi.y+is[1]);
+        const r=Math.max(4,is[2]*KX*1.6);
+        const body=new THREE.Mesh(new THREE.ConeGeometry(r,r*1.5,7), rock);
+        body.rotation.x=Math.PI;                       // point the rock downward
+        body.position.set(ix,150+i*13,iz);
+        body.userData=ud; pickables.push(body); scene.add(body);
+        const top=new THREE.Mesh(new THREE.CylinderGeometry(r,r*0.94,r*0.30,7), cap);
+        top.position.set(ix,150+i*13+r*0.80,iz);
+        top.userData=ud; pickables.push(top); scene.add(top);
+      });
+      const lamp=new THREE.PointLight(0xbcd4ff,0.75,520);
+      lamp.position.set(bx,205,bz); scene.add(lamp);
+    }
+  }
+
   /* sea-mountains: jagged rock standing out of the water around the Last Fish */
   {
     const rockMat=new THREE.MeshStandardMaterial({color:0x2e2a26,roughness:0.95});

@@ -226,6 +226,50 @@ t('every ocean feature stays between coast and wall', cage.featuresInside === tr
 t('the cage fits the default camera framing', cage.fitsDefaultView === true,
   `dist ${cage.dist}, worst on-screen margin ${cage.framingMargin} (must be <= 1)`);
 
+
+/* ---------- ITEM 5 + ITEM 6 ---------- */
+console.log('— ITEM 5: the Far Shore / ITEM 6: the Floating Isles —');
+await page.evaluate(() => window.__go('map'));          // back from the cosmos section
+await page.waitForTimeout(400);
+await page.evaluate(() => document.querySelector('#infoPanel .ip-close').click());
+await page.evaluate(() => window.__setLayer('hidden', false));
+{
+  const r = await pick(8880, 180, { zoom: 0.35 });
+  t('the Far Shore is clickable with Hidden World OFF',
+    r && r.id === 'landofthedead' && r.open, r && `${r.kind}:${r.id}`);
+  t('the Far Shore panel carries its LOCKED tag',
+    r && r.body.includes('the far shore lies beyond the world’s edge'), r && r.id);
+  const fi = await pick(3626, 6562, { zoom: 0.55 });
+  t('a floating isle body is clickable', fi && fi.id === 'floatingisles', fi && `${fi.kind}:${fi.id}`);
+  t('the Floating Isles panel carries its info',
+    fi && fi.body.includes('surrender the will to dominate while retaining the will to serve'), fi && fi.id);
+}
+await capture('canon_l_far_shore', { x: 8500, y: 320, scale: 0.42 });
+await capture('canon_l2_far_shore_painted', { x: 8500, y: 320, scale: 0.42, style: 'painted' });
+await capture('canon_m_floating_isles', { x: 3600, y: 6680, scale: 0.95 });
+await capture('canon_m2_floating_isles_painted', { x: 3600, y: 6680, scale: 0.95, style: 'painted' });
+// item 2 re-proof: Deep season ice in Painted, and season extent ordering
+await capture('canon_n_deep_ice_painted', { x: 4500, y: 1200, scale: 0.22, season: 3, style: 'painted' });
+{
+  const extents = await page.evaluate(() => {
+    const G = window.TDA_GEO, out = [];
+    for (const s of [0, 1, 2, 3]) {
+      let area = 0;
+      for (let x = 0; x < 9000; x += 60) for (let y = 0; y < 2800; y += 40) area += G.seaIceAt(x, y, s, 9999);
+      out.push(Math.round(area));
+    }
+    return out;
+  });
+  t('ice extent is minimal in High and maximal in Deep',
+    extents[1] < extents[0] && extents[0] < extents[2] && extents[2] < extents[3],
+    `Early ${extents[0]}, High ${extents[1]}, Late ${extents[2]}, Deep ${extents[3]}`);
+}
+// cosmos: the funnel and its isles exist and are pickable
+await page.evaluate(() => window.__go('cosmos'));
+await page.waitForTimeout(2600);
+await page.screenshot({ path: shot('canon_o_cosmos_floating_isles') });
+console.log('  shot canon_o_cosmos_floating_isles');
+
 const fatal = errors.filter(e => !/favicon/.test(e));
 if (fatal.length) { console.error('BROWSER ERRORS:\n' + fatal.join('\n')); failures++; }
 else console.log('  ok  browser run clean — no console errors');

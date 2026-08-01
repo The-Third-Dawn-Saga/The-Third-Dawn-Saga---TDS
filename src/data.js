@@ -225,6 +225,18 @@ WONDERS.push(
     info:'A stone temple on the western Crown Road at the point where it enters the Central Heartlands, as old as the self-repairing roads themselves. Its walls are carved edge to edge with inscriptions no living person can read; the order that keeps it, the Unlettered, has no doctrine because the doctrine was in the writing. But the temple protects: harvests near it hold, sickness turns aside, children born in its shadow live. So they sweep the floors, wash the words they cannot read, and pray at a wall addressed to nobody. The temple is Aethu’s; the erasure is Serathane’s; Aethu answers anyway. [LOCKED — The Salt and the Unknown One, July 2026]' }
 );
 
+/* ---- ITEM 6: The Floating Isles of the World Engine.
+   The landmass that hangs above the Veiled Vortex. `isles` are cluster
+   offsets [dx,dy,r] from the anchor; the two largest carry mountain glyphs,
+   and every one is drawn with a hard offset shadow on the water beneath it —
+   the shadow is what sells the altitude. `sea:true` marks it as a wonder
+   that legitimately stands over water, so __landCheck() exempts it. ---- */
+WONDERS.push(
+  { id:'floatingisles', name:'The Floating Isles — Gate of the World Engine', x:3600, y:6620, icon:'float', sea:true,
+    isles:[[-92,-26,52],[26,-58,60],[104,14,36],[-24,44,30],[68,66,24]],
+    info:'Above the Veiled Vortex, shrouded inside a standing tornado and a permanent crown of cloud, hang the floating isles that hold the gate to the World Engine. Passage opens only at the stellar alignment, when the southern vortex turns as one wheel with its northern twin; the way beyond leads to the one dry, green place in the Ice Wall. The Engine opens only to those who surrender the will to dominate while retaining the will to serve. [Established prior sessions; rendering PROPOSED]' }
+);
+
 /* ---- The Celestial Circle: revelation site of Rhy and Ashran (July 2026) ---- */
 WONDERS.push(
   { id:'celestialcircle', name:'The Celestial Circle', x:5290, y:3860, icon:'circle',

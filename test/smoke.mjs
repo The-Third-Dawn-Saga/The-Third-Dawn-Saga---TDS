@@ -492,6 +492,27 @@ console.log('— ITEM 5: The Far Shore — the Land of the Dead —');
   t('swallows no other island', swallowed.length===0, swallowed.join(','));
 }
 
+console.log('— ITEM 6: The Floating Isles of the World Engine —');
+{
+  const f=D.WONDERS.find(w=>w.id==='floatingisles');
+  t('floatingisles merged into WONDERS', !!f);
+  t('anchored above the Veiled Vortex', f.x===3600 && f.y===6620 && f.icon==='float');
+  const vs=D.MAELSTROMS.find(m=>m.id==='vortex_s');
+  t('sits above (north of) the vortex spiral', f.y < vs.y, `isles y=${f.y}, vortex y=${vs.y}`);
+  t('within the vortex cloud crown', Math.hypot(f.x-vs.x,f.y-vs.y) < vs.r*1.6,
+    Math.hypot(f.x-vs.x,f.y-vs.y).toFixed(0)+' mi from the vortex');
+  t('marked as standing over water', f.sea===true);
+  t('info verbatim', f.info.includes('hang the floating isles that hold the gate to the World Engine')
+    && f.info.includes('surrender the will to dominate while retaining the will to serve')
+    && f.info.includes('[Established prior sessions; rendering PROPOSED]'));
+  t('the isle cluster is defined', Array.isArray(f.isles) && f.isles.length>=3 && f.isles.length<=5,
+    f.isles && f.isles.length+' isles');
+  t('the two largest carry mountain glyphs', f.isles.filter(i=>i[2]>=46).length>=2);
+  t('every floating isle sits over open water',
+    f.isles.every(i=>!G.landAt(f.x+i[0], f.y+i[1])));
+  t('__landCheck() exempts it as a sea wonder', !G.landCheck().some(b=>b.includes('floatingisles')));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

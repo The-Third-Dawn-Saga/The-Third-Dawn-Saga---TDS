@@ -883,7 +883,10 @@ function landCheck(){
   const bad=[];
   for(const s of SETTLEMENTS){ if(!landAt(s.x,s.y)) bad.push('settlement:'+s.id); }
   for(const g of GATES){ if(!landAt(g.x,g.y)) bad.push('gate:'+g.id); }
-  for(const w of WONDERS){ if(w.id!=='drowningpillars'&&!landAt(w.x,w.y)) bad.push('wonder:'+w.id); }
+  /* `sea:true` marks a wonder that legitimately stands over water (the
+     Floating Isles hang above the Veiled Vortex; the Drowning Pillars are
+     submarine volcanoes). */
+  for(const w of WONDERS){ if(w.id!=='drowningpillars'&&!w.sea&&!landAt(w.x,w.y)) bad.push('wonder:'+w.id); }
   for(const isl of VISIBLE_ISLANDS){ if(!islandAt(isl.x,isl.y)) bad.push('island-center:'+isl.id); }
   /* Hidden isles are charted as water features: they must stand in open sea,
      clear of the continent and of every island the world can see. */

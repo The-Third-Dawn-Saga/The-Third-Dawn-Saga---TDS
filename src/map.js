@@ -422,8 +422,9 @@ function drawOverlay(now){
   // gates + ring gates
   if(LAYERS.gates) drawGates();
 
-  // maelstroms & wonders
+  // maelstroms & wonders (the Floating Isles hang above the vortex spiral)
   if(LAYERS.wonders) drawMaelstroms();
+  if(LAYERS.wonders) drawFloatingIsles();
   if(LAYERS.wonders) drawWonders();
 
   // settlements
@@ -817,6 +818,69 @@ function drawLastFishSky(){
   }
 }
 
+/* ITEM 6: the Floating Isles above the Veiled Vortex. Each isle is drawn
+   twice — once as a hard offset shadow on the water, once as the rock itself.
+   The offset between the two is what reads as altitude. */
+const FI_SHADOW=[52,72];                     // world-mile offset of the shadow
+function floatingIsleRim(cx,cy,r,seed,k){
+  const p=new Path2D();
+  for(let i=0;i<=40;i++){
+    const th=i/40*Math.PI*2;
+    const R=r*(0.80+0.34*islandNoise(th,seed)*0.55);
+    const x=cx+Math.cos(th)*R, y=cy+Math.sin(th)*R*0.62;
+    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
+  }
+  p.closePath(); return p;
+}
+function drawFloatingIsles(){
+  const f=WONDERS.find(w=>w.id==='floatingisles');
+  if(!f||!f.isles) return;
+  const p=w2s(f.x,f.y);
+  const R=260*view.scale*DPR;
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const painted=STYLE==='painted';
+  withWorld(ctx,S=>{
+    // shadows first, all of them, so no isle casts onto another's rock
+    ctx.fillStyle='rgba(6,14,26,0.42)';
+    f.isles.forEach((is,i)=>{
+      ctx.fill(floatingIsleRim(f.x+is[0]+FI_SHADOW[0], f.y+is[1]+FI_SHADOW[1], is[2], 1.7+i*0.9, i));
+    });
+    f.isles.forEach((is,i)=>{
+      const cx=f.x+is[0], cy=f.y+is[1];
+      const rim=floatingIsleRim(cx,cy,is[2],1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#7d6a4e' : '#5d5a52';        // the rock underside
+      ctx.fill(rim);
+      ctx.strokeStyle= painted ? 'rgba(74,53,32,0.85)' : 'rgba(232,238,246,0.75)';
+      ctx.lineWidth=1.6*DPR/S; ctx.stroke(rim);
+      // a green cap on top, offset up so the rock reads as an underside
+      const cap=floatingIsleRim(cx,cy-is[2]*0.16,is[2]*0.88,1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#5d8a48' : '#4f8a52';
+      ctx.fill(cap);
+    });
+  });
+  // mountain glyphs on the two largest
+  const big=[...f.isles].sort((a,b)=>b[2]-a[2]).slice(0,2);
+  for(const is of big){
+    const q=w2s(f.x+is[0], f.y+is[1]-is[2]*0.30);
+    const h=Math.max(5*DPR, Math.min(30*DPR, is[2]*0.85*view.scale*DPR));
+    for(const off of [-h*0.55, h*0.45]){
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.5, q[1]);
+      ctx.lineTo(q[0]+off+h*0.5, q[1]);
+      ctx.closePath();
+      ctx.fillStyle= painted ? '#cbb693' : '#8e8b84'; ctx.fill();
+      ctx.strokeStyle='rgba(40,44,50,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.17, q[1]-h*0.62);
+      ctx.lineTo(q[0]+off+h*0.17, q[1]-h*0.62);
+      ctx.closePath();
+      ctx.fillStyle='#f4efe2'; ctx.fill();
+    }
+  }
+}
+
 /* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
    is painted by the raster (ashen, no vegetation); this is the shoreline
    haze that marks it as the edge of the world. */
@@ -978,14 +1042,14 @@ function drawMaelstroms(){
     }
     ctx.stroke();
     if(ms.vortex){
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.25,R0*1.0,0,0,7);
-      ctx.strokeStyle='rgba(220,225,235,0.55)'; ctx.setLineDash([3*DPR,5*DPR]);
-      ctx.lineWidth=3*DPR; ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle= STYLE==='satellite' ? '#d8cdf2' : '#6a4ba8';
-      for(let i=0;i<3;i++){
-        const ix=p[0]+(i-1)*R0*0.34, iy=p[1]-R0*(0.35+0.12*((i*7)%3));
-        ctx.beginPath(); ctx.ellipse(ix,iy,R0*0.14,R0*0.06,0,0,7); ctx.fill();
-      }
+      // the permanent crown of cloud: a thick double ring, not a hairline
+      ctx.strokeStyle='rgba(228,233,242,0.72)'; ctx.setLineDash([7*DPR,6*DPR]);
+      ctx.lineWidth=5.5*DPR;
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.35,R0*1.08,0,0,7); ctx.stroke();
+      ctx.strokeStyle='rgba(228,233,242,0.40)'; ctx.setLineDash([4*DPR,7*DPR]);
+      ctx.lineWidth=3*DPR;
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.68,R0*1.34,0,0,7); ctx.stroke();
+      ctx.setLineDash([]);
     }
     if(LAYERS.labels && view.scale>0.07)
       label(ms.name,p[0],p[1]+R0+12*DPR,10.5, col, true);
@@ -1019,6 +1083,7 @@ function drawWonders(){
     } else {
       ctx.font=`${13*DPR}px ${SANS}`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle= STYLE==='painted' ? '#7a5230' : (STYLE==='satellite' ? '#f0dc9a' : '#b06000');
+      if(w.id==='floatingisles') continue;      // drawn as the isle cluster itself
       const glyph={glass:'✦',peak:'▲',arena:'◎',under:'☗',cliffs:'≈',pillars:'‖',scar:'✖',road:'≡',float:'♒'}[w.icon]||'✦';
       ctx.fillText(glyph,p[0],p[1]);
     }
@@ -1121,6 +1186,11 @@ function drawLabels(){
   }
   // priority 0: landmark sites (the Celestial Circle) — label sits BELOW the
   // glyph so it clears Pilgrim's Rest to the north-west
+  {
+    const fi=WONDERS.find(w=>w.id==='floatingisles');
+    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dy:-46, size:11.5, italic:true,
+      fill: painted?'#4a3520':(STYLE==='satellite'?'#e6ecf5':'#4a5560')});
+  }
   if(view.scale>=0.08){
     const cc=WONDERS.find(w=>w.id==='celestialcircle');
     if(cc) cands.push({pri:0, text:cc.name, x:cc.x, y:cc.y, dy:20, size:10.5, italic:true,
@@ -1146,7 +1216,7 @@ function drawLabels(){
   // priority 4: features
   if(view.scale>0.075){
     for(const w of WONDERS){
-      if(w.id==='worldtree'||w.id==='celestialcircle') continue;
+      if(w.id==='worldtree'||w.id==='celestialcircle'||w.id==='floatingisles') continue;
       cands.push({pri:4, text:w.name, x:w.x, y:w.y, dy:-13, size:10, italic:true,
         fill: painted?'#7a5230':(STYLE==='satellite'?'#f0dc9a':'#b06000')});
     }
@@ -1320,6 +1390,13 @@ function featureAt(wx,wy){
       if(mg.seasons[SEASON]===undefined) continue;
       if(mg.cluster && Math.hypot(wx-mg.cluster.x,wy-mg.cluster.y)<mg.cluster.r*1.2) return {kind:'migration',o:mg};
       for(const path of mg.paths){ if(G.distToPath(wx,wy,path)<tol*0.9) return {kind:'migration',o:mg}; }
+    }
+  }
+  if(LAYERS.wonders){
+    const fi=WONDERS.find(w=>w.id==='floatingisles');
+    if(fi&&fi.isles) for(const is of fi.isles){
+      const dx=(wx-(fi.x+is[0]))/is[2], dy=(wy-(fi.y+is[1]))/(is[2]*0.62);
+      if(dx*dx+dy*dy<=1.2) return {kind:'wonder',o:fi};
     }
   }
   for(const ms of MAELSTROMS){
