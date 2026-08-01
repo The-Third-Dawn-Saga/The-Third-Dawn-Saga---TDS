@@ -21,7 +21,9 @@ let tween=null;
    scene units — 85% of the continent's own major radius, and 150% of its
    minor — so the wall stands a continent's width off the coast at every
    bearing. Everything downstream (bowl, oceans, wall furniture, pillar and
-   star heights, leviathan orbits, camera framing) is derived from these. */
+   star heights, camera framing) is derived from these. The leviathans swim
+   OUTSIDE the wall (1.18-1.34 x R_WALL) in the hidden outer waters —
+   COSMOS.leviathans' "outer ocean" is the water beyond the cage. */
 const R_CONT_A=1000, R_CONT_B=740;
 const CAGE=1.321;                      // scale-up applied when the ocean was widened
 const R_INNER=1800;                    // inner ocean, out to the foot of the wall
@@ -159,7 +161,7 @@ function makeLeviathan(len,rad,color){
   for(let i=0;i<=seg;i++) pts.push(new THREE.Vector3((i/seg-0.5)*len,0,0));
   const curve=new THREE.CatmullRomCurve3(pts);
   const geo=new THREE.TubeGeometry(curve,seg,rad,10,false);
-  const mat=new THREE.MeshStandardMaterial({color:color,roughness:0.85,metalness:0.1,emissive:0x03151c,emissiveIntensity:0.7});
+  const mat=new THREE.MeshStandardMaterial({color:color,roughness:0.9,metalness:0.08,emissive:0x02090e,emissiveIntensity:0.35});
   const mesh=new THREE.Mesh(geo,mat);
   const head=new THREE.Mesh(new THREE.SphereGeometry(rad*1.6,14,12),mat);
   head.position.x=len/2; mesh.add(head);
@@ -664,14 +666,20 @@ function init(){
     }
   }
 
-  /* three leviathans in the outer ocean */
+  /* ITEM 3 (canon corrected): the three leviathans swim the hidden waters
+     OUTSIDE the cage — beyond the ice wall, never inside it. Orbits at
+     1.18/1.26/1.34 × R_WALL, varied depths and speeds; the outer ocean disc
+     (R_OUTER) extends past their farthest reach so they visibly swim in
+     water. Dim, vast, half-lost in the fog: shadows beyond the wall. */
   {
     const specs=[
-      // between the coast (1000 x 740) and the wall (1850): the outer ocean
-      {r:1310,len:1150,rad:26,speed:0.05, col:0x0d2530, name:'First Leviathan'},
-      {r:1520,len:1350,rad:32,speed:-0.035,col:0x0a1f2a, name:'Second Leviathan'},
-      {r:1700,len:1200,rad:28,speed:0.028, col:0x0c2230, name:'Third Leviathan'},
+      {r:R_WALL*1.18, len:1500, rad:30, speed:0.045,  yBase:-4,  col:0x0d2530, name:'First Leviathan'},
+      {r:R_WALL*1.26, len:1750, rad:36, speed:-0.030, yBase:-16, col:0x0a1f2a, name:'Second Leviathan'},
+      {r:R_WALL*1.34, len:1600, rad:32, speed:0.024,  yBase:-9,  col:0x0c2230, name:'Third Leviathan'},
     ];
+    console.log('[cosmos] R_WALL='+R_WALL+' — leviathan orbits: '
+      +specs.map(s=>Math.round(s.r)+' ('+(s.r/R_WALL).toFixed(2)+'×)').join(', ')
+      +' — clamp floor '+Math.round(R_WALL*1.05)+' (1.05×), outer ocean to '+R_OUTER);
     for(const s of specs){
       const lev=makeLeviathan(s.len,s.rad,s.col);
       lev.userData.orbit=s; lev.userData.phase=Math.random()*Math.PI*2;
@@ -768,8 +776,9 @@ let pendingFly=null;
 window.__cosmosSeason=function(s){ SEASON=s; if(started) requestHiResContinent(); };
 /* test hook: the cage's proportions, so the ocean gap can be asserted */
 window.__cosmosScale=function(){
-  const levs=[{r:1310,len:1150},{r:1520,len:1350},{r:1700,len:1200}].map(o=>({
-    r:o.r, min:o.r, max:Math.round(Math.hypot(o.r,o.len/2)) }));
+  const levs=[{r:R_WALL*1.18,len:1500},{r:R_WALL*1.26,len:1750},{r:R_WALL*1.34,len:1600}].map(o=>({
+    r:Math.round(o.r), ratio:+(o.r/R_WALL).toFixed(2), min:Math.round(o.r),
+    max:Math.round(Math.hypot(o.r,o.len/2)) }));
   // every ocean feature the 2D world carries must fall between coast and wall
   let farthest=0, inside=true;
   const probe=[...ISLANDS.map(i=>[i.x,i.y]), ...(D.MAELSTROMS||[]).map(m=>[m.x,m.y]),
@@ -839,7 +848,12 @@ function animate(){
   for(const lev of leviathans){
     const o=lev.userData.orbit, ph=lev.userData.phase;
     const a=t*o.speed+ph;
-    lev.position.set(Math.cos(a)*o.r,-8+Math.sin(t*0.7+ph)*4,Math.sin(a)*o.r);
+    lev.position.set(Math.cos(a)*o.r,(o.yBase!=null?o.yBase:-8)+Math.sin(t*0.7+ph)*4,Math.sin(a)*o.r);
+    // ITEM 3 runtime clamp: a leviathan must never come inside 1.05 × the
+    // wall radius. If a path point violates it, project it outward.
+    const LEV_MIN=R_WALL*1.05;
+    const d=Math.hypot(lev.position.x,lev.position.z);
+    if(d<LEV_MIN){ const k=LEV_MIN/Math.max(1e-6,d); lev.position.x*=k; lev.position.z*=k; }
     lev.rotation.y=-a-(o.speed>0?Math.PI/2:-Math.PI/2);
     lev.rotation.x=Math.sin(t*0.5+ph)*0.05;
   }

@@ -216,9 +216,12 @@ console.log('  shot canon_k_cosmos_widened_ocean');
 const cage = await page.evaluate(() => window.__cosmosScale());
 t('the ocean gap is 60–80%+ of the continent’s own radius',
   cage.gapMajor / cage.contA >= 0.6, `${cage.gapMajor} units = ${(cage.gapMajor / cage.contA * 100).toFixed(0)}% of ${cage.contA}`);
-t('every leviathan swims between the coast and the wall',
-  cage.leviathans.every(l => l.min > cage.contA && l.max < cage.wall),
+t('ITEM 3: every leviathan orbits OUTSIDE the wall at 1.15-1.35×',
+  cage.leviathans.every(l => l.ratio >= 1.15 && l.ratio <= 1.35 && l.min >= cage.wall * 1.05),
   JSON.stringify(cage.leviathans));
+t('ITEM 3: they swim in water — outer ocean covers their farthest reach',
+  cage.leviathans.every(l => l.max < cage.outer),
+  `max reach ${Math.max(...cage.leviathans.map(l => l.max))} vs ocean ${cage.outer}`);
 t('the whole world rect sits inside the wall', cage.worldCorner < cage.wall,
   `corner ${cage.worldCorner} vs wall ${cage.wall}`);
 t('every ocean feature stays between coast and wall', cage.featuresInside === true,
