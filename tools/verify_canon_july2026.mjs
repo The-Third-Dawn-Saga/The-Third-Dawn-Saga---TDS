@@ -124,14 +124,14 @@ t('the Red Reaches still bound as badlands', reaches && reaches.kind === 'badlan
 /* ---------- the Last Fish ring + the relocated Sanctuary ---------- */
 console.log('— the Last Fish ring, the Sanctuary, and the hidden isles —');
 await page.evaluate(() => window.__setLayer('hidden', false));
-await expectPick('the Isle of the Last Fish', 6250, 330, 'lastfish', 'island', 0.5);
-for (const [n, x, y] of [['north', 6250, 180], ['east', 6415, 330], ['south', 6250, 480], ['west', 6085, 330]]) {
+await expectPick('the Isle of the Last Fish', 8600, 2190, 'lastfish', 'island', 0.5);
+for (const [n, x, y] of [['north', 8600, 2040], ['east', 8765, 2190], ['south', 8600, 2340], ['west', 8435, 2190]]) {
   const r = await pick(x, y, { zoom: 0.6 });
   t(`outer isle (${n}) resolves to the ring`, r && r.kind === 'island' && /Last Fish/.test(r.body),
     r && `${r.kind}:${r.id}`);
 }
-await expectPick('Guardian Whirlpool — western gate', 5950, 560, 'm_fish_w', 'maelstrom', 0.5);
-await expectPick('Guardian Whirlpool — eastern gate', 6560, 540, 'm_fish_e', 'maelstrom', 0.5);
+await expectPick('Guardian Whirlpool — western gate', 8300, 2420, 'm_fish_w', 'maelstrom', 0.5);
+await expectPick('Guardian Whirlpool — eastern gate', 8910, 2400, 'm_fish_e', 'maelstrom', 0.5);
 await expectPick("Kaelen's Sanctuary at its new station", 8650, 4550, 'lastlight', 'island', 0.6);
 {
   const r = await pick(8650, 4550, { zoom: 0.6 });
@@ -200,7 +200,7 @@ await capture('canon_g_deep_frozen_sea', { x: 4500, y: 1500, scale: 0.20, season
 await capture('canon_g2_deep_frozen_sea_painted', { x: 4500, y: 1500, scale: 0.20, season: 3, style: 'painted' });
 await capture('canon_g3_deep_frozen_sea_atlas', { x: 4500, y: 1500, scale: 0.20, season: 3, style: 'atlas' });
 // (h) the Last Fish ring, zoomed
-await capture('canon_h_lastfish_ring', { x: 6250, y: 340, scale: 1.05 });
+await capture('canon_h_lastfish_ring', { x: 8560, y: 2200, scale: 0.95 });
 // (i) the relocated, smaller Sanctuary
 await capture('canon_i_sanctuary_relocated', { x: 8480, y: 4520, scale: 0.60 });
 // (j) hidden world on, far north: both hidden isles against the ice
