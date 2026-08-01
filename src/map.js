@@ -11,8 +11,8 @@
 const D=TDA_DATA, G=TDA_GEO;
 const { WORLD, KINGDOMS, FOREST_RING, MOUNTAINS, RIVERS, LAKES, MARSHES, FORESTS,
   SETTLEMENTS, GATES, RING_GATES, WONDERS, HIDDEN, ISLANDS, SEAMARKS, ROUTES,
-  BADLANDS, MAELSTROMS, WAR, SEASON_STOPS, SEASON_NAMES, MIGRATIONS,
-  SEASON_ACTIVITIES, SEASON_TRAVEL, FLOW_NOTE, coastNoise, ringGatePos } = D;
+  BADLANDS, MAELSTROMS, SEAMOUNTS, WAR, SEASON_STOPS, SEASON_NAMES, MIGRATIONS,
+  SEASON_ACTIVITIES, SEASON_TRAVEL, FLOW_NOTE, coastNoise, islandNoise, ringGatePos } = D;
 
 const DPR=Math.min(2, window.devicePixelRatio||1);
 const base=document.getElementById('mapBase');
@@ -366,7 +366,14 @@ function drawOverlay(now){
         ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
       }
     }
+    drawSeamounts();
+    drawIsleVolcanoes();
   }
+
+  // the Isle of the Last Fish: black cloud, sparks where rain should be
+  drawLastFishSky();
+  // the Far Shore: pale mist along the beach at the edge of the world
+  drawFarShoreMist();
 
   // routes
   if(LAYERS.routes){
@@ -390,9 +397,14 @@ function drawOverlay(now){
     });
   }
 
-  // seasonal ice-road dash across Deepmere in deep winter
+  // seasonal ice-road dash across Deepmere in deep winter — along the lake's
+  // long axis, so the haulers' route reads as crossing it end to end
   if(SEASON===3){
-    const a=w2s(4510,1110), b=w2s(4690,1190);
+    const dm=LAKES.find(l=>l.id==='deepmere');
+    const horiz=dm.rx>=dm.ry;
+    const ax=dm.x-(horiz?dm.rx*0.82:0), ay=dm.y-(horiz?0:dm.ry*0.82);
+    const bx=dm.x+(horiz?dm.rx*0.82:0), by=dm.y+(horiz?0:dm.ry*0.82);
+    const a=w2s(ax,ay), b=w2s(bx,by);
     ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
     ctx.strokeStyle= STYLE==='satellite'?'rgba(90,110,130,0.9)':'rgba(120,140,160,0.9)';
     ctx.lineWidth=1.6*DPR; ctx.setLineDash([5*DPR,5*DPR]); ctx.stroke(); ctx.setLineDash([]);
@@ -404,14 +416,15 @@ function drawOverlay(now){
   // seasonal human-activity markers
   if(LAYERS.activities) drawActivities(now||performance.now());
 
-  // hidden world
-  if(LAYERS.hidden) drawHidden();
+  // hidden world (the two far-northern isles sit under the site markers)
+  if(LAYERS.hidden){ drawHiddenIslands(); drawHidden(); }
 
   // gates + ring gates
   if(LAYERS.gates) drawGates();
 
-  // maelstroms & wonders
+  // maelstroms & wonders (the Floating Isles hang above the vortex spiral)
   if(LAYERS.wonders) drawMaelstroms();
+  if(LAYERS.wonders) drawFloatingIsles();
   if(LAYERS.wonders) drawWonders();
 
   // settlements
@@ -451,8 +464,10 @@ function paintedTrees(){
       const x=fo.x+Math.cos(a)*fo.rx*rr*0.92, y=fo.y+Math.sin(a)*fo.ry*rr*0.92;
       if(G.fbm(x*0.006,y*0.006)<=0.30) continue;      // density by fbm
       if(G.lakeAt(x,y)||!G.onContinent(x,y)) continue;
+      if(fo.hole && Math.hypot(x-fo.hole.x,y-fo.hole.y)<=fo.hole.r) continue;  // the Wardwood's clearing
       const kind= fo.kind==='dark' ? 'dark'
         : fo.kind==='enchanted' ? 'glow'
+        : fo.kind==='grey' ? 'grey'
         : (fo.y<2400 ? 'pine' : 'round');             // taiga = conical
       out.push([x,y,kind,0.75+G.hash2(i,3)*0.65]);
     }
@@ -485,6 +500,16 @@ function drawPaintedForests(){
       ctx.fill();
       ctx.strokeStyle='rgba(46,58,30,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
       if(kind==='glow'){ ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.62,h*0.16,0,7); ctx.fillStyle='rgba(244,232,150,0.9)'; ctx.fill(); }
+    } else if(kind==='grey'){
+      // the Forgetting: bare grey boles under a pale mist stipple —
+      // the canopy is there, and it is the wrong colour.
+      ctx.strokeStyle='#6e6a5e'; ctx.lineWidth=Math.max(1,h*0.09);
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.55); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0],p[1]-h*0.66,h*0.40,0,7);
+      ctx.fillStyle='rgba(122,130,116,0.85)'; ctx.fill();
+      ctx.strokeStyle='rgba(74,78,70,0.75)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0]+h*0.22,p[1]-h*0.86,h*0.26,0,7);
+      ctx.fillStyle='rgba(214,216,206,0.28)'; ctx.fill();          // mist
     } else if(kind==='umbrella'){
       ctx.strokeStyle=trunkCol; ctx.lineWidth=Math.max(1,h*0.09);
       ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(p[0],p[1]-h*0.75); ctx.stroke();
@@ -709,6 +734,237 @@ function drawActivities(now){
     if(LAYERS.labels&&view.scale>0.11) label(a.name,p[0],p[1]+15*DPR,9.5, STYLE==='satellite'?'#e2c268':'#8a6d1c', true);
   }
 }
+/* ============================================================
+   THE LAST FISH RING — sea-mountains, island volcanoes, black sky
+   ============================================================ */
+/* Jagged seamounts standing out of the grey water: the Drowning Pillars'
+   rock treatment, scaled down and drawn as broken teeth rather than isles. */
+function drawSeamounts(){
+  if(!SEAMOUNTS) return;
+  const W=canvas.width,H=canvas.height;
+  const rock= STYLE==='painted' ? '#4a423a' : (STYLE==='atlas' ? '#8e8880' : '#3a3733');
+  const lip = STYLE==='painted' ? '#cbb693' : (STYLE==='atlas' ? '#d6d2cb' : '#9a958c');
+  for(const sm of SEAMOUNTS){
+    const p=w2s(sm.x,sm.y);
+    if(p[0]<-40||p[1]<-40||p[0]>W+40||p[1]>H+40) continue;
+    const h=Math.max(4*DPR, Math.min(26*DPR, 46*sm.s*view.scale*DPR));
+    const w2=h*0.82;
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-w2*0.5,p[1]+h*0.16);
+    ctx.lineTo(p[0]-w2*0.16,p[1]+h*0.04);
+    ctx.lineTo(p[0]+w2*0.20,p[1]+h*0.18);
+    ctx.lineTo(p[0]+w2*0.5,p[1]+h*0.10);
+    ctx.closePath();
+    ctx.fillStyle=rock; ctx.fill();
+    ctx.strokeStyle= STYLE==='atlas' ? 'rgba(90,86,80,0.9)' : 'rgba(12,12,14,0.85)';
+    ctx.lineWidth=Math.max(0.8,h*0.06); ctx.stroke();
+    // a pale wave-lip where the sea breaks on it
+    ctx.beginPath(); ctx.ellipse(p[0],p[1]+h*0.16,w2*0.62,h*0.14,0,0,7);
+    ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
+  }
+}
+/* The three volcanoes on the Last Fish: two at the fore, one behind. */
+function drawIsleVolcanoes(){
+  const P=G.PALETTES[STYLE];
+  for(const isl of ISLANDS){
+    if(!isl.volcanoes) continue;
+    if(isl.hidden && !LAYERS.hidden) continue;
+    for(const [vx,vy] of isl.volcanoes){
+      const p=w2s(vx,vy);
+      const r=Math.max(2.4*DPR, Math.min(9*DPR, 26*view.scale*DPR));
+      const gl=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],r*2.6);
+      gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)');
+      ctx.beginPath(); ctx.arc(p[0],p[1],r*2.6,0,7); ctx.fillStyle=gl; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(p[0],p[1]-r*1.5); ctx.lineTo(p[0]-r,p[1]+r*0.5); ctx.lineTo(p[0]+r,p[1]+r*0.5);
+      ctx.closePath();
+      ctx.fillStyle='#241d1a'; ctx.fill();
+      ctx.beginPath(); ctx.arc(p[0],p[1]-r*1.2,r*0.42,0,7);
+      ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
+    }
+  }
+}
+/* Black cloud over the isle, and sparks falling where rain should.
+   The Isle of the Last Door's sky is RED — the two must never read alike. */
+function isleSparks(isl,seedOff,reach){
+  const out=[];
+  for(let i=0;i<70;i++){
+    const a=G.hash2(i+seedOff,isl.x)*6.2832, rr=Math.sqrt(G.hash2(i*1.9+seedOff,isl.y));
+    out.push([isl.x+Math.cos(a)*reach*rr, isl.y+Math.sin(a)*reach*0.86*rr,
+              0.5+G.hash2(i,seedOff+3)*0.9]);
+  }
+  return out;
+}
+let LF_SPARKS=null;
+function drawLastFishSky(){
+  const isl=ISLANDS.find(s=>s.id==='lastfish');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const R=250*view.scale*DPR;
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  // black cloud deck (the raster already carries the haze; this is its core)
+  const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
+  cg.addColorStop(0,'rgba(6,6,9,0.42)'); cg.addColorStop(0.6,'rgba(10,10,14,0.20)');
+  cg.addColorStop(1,'rgba(10,10,14,0)');
+  ctx.beginPath(); ctx.ellipse(p[0],p[1],R,R*0.86,0,0,7); ctx.fillStyle=cg; ctx.fill();
+  if(!LF_SPARKS) LF_SPARKS=isleSparks(isl,0,230);
+  for(const [sx,sy,s] of LF_SPARKS){
+    const q=w2s(sx,sy);
+    const len=Math.max(1.2*DPR, 16*s*view.scale*DPR);
+    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
+    ctx.strokeStyle='rgba(255,196,120,0.85)';
+    ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+  }
+}
+
+/* ITEM 6: the Floating Isles above the Veiled Vortex. Each isle is drawn
+   twice — once as a hard offset shadow on the water, once as the rock itself.
+   The offset between the two is what reads as altitude. */
+const FI_SHADOW=[52,72];                     // world-mile offset of the shadow
+function floatingIsleRim(cx,cy,r,seed,k){
+  const p=new Path2D();
+  for(let i=0;i<=40;i++){
+    const th=i/40*Math.PI*2;
+    const R=r*(0.80+0.34*islandNoise(th,seed)*0.55);
+    const x=cx+Math.cos(th)*R, y=cy+Math.sin(th)*R*0.62;
+    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
+  }
+  p.closePath(); return p;
+}
+function drawFloatingIsles(){
+  const f=WONDERS.find(w=>w.id==='floatingisles');
+  if(!f||!f.isles) return;
+  const p=w2s(f.x,f.y);
+  const R=260*view.scale*DPR;
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const painted=STYLE==='painted';
+  withWorld(ctx,S=>{
+    // shadows first, all of them, so no isle casts onto another's rock
+    ctx.fillStyle='rgba(6,14,26,0.42)';
+    f.isles.forEach((is,i)=>{
+      ctx.fill(floatingIsleRim(f.x+is[0]+FI_SHADOW[0], f.y+is[1]+FI_SHADOW[1], is[2], 1.7+i*0.9, i));
+    });
+    f.isles.forEach((is,i)=>{
+      const cx=f.x+is[0], cy=f.y+is[1];
+      const rim=floatingIsleRim(cx,cy,is[2],1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#7d6a4e' : '#5d5a52';        // the rock underside
+      ctx.fill(rim);
+      ctx.strokeStyle= painted ? 'rgba(74,53,32,0.85)' : 'rgba(232,238,246,0.75)';
+      ctx.lineWidth=1.6*DPR/S; ctx.stroke(rim);
+      // a green cap on top, offset up so the rock reads as an underside
+      const cap=floatingIsleRim(cx,cy-is[2]*0.16,is[2]*0.88,1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#5d8a48' : '#4f8a52';
+      ctx.fill(cap);
+    });
+  });
+  // mountain glyphs on the two largest
+  const big=[...f.isles].sort((a,b)=>b[2]-a[2]).slice(0,2);
+  for(const is of big){
+    const q=w2s(f.x+is[0], f.y+is[1]-is[2]*0.30);
+    const h=Math.max(5*DPR, Math.min(30*DPR, is[2]*0.85*view.scale*DPR));
+    for(const off of [-h*0.55, h*0.45]){
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.5, q[1]);
+      ctx.lineTo(q[0]+off+h*0.5, q[1]);
+      ctx.closePath();
+      ctx.fillStyle= painted ? '#cbb693' : '#8e8b84'; ctx.fill();
+      ctx.strokeStyle='rgba(40,44,50,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.17, q[1]-h*0.62);
+      ctx.lineTo(q[0]+off+h*0.17, q[1]-h*0.62);
+      ctx.closePath();
+      ctx.fillStyle='#f4efe2'; ctx.fill();
+    }
+  }
+}
+
+/* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
+   is painted by the raster (ashen, no vegetation); this is the shoreline
+   haze that marks it as the edge of the world. */
+let FS_MIST=null;
+function drawFarShoreMist(){
+  const isl=ISLANDS.find(s=>s.special==='farshore');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const rx=isl.rx*view.scale*DPR, ry=isl.ry*view.scale*DPR;
+  if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) return;
+  if(!FS_MIST){
+    FS_MIST=[];
+    for(let i=0;i<64;i++){
+      const th=i/64*Math.PI*2;
+      const R=islandNoise(th,isl.seed)*0.85*(0.94+G.hash2(i,7)*0.16);
+      FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
+                    0.5+G.hash2(i,11)*0.8]);
+    }
+  }
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(const [mx,my,s] of FS_MIST){
+    const q=w2s(mx,my);
+    const r=Math.max(3*DPR, 46*s*view.scale*DPR);
+    const g2=ctx.createRadialGradient(q[0],q[1],0,q[0],q[1],r);
+    g2.addColorStop(0,'rgba(214,218,222,0.30)');
+    g2.addColorStop(1,'rgba(214,218,222,0)');
+    ctx.beginPath(); ctx.arc(q[0],q[1],r,0,7); ctx.fillStyle=g2; ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* The hidden isles are absent from the raster by design (see geo.js
+   VISIBLE_ISLANDS), so the Hidden World layer draws them itself: the same
+   islandNoise rim the raster uses for every other island, over a slick of
+   grey water that does not reflect. */
+const HIDDEN_ISLE_PATH=new Map();
+function hiddenIslePath(isl){
+  let p=HIDDEN_ISLE_PATH.get(isl.id);
+  if(p) return p;
+  p=new Path2D();
+  for(let i=0;i<=96;i++){
+    const th=i/96*Math.PI*2, R=islandNoise(th,isl.seed)*0.85;
+    const x=isl.x+Math.cos(th)*isl.rx*R, y=isl.y+Math.sin(th)*isl.ry*R;
+    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
+  }
+  p.closePath();
+  HIDDEN_ISLE_PATH.set(isl.id,p);
+  return p;
+}
+let LD_SPARKS=null;
+function drawHiddenIslands(){
+  const purple= STYLE==='satellite' ? '#c99ae0' : '#8b5bb0';
+  for(const isl of G.HIDDEN_ISLANDS){
+    const p=w2s(isl.x,isl.y);
+    const rx=Math.max(3*DPR,isl.rx*view.scale*DPR), ry=Math.max(2*DPR,isl.ry*view.scale*DPR);
+    if(p[0]<-rx*4||p[1]<-ry*4||p[0]>canvas.width+rx*4||p[1]>canvas.height+ry*4) continue;
+    // the grey, unreflecting water for a mile out — dark enough to read against
+    // the sea ice these two sit in
+    const hg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],rx*2.6);
+    hg.addColorStop(0,'rgba(58,60,66,0.62)'); hg.addColorStop(0.65,'rgba(64,66,72,0.42)');
+    hg.addColorStop(1,'rgba(64,66,72,0)');
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.6,ry*2.6,0,0,7); ctx.fillStyle=hg; ctx.fill();
+    withWorld(ctx,S=>{
+      const path=hiddenIslePath(isl);
+      ctx.fillStyle='#2c2a28'; ctx.fill(path);                    // the ground is black
+      ctx.strokeStyle=purple; ctx.lineWidth=2*DPR/S; ctx.stroke(path);
+    });
+    if(isl.id==='lastdoor'){
+      // red clouds that drop sparks instead of rain
+      const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],rx*3.2);
+      cg.addColorStop(0,'rgba(126,26,24,0.42)'); cg.addColorStop(1,'rgba(126,26,24,0)');
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*3.2,ry*3.2,0,0,7); ctx.fillStyle=cg; ctx.fill();
+      if(!LD_SPARKS) LD_SPARKS=isleSparks(isl,17,isl.rx*2.6);
+      for(const [sx,sy,s] of LD_SPARKS){
+        const q=w2s(sx,sy);
+        const len=Math.max(1.2*DPR, 11*s*view.scale*DPR);
+        ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
+        ctx.strokeStyle='rgba(255,132,96,0.85)';
+        ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+      }
+    }
+  }
+}
 function drawHidden(){
   for(const h of HIDDEN){
     const p=w2s(h.x,h.y);
@@ -786,14 +1042,14 @@ function drawMaelstroms(){
     }
     ctx.stroke();
     if(ms.vortex){
-      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.25,R0*1.0,0,0,7);
-      ctx.strokeStyle='rgba(220,225,235,0.55)'; ctx.setLineDash([3*DPR,5*DPR]);
-      ctx.lineWidth=3*DPR; ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle= STYLE==='satellite' ? '#d8cdf2' : '#6a4ba8';
-      for(let i=0;i<3;i++){
-        const ix=p[0]+(i-1)*R0*0.34, iy=p[1]-R0*(0.35+0.12*((i*7)%3));
-        ctx.beginPath(); ctx.ellipse(ix,iy,R0*0.14,R0*0.06,0,0,7); ctx.fill();
-      }
+      // the permanent crown of cloud: a thick double ring, not a hairline
+      ctx.strokeStyle='rgba(228,233,242,0.72)'; ctx.setLineDash([7*DPR,6*DPR]);
+      ctx.lineWidth=5.5*DPR;
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.35,R0*1.08,0,0,7); ctx.stroke();
+      ctx.strokeStyle='rgba(228,233,242,0.40)'; ctx.setLineDash([4*DPR,7*DPR]);
+      ctx.lineWidth=3*DPR;
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],R0*1.68,R0*1.34,0,0,7); ctx.stroke();
+      ctx.setLineDash([]);
     }
     if(LAYERS.labels && view.scale>0.07)
       label(ms.name,p[0],p[1]+R0+12*DPR,10.5, col, true);
@@ -827,6 +1083,7 @@ function drawWonders(){
     } else {
       ctx.font=`${13*DPR}px ${SANS}`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle= STYLE==='painted' ? '#7a5230' : (STYLE==='satellite' ? '#f0dc9a' : '#b06000');
+      if(w.id==='floatingisles') continue;      // drawn as the isle cluster itself
       const glyph={glass:'✦',peak:'▲',arena:'◎',under:'☗',cliffs:'≈',pillars:'‖',scar:'✖',road:'≡',float:'♒'}[w.icon]||'✦';
       ctx.fillText(glyph,p[0],p[1]);
     }
@@ -929,6 +1186,11 @@ function drawLabels(){
   }
   // priority 0: landmark sites (the Celestial Circle) — label sits BELOW the
   // glyph so it clears Pilgrim's Rest to the north-west
+  {
+    const fi=WONDERS.find(w=>w.id==='floatingisles');
+    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dy:-46, size:11.5, italic:true,
+      fill: painted?'#4a3520':(STYLE==='satellite'?'#e6ecf5':'#4a5560')});
+  }
   if(view.scale>=0.08){
     const cc=WONDERS.find(w=>w.id==='celestialcircle');
     if(cc) cands.push({pri:0, text:cc.name, x:cc.x, y:cc.y, dy:20, size:10.5, italic:true,
@@ -954,7 +1216,7 @@ function drawLabels(){
   // priority 4: features
   if(view.scale>0.075){
     for(const w of WONDERS){
-      if(w.id==='worldtree'||w.id==='celestialcircle') continue;
+      if(w.id==='worldtree'||w.id==='celestialcircle'||w.id==='floatingisles') continue;
       cands.push({pri:4, text:w.name, x:w.x, y:w.y, dy:-13, size:10, italic:true,
         fill: painted?'#7a5230':(STYLE==='satellite'?'#f0dc9a':'#b06000')});
     }
@@ -981,8 +1243,15 @@ function drawLabels(){
   }
   for(const isl of ISLANDS){
     if(!isl.name) continue;
-    cands.push({pri:4, text:isl.name, x:isl.x, y:isl.y, dyPx:(isl.ry*view.scale+12), size:10.5,
-      fill: painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368')});
+    if(isl.hidden && !LAYERS.hidden) continue;      // the hidden isles are on no chart
+    cands.push({pri: isl.special==='farshore'?1:4,
+      text:isl.name, x:isl.x, y:isl.y,
+      dyPx:(isl.special==='farshore'? 0 : isl.ry*view.scale+12),
+      size: isl.special==='farshore'?12:10.5,
+      italic: isl.special==='farshore',
+      fill: isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
+        : isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
+        : (painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368'))});
   }
   if(view.scale>0.07){
     cands.push({pri:4, text:'THE RED REACHES', x:2900, y:4500, dy:0, size:11, italic:true,
@@ -1123,8 +1392,19 @@ function featureAt(wx,wy){
       for(const path of mg.paths){ if(G.distToPath(wx,wy,path)<tol*0.9) return {kind:'migration',o:mg}; }
     }
   }
+  if(LAYERS.wonders){
+    const fi=WONDERS.find(w=>w.id==='floatingisles');
+    if(fi&&fi.isles) for(const is of fi.isles){
+      const dx=(wx-(fi.x+is[0]))/is[2], dy=(wy-(fi.y+is[1]))/(is[2]*0.62);
+      if(dx*dx+dy*dy<=1.2) return {kind:'wonder',o:fi};
+    }
+  }
   for(const ms of MAELSTROMS){
     if(Math.hypot(wx-ms.x,wy-ms.y)<ms.r*1.3) return {kind:'maelstrom',o:ms};
+  }
+  if(LAYERS.hidden){
+    const hIsl=G.hiddenIslandAt(wx,wy);
+    if(hIsl) return {kind:'island',o:hIsl};
   }
   const isl=G.islandAt(wx,wy);
   if(isl){ const named = isl.name ? isl : ISLANDS.find(s=>s.name && s.id.replace(/\d+$/,'')===isl.id.replace(/\d+$/,'')) || isl;
@@ -1132,10 +1412,8 @@ function featureAt(wx,wy){
   if(LAYERS.hidden){ for(const h of HIDDEN){ if(h.r&&Math.hypot(h.x-wx,h.y-wy)<h.r) return {kind:'hidden',o:h}; } }
   const lk=G.lakeAt(wx,wy);
   if(lk) return {kind:'lake',o:lk};
-  for(const fo of FORESTS){
-    const dx=(wx-fo.x)/fo.rx, dy=(wy-fo.y)/fo.ry;
-    if(dx*dx+dy*dy<=1) return {kind:'forest',o:fo};
-  }
+  const fo=G.forestAt(wx,wy);
+  if(fo) return {kind:'forest',o:fo};
   for(const ma of MARSHES){
     const dx=(wx-ma.x)/ma.rx, dy=(wy-ma.y)/ma.ry;
     if(dx*dx+dy*dy<=1) return {kind:'marsh',o:ma};
@@ -1383,6 +1661,23 @@ window.__tilesReady=function(){
 window.__rasterStats=function(){
   return { rasters:[...rasterCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
 };
+/* click-test hook: resolve a world point exactly as a canvas click would,
+   open the info panel, and report what the reader ends up looking at. */
+window.__pick=function(wx,wy){
+  const f=featureAt(wx,wy);
+  showInfo(f);
+  const panel=document.getElementById('infoPanel');
+  return f ? { kind:f.kind, id:f.o&&f.o.id, name:f.o&&f.o.name,
+               open:panel.classList.contains('open'),
+               heading:(panel.querySelector('h2')||{}).textContent||'',
+               body:panel.textContent||'' } : null;
+};
+window.__setLayer=function(name,on){
+  const el=document.querySelector(`input[data-layer=${name}]`);
+  if(el && el.checked!==!!on) el.click(); else { LAYERS[name]=!!on; dirty(true,true); }
+  return LAYERS[name];
+};
+window.__setView=function(x,y,scale){ view={x,y,scale}; dirty(true,true); return {...view}; };
 
 updateSeasonCal();
 window.addEventListener('resize',resize);
