@@ -11,7 +11,7 @@
 const D=TDA_DATA, G=TDA_GEO;
 const { WORLD, KINGDOMS, FOREST_RING, MOUNTAINS, RIVERS, LAKES, MARSHES, FORESTS,
   SETTLEMENTS, GATES, RING_GATES, WONDERS, HIDDEN, ISLANDS, SEAMARKS, ROUTES,
-  BADLANDS, MAELSTROMS, WAR, SEASON_STOPS, SEASON_NAMES, MIGRATIONS,
+  BADLANDS, MAELSTROMS, SEAMOUNTS, WAR, SEASON_STOPS, SEASON_NAMES, MIGRATIONS,
   SEASON_ACTIVITIES, SEASON_TRAVEL, FLOW_NOTE, coastNoise, islandNoise, ringGatePos } = D;
 
 const DPR=Math.min(2, window.devicePixelRatio||1);
@@ -366,7 +366,12 @@ function drawOverlay(now){
         ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
       }
     }
+    drawSeamounts();
+    drawIsleVolcanoes();
   }
+
+  // the Isle of the Last Fish: black cloud, sparks where rain should be
+  drawLastFishSky();
 
   // routes
   if(LAYERS.routes){
@@ -390,9 +395,14 @@ function drawOverlay(now){
     });
   }
 
-  // seasonal ice-road dash across Deepmere in deep winter
+  // seasonal ice-road dash across Deepmere in deep winter — along the lake's
+  // long axis, so the haulers' route reads as crossing it end to end
   if(SEASON===3){
-    const a=w2s(4510,1110), b=w2s(4690,1190);
+    const dm=LAKES.find(l=>l.id==='deepmere');
+    const horiz=dm.rx>=dm.ry;
+    const ax=dm.x-(horiz?dm.rx*0.82:0), ay=dm.y-(horiz?0:dm.ry*0.82);
+    const bx=dm.x+(horiz?dm.rx*0.82:0), by=dm.y+(horiz?0:dm.ry*0.82);
+    const a=w2s(ax,ay), b=w2s(bx,by);
     ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
     ctx.strokeStyle= STYLE==='satellite'?'rgba(90,110,130,0.9)':'rgba(120,140,160,0.9)';
     ctx.lineWidth=1.6*DPR; ctx.setLineDash([5*DPR,5*DPR]); ctx.stroke(); ctx.setLineDash([]);
@@ -721,6 +731,90 @@ function drawActivities(now){
     if(LAYERS.labels&&view.scale>0.11) label(a.name,p[0],p[1]+15*DPR,9.5, STYLE==='satellite'?'#e2c268':'#8a6d1c', true);
   }
 }
+/* ============================================================
+   THE LAST FISH RING — sea-mountains, island volcanoes, black sky
+   ============================================================ */
+/* Jagged seamounts standing out of the grey water: the Drowning Pillars'
+   rock treatment, scaled down and drawn as broken teeth rather than isles. */
+function drawSeamounts(){
+  if(!SEAMOUNTS) return;
+  const W=canvas.width,H=canvas.height;
+  const rock= STYLE==='painted' ? '#4a423a' : (STYLE==='atlas' ? '#8e8880' : '#3a3733');
+  const lip = STYLE==='painted' ? '#cbb693' : (STYLE==='atlas' ? '#d6d2cb' : '#9a958c');
+  for(const sm of SEAMOUNTS){
+    const p=w2s(sm.x,sm.y);
+    if(p[0]<-40||p[1]<-40||p[0]>W+40||p[1]>H+40) continue;
+    const h=Math.max(4*DPR, Math.min(26*DPR, 46*sm.s*view.scale*DPR));
+    const w2=h*0.82;
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-w2*0.5,p[1]+h*0.16);
+    ctx.lineTo(p[0]-w2*0.16,p[1]+h*0.04);
+    ctx.lineTo(p[0]+w2*0.20,p[1]+h*0.18);
+    ctx.lineTo(p[0]+w2*0.5,p[1]+h*0.10);
+    ctx.closePath();
+    ctx.fillStyle=rock; ctx.fill();
+    ctx.strokeStyle= STYLE==='atlas' ? 'rgba(90,86,80,0.9)' : 'rgba(12,12,14,0.85)';
+    ctx.lineWidth=Math.max(0.8,h*0.06); ctx.stroke();
+    // a pale wave-lip where the sea breaks on it
+    ctx.beginPath(); ctx.ellipse(p[0],p[1]+h*0.16,w2*0.62,h*0.14,0,0,7);
+    ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
+  }
+}
+/* The three volcanoes on the Last Fish: two at the fore, one behind. */
+function drawIsleVolcanoes(){
+  const P=G.PALETTES[STYLE];
+  for(const isl of ISLANDS){
+    if(!isl.volcanoes) continue;
+    if(isl.hidden && !LAYERS.hidden) continue;
+    for(const [vx,vy] of isl.volcanoes){
+      const p=w2s(vx,vy);
+      const r=Math.max(2.4*DPR, Math.min(9*DPR, 26*view.scale*DPR));
+      const gl=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],r*2.6);
+      gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)');
+      ctx.beginPath(); ctx.arc(p[0],p[1],r*2.6,0,7); ctx.fillStyle=gl; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(p[0],p[1]-r*1.5); ctx.lineTo(p[0]-r,p[1]+r*0.5); ctx.lineTo(p[0]+r,p[1]+r*0.5);
+      ctx.closePath();
+      ctx.fillStyle='#241d1a'; ctx.fill();
+      ctx.beginPath(); ctx.arc(p[0],p[1]-r*1.2,r*0.42,0,7);
+      ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
+    }
+  }
+}
+/* Black cloud over the isle, and sparks falling where rain should.
+   The Isle of the Last Door's sky is RED — the two must never read alike. */
+function isleSparks(isl,seedOff,reach){
+  const out=[];
+  for(let i=0;i<70;i++){
+    const a=G.hash2(i+seedOff,isl.x)*6.2832, rr=Math.sqrt(G.hash2(i*1.9+seedOff,isl.y));
+    out.push([isl.x+Math.cos(a)*reach*rr, isl.y+Math.sin(a)*reach*0.86*rr,
+              0.5+G.hash2(i,seedOff+3)*0.9]);
+  }
+  return out;
+}
+let LF_SPARKS=null;
+function drawLastFishSky(){
+  const isl=ISLANDS.find(s=>s.id==='lastfish');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const R=250*view.scale*DPR;
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  // black cloud deck (the raster already carries the haze; this is its core)
+  const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
+  cg.addColorStop(0,'rgba(6,6,9,0.42)'); cg.addColorStop(0.6,'rgba(10,10,14,0.20)');
+  cg.addColorStop(1,'rgba(10,10,14,0)');
+  ctx.beginPath(); ctx.ellipse(p[0],p[1],R,R*0.86,0,0,7); ctx.fillStyle=cg; ctx.fill();
+  if(!LF_SPARKS) LF_SPARKS=isleSparks(isl,0,230);
+  for(const [sx,sy,s] of LF_SPARKS){
+    const q=w2s(sx,sy);
+    const len=Math.max(1.2*DPR, 16*s*view.scale*DPR);
+    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
+    ctx.strokeStyle='rgba(255,196,120,0.85)';
+    ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+  }
+}
+
 /* The hidden isles are absent from the raster by design (see geo.js
    VISIBLE_ISLANDS), so the Hidden World layer draws them itself: the same
    islandNoise rim the raster uses for every other island, over a slick of
@@ -739,22 +833,38 @@ function hiddenIslePath(isl){
   HIDDEN_ISLE_PATH.set(isl.id,p);
   return p;
 }
+let LD_SPARKS=null;
 function drawHiddenIslands(){
-  const P=G.PALETTES[STYLE];
   const purple= STYLE==='satellite' ? '#c99ae0' : '#8b5bb0';
   for(const isl of G.HIDDEN_ISLANDS){
     const p=w2s(isl.x,isl.y);
-    const rx=isl.rx*view.scale*DPR, ry=isl.ry*view.scale*DPR;
-    if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) continue;
-    // the grey, unreflecting water for a mile out
-    ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.1,ry*2.1,0,0,7);
-    ctx.fillStyle= STYLE==='painted' ? 'rgba(126,126,120,0.30)' : 'rgba(120,124,128,0.34)';
-    ctx.fill();
+    const rx=Math.max(3*DPR,isl.rx*view.scale*DPR), ry=Math.max(2*DPR,isl.ry*view.scale*DPR);
+    if(p[0]<-rx*4||p[1]<-ry*4||p[0]>canvas.width+rx*4||p[1]>canvas.height+ry*4) continue;
+    // the grey, unreflecting water for a mile out — dark enough to read against
+    // the sea ice these two sit in
+    const hg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],rx*2.6);
+    hg.addColorStop(0,'rgba(58,60,66,0.62)'); hg.addColorStop(0.65,'rgba(64,66,72,0.42)');
+    hg.addColorStop(1,'rgba(64,66,72,0)');
+    ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.6,ry*2.6,0,0,7); ctx.fillStyle=hg; ctx.fill();
     withWorld(ctx,S=>{
       const path=hiddenIslePath(isl);
-      ctx.fillStyle=`rgb(${P.ridge.join(',')})`; ctx.fill(path);
-      ctx.strokeStyle=purple; ctx.lineWidth=1.6*DPR/S; ctx.stroke(path);
+      ctx.fillStyle='#2c2a28'; ctx.fill(path);                    // the ground is black
+      ctx.strokeStyle=purple; ctx.lineWidth=2*DPR/S; ctx.stroke(path);
     });
+    if(isl.id==='lastdoor'){
+      // red clouds that drop sparks instead of rain
+      const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],rx*3.2);
+      cg.addColorStop(0,'rgba(126,26,24,0.42)'); cg.addColorStop(1,'rgba(126,26,24,0)');
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*3.2,ry*3.2,0,0,7); ctx.fillStyle=cg; ctx.fill();
+      if(!LD_SPARKS) LD_SPARKS=isleSparks(isl,17,isl.rx*2.6);
+      for(const [sx,sy,s] of LD_SPARKS){
+        const q=w2s(sx,sy);
+        const len=Math.max(1.2*DPR, 11*s*view.scale*DPR);
+        ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
+        ctx.strokeStyle='rgba(255,132,96,0.85)';
+        ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+      }
+    }
   }
 }
 function drawHidden(){

@@ -121,6 +121,55 @@ await expectPick('the Celestial Circle', 5290, 3860, 'celestialcircle', 'wonder'
 const reaches = await pick(2900, 4500, { zoom: 0.3 });
 t('the Red Reaches still bound as badlands', reaches && reaches.kind === 'badlands', reaches && reaches.kind);
 
+/* ---------- the Last Fish ring + the relocated Sanctuary ---------- */
+console.log('— the Last Fish ring, the Sanctuary, and the hidden isles —');
+await page.evaluate(() => window.__setLayer('hidden', false));
+await expectPick('the Isle of the Last Fish', 6250, 330, 'lastfish', 'island', 0.5);
+for (const [n, x, y] of [['north', 6250, 180], ['east', 6415, 330], ['south', 6250, 480], ['west', 6085, 330]]) {
+  const r = await pick(x, y, { zoom: 0.6 });
+  t(`outer isle (${n}) resolves to the ring`, r && r.kind === 'island' && /Last Fish/.test(r.body),
+    r && `${r.kind}:${r.id}`);
+}
+await expectPick('Guardian Whirlpool — western gate', 5950, 560, 'm_fish_w', 'maelstrom', 0.5);
+await expectPick('Guardian Whirlpool — eastern gate', 6560, 540, 'm_fish_e', 'maelstrom', 0.5);
+await expectPick("Kaelen's Sanctuary at its new station", 8650, 4550, 'lastlight', 'island', 0.6);
+{
+  const r = await pick(8650, 4550, { zoom: 0.6 });
+  t('the Sanctuary keeps its canon text', r && r.body.includes('I’ve killed enough. Here, I save what I can.'), r && r.id);
+  const old = await pick(8480, 3050, { zoom: 0.3 });
+  t('nothing island-shaped remains at the old station', !old || old.id !== 'lastlight', old && `${old.kind}:${old.id}`);
+}
+// the Last Door: reachable and drawn once Hidden World is on, and not clipped at y=0
+await page.evaluate(() => window.__setLayer('hidden', true));
+{
+  await page.evaluate(() => { window.__setStyle('satellite'); window.__setView(4500, 3500, 0.12); });
+  await page.evaluate(() => window.__rasterReady());
+  await page.waitForTimeout(600);   // let the scheduled frame actually draw
+  const painted = await page.evaluate(() => {
+    // sample the overlay where the Last Door draws, at the default view
+    const c = document.getElementById('mapCanvas');
+    const DPR = Math.min(2, window.devicePixelRatio || 1);
+    const sx = (7300 - 4500) * 0.12 * DPR + c.width / 2;
+    const sy = (350 - 3500) * 0.12 * DPR + c.height / 2;
+    const px = c.getContext('2d').getImageData(Math.round(sx) - 8, Math.round(sy) - 8, 17, 17).data;
+    let ink = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 20) ink++;
+    return { sx, sy, ink, onscreen: sx > 0 && sy > 0 && sx < c.width && sy < c.height };
+  });
+  t('the Last Door draws on screen at the default view', painted.onscreen && painted.ink > 100,
+    JSON.stringify(painted));
+  const s = await page.evaluate(() => {
+    const i = TDA_DATA.ISLANDS.find(v => v.id === 'lastdoor');
+    return { top: i.y - i.ry * 1.34, y: i.y, ry: i.ry };
+  });
+  t('the Last Door is not clipped at the map’s top edge', s.top > 0, 'rim top at y=' + s.top.toFixed(0));
+  const lbl = await page.evaluate(() => {
+    window.__setView(7300, 350, 0.5);
+    return typeof window.__pick === 'function';
+  });
+  const r = await pick(7300, 350, { zoom: 0.5 });
+  t('the Last Door labels and hit-tests with Hidden World on', lbl && r && r.id === 'lastdoor', r && r.id);
+}
+
 /* ---------- screenshots ---------- */
 console.log('— review screenshots —');
 async function capture(name, { x, y, scale, style = 'satellite', season = 1, hidden = false }) {
@@ -146,6 +195,36 @@ await capture('canon_d_hidden_far_north_isles', { x: 5800, y: 380, scale: 0.28, 
 await capture('canon_e_widowwood_wool_road', { x: 5560, y: 4340, scale: 0.5 });
 // painted-style read of the Forgetting: it must look wrong, not lush
 await capture('canon_f_painted_forgetting', { x: 1850, y: 3300, scale: 0.62, style: 'painted' });
+// (g) Deep season: the organic frozen sea, in all three styles
+await capture('canon_g_deep_frozen_sea', { x: 4500, y: 1500, scale: 0.20, season: 3 });
+await capture('canon_g2_deep_frozen_sea_painted', { x: 4500, y: 1500, scale: 0.20, season: 3, style: 'painted' });
+await capture('canon_g3_deep_frozen_sea_atlas', { x: 4500, y: 1500, scale: 0.20, season: 3, style: 'atlas' });
+// (h) the Last Fish ring, zoomed
+await capture('canon_h_lastfish_ring', { x: 6250, y: 340, scale: 1.05 });
+// (i) the relocated, smaller Sanctuary
+await capture('canon_i_sanctuary_relocated', { x: 8480, y: 4520, scale: 0.60 });
+// (j) hidden world on, far north: both hidden isles against the ice
+await capture('canon_j_hidden_isles_vs_ice', { x: 5800, y: 380, scale: 0.30, hidden: true });
+
+/* ---------- cosmos: the widened ocean between continent and wall ---------- */
+console.log('— cosmos —');
+await page.evaluate(() => document.querySelector('#infoPanel .ip-close').click());
+await page.evaluate(() => window.__go('cosmos'));
+await page.waitForTimeout(3000);
+await page.screenshot({ path: shot('canon_k_cosmos_widened_ocean') });
+console.log('  shot canon_k_cosmos_widened_ocean');
+const cage = await page.evaluate(() => window.__cosmosScale());
+t('the ocean gap is 60–80%+ of the continent’s own radius',
+  cage.gapMajor / cage.contA >= 0.6, `${cage.gapMajor} units = ${(cage.gapMajor / cage.contA * 100).toFixed(0)}% of ${cage.contA}`);
+t('every leviathan swims between the coast and the wall',
+  cage.leviathans.every(l => l.min > cage.contA && l.max < cage.wall),
+  JSON.stringify(cage.leviathans));
+t('the whole world rect sits inside the wall', cage.worldCorner < cage.wall,
+  `corner ${cage.worldCorner} vs wall ${cage.wall}`);
+t('every ocean feature stays between coast and wall', cage.featuresInside === true,
+  'farthest feature at ' + cage.farthestFeature);
+t('the cage fits the default camera framing', cage.fitsDefaultView === true,
+  `dist ${cage.dist}, worst on-screen margin ${cage.framingMargin} (must be <= 1)`);
 
 const fatal = errors.filter(e => !/favicon/.test(e));
 if (fatal.length) { console.error('BROWSER ERRORS:\n' + fatal.join('\n')); failures++; }

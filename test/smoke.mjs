@@ -316,6 +316,143 @@ console.log('— July 2026 lockdowns: info-text updates + deliberate omissions �
     t('no id for: '+banned, !new RegExp('\\b'+banned+'\\b').test(allIds));
 }
 
+console.log('— Kaelen’s Sanctuary: shrunk and moved to deep water —');
+{
+  const s=D.ISLANDS.find(i=>i.id==='lastlight');
+  t('still named the Isle of Last Light', s.name==='Isle of Last Light');
+  t("shrunk to a town's footprint", s.rx<=30 && s.ry<=20, `rx${s.rx} ry${s.ry}`);
+  t('at most a quarter of its former area', (s.rx*s.ry)/(300*210) <= 0.25,
+    ((s.rx*s.ry)/(300*210)*100).toFixed(1)+'% of the old footprint');
+  t('stands in open water, off the continent', !G.onContinent(s.x,s.y)
+    && G.terrainAt(s.x+s.rx*2.2, s.y)==='water' && G.terrainAt(s.x, s.y+s.ry*2.2)==='water');
+  t('its own centre resolves to it', (G.islandAt(s.x,s.y)||{}).id==='lastlight');
+  t('fits inside the map (x < 9000)', s.x+s.rx<9000, String(s.x+s.rx));
+  // 400+ mi of open water to the continent's coast at EVERY angle
+  let minCoast=1e9;
+  for(let i=0;i<3000;i++){
+    const a=i/3000*Math.PI*2, c=D.coastNoise(a);
+    minCoast=Math.min(minCoast, Math.hypot(s.x-(D.WORLD.cx+Math.cos(a)*D.WORLD.a*c),
+                                           s.y-(D.WORLD.cy+Math.sin(a)*D.WORLD.b*c)));
+  }
+  t('400+ mi of open water to the coast at every angle', minCoast-s.rx>=400, minCoast.toFixed(0)+' mi');
+  const liu=D.ISLANDS.find(i=>i.id==='liuchai');
+  t('250+ mi from the Pearl Isles of Liu-Chai', Math.hypot(s.x-liu.x,s.y-liu.y)>=250,
+    Math.hypot(s.x-liu.x,s.y-liu.y).toFixed(0)+' mi');
+  const chartered=['charterholm','tradewind','portmeridian','kingsholm','newalbany','gullswick','sovereignsrest','ledgerrocks'];
+  const worst=Math.min(...chartered.map(id=>{const c=D.ISLANDS.find(i=>i.id===id); return Math.hypot(s.x-c.x,s.y-c.y);}));
+  t('250+ mi from every Chartered Isle', worst>=250, worst.toFixed(0)+' mi');
+  t('sanctuary text preserved', s.info.includes('Nightfall the black pegasus')
+    && s.info.includes('“I’ve killed enough. Here, I save what I can.”')
+    && s.info.includes('sanctuary identification PROPOSED'));
+}
+
+console.log('— The Isle of the Last Fish —');
+{
+  const m=D.ISLANDS.find(i=>i.id==='lastfish');
+  t('main isle merged', !!m && m.kind==='rock');
+  t('placed between the Imperium and Zar’kaine longitudes', m.x>=5100 && m.x<=7620, String(m.x));
+  t('far out in the northern ocean, off the continent', !G.onContinent(m.x,m.y)
+    && G.terrainAt(m.x, m.y+m.ry*2.4)==='water' && G.terrainAt(m.x+m.rx*2.4, m.y)==='water');
+  t('its centre resolves to it', (G.islandAt(m.x,m.y)||{}).id==='lastfish');
+  t('tag verbatim', m.info.includes('[Event canon per author; name and placement PROPOSED, July 2026]'));
+  // four outer isles
+  const sats=['lastfish_n','lastfish_e','lastfish_s','lastfish_w'].map(id=>D.ISLANDS.find(i=>i.id===id));
+  t('four outer isles merged, unnamed', sats.every(s=>s && s.name==='' && s.kind==='rock'));
+  t('outer isles sized 24–32 × 16–22', sats.every(s=>s.rx>=24&&s.rx<=32&&s.ry>=16&&s.ry<=22));
+  t('outer isles offset 140–180 mi', sats.every(s=>{const d=Math.hypot(s.x-m.x,s.y-m.y); return d>=140&&d<=180;}),
+    sats.map(s=>Math.hypot(s.x-m.x,s.y-m.y).toFixed(0)).join(','));
+  t('outer isles tagged [PROPOSED]', sats.every(s=>s.info==='Outer isle of the Last Fish ring. [PROPOSED]'));
+  // no collisions: rim-sampled against every other island
+  const rim=(isl,th)=>D.islandNoise(th,isl.seed)*0.85;
+  const inside=(isl,x,y)=>{const dx=(x-isl.x)/isl.rx, dy=(y-isl.y)/isl.ry, r=Math.hypot(dx,dy);
+    return r<=rim(isl,Math.atan2(dy,dx));};
+  const hits=[];
+  for(const a of [m,...sats]) for(const b of D.ISLANDS){
+    if(b.id===a.id) continue;
+    for(let d=0;d<360;d+=3){ const th=d*Math.PI/180, R=rim(a,th);
+      if(inside(b,a.x+Math.cos(th)*a.rx*R, a.y+Math.sin(th)*a.ry*R)){ hits.push(a.id+'/'+b.id); break; } }
+  }
+  t('no island-to-island collisions in the ring', hits.length===0, hits.join(','));
+  // three volcanoes, two fore (south) and one behind (north)
+  t('three volcanoes on the main isle', m.volcanoes && m.volcanoes.length===3);
+  t('all three stand on the isle', m.volcanoes.every(v=>(G.islandAt(v[0],v[1])||{}).id==='lastfish'));
+  t('two at the fore, one behind', m.volcanoes.filter(v=>v[1]>m.y).length===2
+    && m.volcanoes.filter(v=>v[1]<m.y).length===1);
+  // the sea-mountain ring
+  const S=D.SEAMOUNTS.filter(s=>s.ring==='lastfish_ring');
+  t('sea-mountain ring generated', S.length>=14, S.length+' peaks');
+  t('ring stands at ~220 mi', S.every(s=>{const d=Math.hypot(s.x-m.x,(s.y-m.y)/0.86); return d>200&&d<270;}));
+  const norm=d=>((d%360)+360)%360;
+  const front=S.filter(s=>norm(s.deg)>=25&&norm(s.deg)<=155).length;
+  const rear =S.filter(s=>{const d=norm(s.deg); return d>205&&d<335;}).length;
+  t('denser at the front than at the rear', front>rear*2, `front ${front}, rear ${rear}`);
+  t('present at sides and rear too', rear>=2 && S.length-front-rear>=4, `rear ${rear}, sides ${S.length-front-rear}`);
+  t('every sea-mountain stands in open water', S.every(s=>!G.landAt(s.x,s.y)));
+  // whirlpools
+  const w=['m_fish_w','m_fish_e'].map(id=>D.MAELSTROMS.find(x=>x.id===id));
+  t('two guardian whirlpools merged', w.every(x=>x && x.r===40));
+  t('whirlpool info verbatim', w.every(x=>x.info==='Guardian whirlpool of the Last Fish ring. [PROPOSED]'));
+  t('whirlpools in open water', w.every(x=>!G.landAt(x.x,x.y)));
+  const vn=D.MAELSTROMS.find(x=>x.id==='vortex_n');
+  t('400+ mi from the Northern Vortex', w.every(x=>Math.hypot(x.x-vn.x,x.y-vn.y)>=400),
+    w.map(x=>Math.hypot(x.x-vn.x,x.y-vn.y).toFixed(0)).join(','));
+  const ld=D.ISLANDS.find(i=>i.id==='lastdoor');
+  t('clear of the Isle of the Last Door', w.every(x=>Math.hypot(x.x-ld.x,x.y-ld.y)>=400),
+    w.map(x=>Math.hypot(x.x-ld.x,x.y-ld.y).toFixed(0)).join(','));
+  // black clouds here, red clouds there — the two must never be conflated
+  t('the Last Fish sky is black, the Last Door’s is red',
+    m.info.includes('The clouds above it are black') && ld.info.includes('The clouds above it are red'));
+  // grey, unreflective water inside the ring
+  const grey=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
+  G.paintRegion(grey,1,1,m.x+150,m.y,m.x+151,m.y+1,{style:'satellite',season:1});
+  G.paintRegion(open_,1,1,m.x+800,m.y,m.x+801,m.y+1,{style:'satellite',season:1});
+  t('water inside the ring is greyer than the open sea',
+    Math.abs(grey[2]-grey[0])<Math.abs(open_[2]-open_[0]), grey.join()+' vs '+open_.join());
+}
+
+console.log('— the frozen sea is organic, not a rectangle —');
+{
+  // the visible edge: first latitude (scanning south) where coverage drops below half
+  const edgeAt=(x,season)=>{
+    let prev=G.seaIceAt(x,0,season,9999);
+    if(prev<0.5) return null;
+    for(let y=1;y<3000;y++){ const v=G.seaIceAt(x,y,season,9999);
+      if(v<0.5) return y-1+(prev-0.5)/Math.max(1e-6,(prev-v)); prev=v; }
+    return null;
+  };
+  for(const season of [0,1,2,3]){
+    const xs=[],es=[];
+    for(let x=0;x<=9000;x+=4){ const e=edgeAt(x,season); if(e!=null){xs.push(x);es.push(e);} }
+    // longest run over which the edge is straight (stays inside an 8-mile band)
+    let straight=0;
+    for(let i=0;i<es.length;i++){ let mn=es[i],mx=es[i];
+      for(let k=i+1;k<es.length;k++){ mn=Math.min(mn,es[k]); mx=Math.max(mx,es[k]);
+        if(mx-mn>8){ straight=Math.max(straight,xs[k-1]-xs[i]); break; } } }
+    const range=Math.max(...es)-Math.min(...es);
+    t(`season ${season}: no straight ice edge over 150 mi`, straight<150, straight.toFixed(0)+' mi');
+    t(`season ${season}: the edge wanders 300+ mi of latitude`, range>=300, range.toFixed(0)+' mi');
+  }
+  // the frozen shoreline ice-locks the northern isles
+  for(const id of ['skarnholm','isbrand','wolfteeth','hrafney']){
+    const s=D.ISLANDS.find(i=>i.id===id);
+    t(`${id} is ice-locked in Deep`, G.seaIceAt(s.x,s.y+s.ry+30,3,25)>0.9);
+  }
+  // ice clings to the coast: it reaches further south beside land than in open water
+  t('ice runs further south along a coast than in open water',
+    G.seaIceAt(4400,1500,3,20) > G.seaIceAt(4400,1500,3,9999));
+  // detached floes exist beyond the main edge, and the edge thins rather than stopping
+  let floes=0, partial=0;
+  for(let x=0;x<9000;x+=25) for(let y=900;y<2300;y+=25){
+    const v=G.seaIceAt(x,y,3,9999);
+    if(v>0.05&&v<0.6) floes++;
+    if(v>0.05&&v<0.95) partial++;
+  }
+  t('detached floe patches beyond the edge', floes>50, floes+' samples');
+  t('the edge thins gradually rather than stopping', partial>100, partial+' partial-coverage samples');
+  // and no ice in the southern ocean, in any season
+  t('no sea ice in the southern ocean', [0,1,2,3].every(s=>G.seaIceAt(4500,6600,s,9999)===0));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

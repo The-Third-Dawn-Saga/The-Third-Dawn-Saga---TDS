@@ -12,13 +12,22 @@ const { WORLD, KINGDOMS, MOUNTAINS, RIVERS, FORESTS, FOREST_RING, SETTLEMENTS,
         WONDERS, HIDDEN, ISLANDS, COSMOS, coastNoise } = D;
 const mount=document.getElementById('cosmosMount');
 let renderer,scene,camera,clock,leviathans=[],pickables=[],started=false,running=false;
-let rot={theta:Math.PI*0.25, phi:Math.PI*0.32, dist:2600};
+let rot={theta:Math.PI*0.25, phi:Math.PI*0.32, dist:4200};
 let tgt={x:0,y:0,z:0};
 let tween=null;
+/* Scale of the cage. The ocean between the continent's coast and the wall is
+   the point: R_WALL-R_CONT_A is the narrowest gap (due east/west), and canon
+   wants it to read as a great ocean, not a moat. At 1850 that gap is 850
+   scene units — 85% of the continent's own major radius, and 150% of its
+   minor — so the wall stands a continent's width off the coast at every
+   bearing. Everything downstream (bowl, oceans, wall furniture, pillar and
+   star heights, leviathan orbits, camera framing) is derived from these. */
 const R_CONT_A=1000, R_CONT_B=740;
-const R_INNER=1350;
-const R_WALL=1400, WALL_H=170;
-const R_OUTER=2600;
+const CAGE=1.321;                      // scale-up applied when the ocean was widened
+const R_INNER=1800;                    // inner ocean, out to the foot of the wall
+const R_WALL=1850, WALL_H=225;
+const R_OUTER=3050;
+const R_CLOUD=R_CONT_A*1.22;           // cloud decks belong to the continent, not the cage
 const KX=R_CONT_A/WORLD.a, KZ=R_CONT_B/WORLD.b;   // miles -> scene units
 const wx2s=x=>(x-WORLD.cx)*KX, wy2s=y=>(y-WORLD.cy)*KZ;
 
@@ -187,7 +196,7 @@ function init(){
   mount.appendChild(renderer.domElement);
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x02050a);
-  scene.fog=new THREE.FogExp2(0x02050a,0.00012);
+  scene.fog=new THREE.FogExp2(0x02050a,0.00009);
   camera=new THREE.PerspectiveCamera(48,1,1,20000);
   clock=new THREE.Clock();
 
@@ -222,7 +231,7 @@ function init(){
     prof.push(new THREE.Vector2(0,-260));
     prof.push(new THREE.Vector2(R_INNER*0.7,-250));
     prof.push(new THREE.Vector2(R_WALL,-180));
-    prof.push(new THREE.Vector2(R_WALL+140,-40));
+    prof.push(new THREE.Vector2(R_WALL+185,-40));
     prof.push(new THREE.Vector2(R_OUTER,-20));
     const geo=new THREE.LatheGeometry(prof,72);
     const mat=new THREE.MeshStandardMaterial({color:0x1c2733,roughness:0.9,metalness:0.25,side:THREE.DoubleSide});
@@ -373,6 +382,8 @@ function init(){
       if(m.id==='serpent') for(let i=0;i<m.path.length;i+=2) vents.push([m.path[i][0],m.path[i][1],1]);
     }
     for(const isl of ISLANDS) if(isl.kind==='pillar') vents.push([isl.x,isl.y,0.8]);
+    // the three volcanoes standing on the Isle of the Last Fish
+    for(const isl of ISLANDS) if(isl.volcanoes) for(const v of isl.volcanoes) vents.push([v[0],v[1],0.55]);
     const rockMat=new THREE.MeshStandardMaterial({color:0x3a2f28,roughness:0.95});
     for(const v of vents){
       const cone=new THREE.Mesh(new THREE.ConeGeometry(13*v[2],34*v[2],7),rockMat);
@@ -388,6 +399,18 @@ function init(){
     const l2=new THREE.PointLight(0xff6a30,0.4,420); l2.position.set(wx2s(6500),70,wy2s(1050)); scene.add(l2);
   }
 
+  /* sea-mountains: jagged rock standing out of the water around the Last Fish */
+  {
+    const rockMat=new THREE.MeshStandardMaterial({color:0x2e2a26,roughness:0.95});
+    for(const sm of (D.SEAMOUNTS||[])){
+      const cone=new THREE.Mesh(new THREE.ConeGeometry(7*sm.s,30*sm.s,5),rockMat);
+      cone.position.set(wx2s(sm.x),4+13*sm.s,wy2s(sm.y));
+      cone.rotation.y=sm.s*3.1;
+      cone.userData={name:sm.name,info:sm.info};
+      pickables.push(cone); scene.add(cone);
+    }
+  }
+
   /* islands */
   {
     for(const isl of ISLANDS){
@@ -401,9 +424,9 @@ function init(){
       if(isl.name){ m.userData={name:isl.name,info:isl.info}; pickables.push(m); }
       scene.add(m);
       if(isl.id==='lastlight'){
-        const glow=new THREE.PointLight(0x8fe0a8,0.5,300); glow.position.set(sx,40,sz); scene.add(glow);
+        const glow=new THREE.PointLight(0x8fe0a8,0.5,180); glow.position.set(sx,26,sz); scene.add(glow);
         // soft fresnel shell over the Sanctuary
-        const shell=new THREE.Mesh(new THREE.SphereGeometry(115,24,18), atmosphereMaterial(0x7fe8a8,0.7,false));
+        const shell=new THREE.Mesh(new THREE.SphereGeometry(Math.max(18,isl.rx*KX*2.6),24,18), atmosphereMaterial(0x7fe8a8,0.7,false));
         shell.position.set(sx,10,sz); shell.scale.y=0.5;
         scene.add(shell);
       }
@@ -452,12 +475,12 @@ function init(){
   /* drifting cloud layers above the continent */
   {
     const t1=buildCloudTexture(1024,1024,1);
-    cloudDisc=new THREE.Mesh(new THREE.CircleGeometry(R_INNER*0.98,72),
+    cloudDisc=new THREE.Mesh(new THREE.CircleGeometry(R_CLOUD,72),
       new THREE.MeshBasicMaterial({map:t1,transparent:true,opacity:0.5,depthWrite:false}));
     cloudDisc.rotation.x=-Math.PI/2; cloudDisc.position.y=130;
     scene.add(cloudDisc);
     const t2=buildCloudTexture(512,512,2);
-    cloudDisc2=new THREE.Mesh(new THREE.CircleGeometry(R_INNER*0.9,72),
+    cloudDisc2=new THREE.Mesh(new THREE.CircleGeometry(R_CLOUD*0.92,72),
       new THREE.MeshBasicMaterial({map:t2,transparent:true,opacity:0.32,depthWrite:false}));
     cloudDisc2.rotation.x=-Math.PI/2; cloudDisc2.position.y=170;
     scene.add(cloudDisc2);
@@ -552,7 +575,7 @@ function init(){
   {
     const a=253*Math.PI/180;
     const gx=Math.cos(a)*R_WALL, gz=-Math.sin(a)*R_WALL;
-    const patch=new THREE.Mesh(new THREE.PlaneGeometry(120,WALL_H*0.9),
+    const patch=new THREE.Mesh(new THREE.PlaneGeometry(120*CAGE,WALL_H*0.9),
       new THREE.MeshStandardMaterial({color:0x2f7a44,emissive:0x1f6a34,emissiveIntensity:0.7,side:THREE.DoubleSide}));
     patch.position.set(gx*0.995,WALL_H/2-30,gz*0.995);
     patch.lookAt(0,WALL_H/2-30,0);
@@ -566,34 +589,34 @@ function init(){
     for(const p of COSMOS.pillars){
       const a=p.deg*Math.PI/180;
       const x=Math.cos(a)*R_WALL, z=-Math.sin(a)*R_WALL;
-      const pil=new THREE.Mesh(new THREE.CylinderGeometry(26,34,560,10),
+      const pil=new THREE.Mesh(new THREE.CylinderGeometry(26*CAGE,34*CAGE,560*CAGE,10),
         new THREE.MeshStandardMaterial({color:0x59616e,metalness:0.85,roughness:0.35}));
-      pil.position.set(x,WALL_H-30+250,z);
+      pil.position.set(x,WALL_H-30+250*CAGE,z);
       pil.userData={name:`The ${p.dir} Pillar`,info:p.guardian};
       pickables.push(pil); scene.add(pil);
       for(let i=0;i<4;i++){
-        const band=new THREE.Mesh(new THREE.TorusGeometry(30,3.4,8,24),
+        const band=new THREE.Mesh(new THREE.TorusGeometry(30*CAGE,3.4*CAGE,8,24),
           new THREE.MeshStandardMaterial({color:0x8a94a2,metalness:0.9,roughness:0.3}));
         band.rotation.x=Math.PI/2;
-        band.position.set(x,WALL_H-30+90+i*120,z);
+        band.position.set(x,WALL_H-30+(90+i*120)*CAGE,z);
         scene.add(band);
       }
       if(p.star!=='missing'){
         const col=p.star==='yellow'?0xffd45a:0xff4a3a;
-        const star=new THREE.Mesh(new THREE.SphereGeometry(22,16,14),
+        const star=new THREE.Mesh(new THREE.SphereGeometry(22*CAGE,16,14),
           new THREE.MeshBasicMaterial({color:col}));
-        star.position.set(x,WALL_H-30+620,z);
+        star.position.set(x,WALL_H-30+620*CAGE,z);
         star.userData={name:`Guardian Star — ${p.dir}`,info:p.guardian};
         pickables.push(star); scene.add(star);
-        const halo=new THREE.Mesh(new THREE.SphereGeometry(38,16,14),
+        const halo=new THREE.Mesh(new THREE.SphereGeometry(38*CAGE,16,14),
           new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.22}));
         halo.position.copy(star.position); scene.add(halo);
-        const l=new THREE.PointLight(col,1.1,900); l.position.copy(star.position); scene.add(l);
+        const l=new THREE.PointLight(col,1.1,900*CAGE); l.position.copy(star.position); scene.add(l);
         star.userData.halo=halo;
       } else {
-        const socket=new THREE.Mesh(new THREE.RingGeometry(16,26,24),
+        const socket=new THREE.Mesh(new THREE.RingGeometry(16*CAGE,26*CAGE,24),
           new THREE.MeshBasicMaterial({color:0x334455,transparent:true,opacity:0.5,side:THREE.DoubleSide}));
-        socket.position.set(x,WALL_H-30+620,z);
+        socket.position.set(x,WALL_H-30+620*CAGE,z);
         socket.userData={name:'The Missing Star — East',info:p.guardian};
         pickables.push(socket); scene.add(socket);
       }
@@ -603,9 +626,10 @@ function init(){
   /* three leviathans in the outer ocean */
   {
     const specs=[
-      {r:1900,len:1400,rad:26,speed:0.05, col:0x0d2530, name:'First Leviathan'},
-      {r:2150,len:1700,rad:32,speed:-0.035,col:0x0a1f2a, name:'Second Leviathan'},
-      {r:2380,len:1550,rad:28,speed:0.028, col:0x0c2230, name:'Third Leviathan'},
+      // between the coast (1000 x 740) and the wall (1850): the outer ocean
+      {r:1310,len:1150,rad:26,speed:0.05, col:0x0d2530, name:'First Leviathan'},
+      {r:1520,len:1350,rad:32,speed:-0.035,col:0x0a1f2a, name:'Second Leviathan'},
+      {r:1700,len:1200,rad:28,speed:0.028, col:0x0c2230, name:'Third Leviathan'},
     ];
     for(const s of specs){
       const lev=makeLeviathan(s.len,s.rad,s.col);
@@ -651,7 +675,7 @@ function init(){
   renderer.domElement.addEventListener('wheel',e=>{
     e.preventDefault();
     tween=null;
-    rot.dist=Math.min(7000,Math.max(300,rot.dist*Math.exp(e.deltaY*0.0011)));
+    rot.dist=Math.min(9250,Math.max(300,rot.dist*Math.exp(e.deltaY*0.0011)));
   },{passive:false});
 
   /* controls */
@@ -671,7 +695,7 @@ function applyTimeOfDay(){
   const t=dayNight;
   const el=(1-t)*1.05-0.12;             // sun elevation factor
   const az=0.6+t*1.9;
-  sun.position.set(Math.cos(az)*2600, Math.max(-400,Math.sin(el*Math.PI/2)*2600), Math.sin(az)*2600);
+  sun.position.set(Math.cos(az)*4200, Math.max(-600,Math.sin(el*Math.PI/2)*4200), Math.sin(az)*4200);
   sun.intensity=Math.max(0.04, 1.05*(1-t*1.05));
   sun.color.setHSL(0.1-0.04*t, 0.5, 0.75-0.25*t);
   ambient.intensity=0.55-0.33*t;
@@ -701,6 +725,41 @@ function flyTo(f){
 window.__cosmosFlyTo=function(f){ if(started) flyTo(f); else { pendingFly=f; } };
 let pendingFly=null;
 window.__cosmosSeason=function(s){ SEASON=s; if(started) requestHiResContinent(); };
+/* test hook: the cage's proportions, so the ocean gap can be asserted */
+window.__cosmosScale=function(){
+  const levs=[{r:1310,len:1150},{r:1520,len:1350},{r:1700,len:1200}].map(o=>({
+    r:o.r, min:o.r, max:Math.round(Math.hypot(o.r,o.len/2)) }));
+  // every ocean feature the 2D world carries must fall between coast and wall
+  let farthest=0, inside=true;
+  const probe=[...ISLANDS.map(i=>[i.x,i.y]), ...(D.MAELSTROMS||[]).map(m=>[m.x,m.y]),
+               ...(D.SEAMOUNTS||[]).map(s=>[s.x,s.y])];
+  for(const [x,y] of probe){
+    const d=Math.hypot(wx2s(x),wy2s(y));
+    if(d>farthest) farthest=d;
+    if(d>=R_WALL) inside=false;
+  }
+  // does the default camera actually frame the whole cage? Project the wall's
+  // rim and the guardian stars' tops into NDC and check they land on screen.
+  let fits=true, margin=0;
+  if(camera){
+    camera.updateMatrixWorld();
+    const v=new THREE.Vector3();
+    const heights=[-30, WALL_H-30, WALL_H-30+620*CAGE+38*CAGE];
+    for(let i=0;i<48;i++){
+      const a=i/48*Math.PI*2;
+      for(const hy of heights){
+        v.set(Math.cos(a)*R_WALL, hy, Math.sin(a)*R_WALL).project(camera);
+        margin=Math.max(margin,Math.abs(v.x),Math.abs(v.y));
+        if(Math.abs(v.x)>1||Math.abs(v.y)>1||v.z>1) fits=false;
+      }
+    }
+  }
+  return { contA:R_CONT_A, contB:R_CONT_B, wall:R_WALL, inner:R_INNER, outer:R_OUTER,
+    gapMajor:R_WALL-R_CONT_A, gapMinor:R_WALL-R_CONT_B,
+    leviathans:levs, worldCorner:Math.round(Math.hypot(WORLD.cx*KX,WORLD.cy*KZ)),
+    farthestFeature:Math.round(farthest), featuresInside:inside,
+    dist:Math.round(rot.dist), framingMargin:+margin.toFixed(3), fitsDefaultView:fits };
+};
 
 function resize(){
   if(!renderer) return;
@@ -727,7 +786,7 @@ function animate(){
     rot.dist=F.dist+(T.dist-F.dist)*e;
     tgt.x=F.tx+(T.tx-F.tx)*e; tgt.y=F.ty+(T.ty-F.ty)*e; tgt.z=F.tz+(T.tz-F.tz)*e;
     if(u>=1) tween=null;
-  } else if(rot.dist>1500){
+  } else if(rot.dist>1980){
     // relax the look-at target back to the world's centre when zoomed out
     tgt.x*=0.98; tgt.y*=0.98; tgt.z*=0.98;
   }
@@ -749,8 +808,8 @@ function animate(){
     for(const s of labelGroup.children){
       const d=camera.position.distanceTo(s.position);
       const o= s.userData.far
-        ? Math.max(0,Math.min(1,(d-500)/500))*Math.max(0,Math.min(1,(5200-d)/1600))
-        : Math.max(0,Math.min(1,(1600-d)/900));
+        ? Math.max(0,Math.min(1,(d-660)/660))*Math.max(0,Math.min(1,(6870-d)/2110))
+        : Math.max(0,Math.min(1,(2110-d)/1190));
       s.material.opacity=o;
       s.visible=o>0.02;
     }

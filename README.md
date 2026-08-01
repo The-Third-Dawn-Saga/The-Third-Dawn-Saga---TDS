@@ -21,8 +21,13 @@ no network requests, no server.
   and a label engine with priority decluttering (capitals > kingdoms > towns >
   villages > features). Travel calculator (foot / mounted / Sun Eater / Gate).
 - **Cosmos** — the World-Cage: bowl, ice wall with carved faces and glowing eyes,
-  four pillars, guardian stars (east socket empty), three leviathans, Mor'kaleth and
-  the Circles of Silence, World Tree at readable scale. Atmosphere fresnel glow,
+  four pillars, guardian stars (east socket empty), three leviathans swimming the
+  outer ocean between the coast and the wall, Mor'kaleth and
+  the Circles of Silence, World Tree at readable scale. The wall stands a
+  continent's width off the coast — the gap is 85% of the continent's own major
+  radius, so the ocean reads as vast rather than as a moat; every scale-dependent
+  element (bowl, ocean discs, wall furniture, pillar and star heights, leviathan
+  orbits, camera framing) derives from `R_WALL`. Atmosphere fresnel glow,
   drifting clouds, bump-mapped fbm terrain painted from the same palettes as the 2D
   raster, rivers as emissive tubes, vegetation clusters, glowing volcanoes, a
   day/night slider (night belongs to the settlement lights and the wall's eyes),
@@ -30,9 +35,13 @@ no network requests, no server.
   info-panel entry.
 - **Seasons** — a four-stop wheel (Early / High / Late / Deep) that every zone reads
   through its own calendar. Drives seasonal raster variants (Faro's Mirror, the Lake
-  of a Hundred Autumns, Deepmere's ice road, the snow and sea-ice lines, Harmattan
+  of a Hundred Autumns, Deepmere's ice road, the snow line, Harmattan
   and Ashfall haze, the Bloom), ten migration flow sets, seasonal human-activity
-  markers, and PROPOSED travel modifiers.
+  markers, and PROPOSED travel modifiers. The **sea ice** is a sheet, not a band:
+  its edge is perturbed by five octaves of fbm over a guaranteed ~300-mile swell,
+  runs south along every coast it touches (ice-locking the northern isles), thins
+  over ~165 miles instead of stopping, and sheds detached floes. No straight run of
+  edge survives past ~110 miles in any season or style.
 
 ## Architecture
 
@@ -74,11 +83,12 @@ npm run perf       # FPS probe (flows animating + drag pan @1080p)
 Test hooks exposed on `window`: `__landCheck`, `__setStyle`, `__setSeason`,
 `__journey`, `__mapResize`, `__rasterReady`, `__tilesReady`, `__cosmosStart`,
 `__cosmosFlyTo`, plus `__pick(x,y)` (resolve a world point exactly as a canvas
-click would and report the opened panel), `__setLayer(name,on)` and
-`__setView(x,y,scale)`.
+click would and report the opened panel), `__setLayer(name,on)`,
+`__setView(x,y,scale)` and `__cosmosScale()` (the cage's proportions, so the
+ocean gap and camera framing can be asserted).
 
 `__landCheck()` also water-checks the features that must *not* be on land: the
-hidden isles and every maelstrom.
+hidden isles, every maelstrom, and every sea-mountain.
 
 `screenshots/` holds the review set (satellite/atlas × High/Deep, migrations,
 LOD zoom, cosmos day/night/flyTo) plus the `canon_*` set for the July 2026

@@ -9,7 +9,7 @@ var TDA_GEO = (function(D){
 'use strict';
 const { WORLD, KINGDOMS, FOREST_RING, MOUNTAINS, RIVERS, LAKES, MARSHES, FORESTS,
         SETTLEMENTS, GATES, RING_GATES, WONDERS, HIDDEN, ISLANDS, BADLANDS,
-        TRAVEL, SEASON_TRAVEL, coastNoise, islandNoise, ringGatePos } = D;
+        TRAVEL, SEASON_TRAVEL, SEAMOUNTS, coastNoise, islandNoise, ringGatePos } = D;
 
 /* ---------- geometry helpers ---------- */
 function thetaOf(x,y){ return Math.atan2((y-WORLD.cy)/WORLD.b,(x-WORLD.cx)/WORLD.a); }
@@ -149,7 +149,7 @@ satellite:{
   darkForest:[26,52,34], enchanted:[74,142,84], greyForest:[86,96,84], greyMist:[178,182,172],
   badA:[150,96,62], badB:[190,138,92], badCanyon:[92,56,40],
   scar:[16,12,16], lavadot:[255,110,50],
-  seaIce:[214,230,240], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
+  seaIce:[214,230,240], greyWater:[92,96,100], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
   border:'rgba(255,255,255,0.55)',           /* A2: thin translucent white */
   label:'#ffffff', halo:'rgba(0,0,0,0.65)',
   town:'#ffffff', river:'#3b7fae', sea:'#7fb2d9', route:'#f0dc9a',
@@ -164,7 +164,7 @@ atlas:{
   darkForest:[142,182,152], enchanted:[172,224,172], greyForest:[188,196,186], greyMist:[226,228,222],
   badA:[232,212,192], badB:[222,198,176], badCanyon:[198,172,152],
   scar:[206,200,196], lavadot:[230,150,110],
-  seaIce:[236,244,248], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
+  seaIce:[236,244,248], greyWater:[178,182,186], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
   border:'#9aa0a6', label:'#3c4043', halo:'rgba(255,255,255,0.85)',
   town:'#5f6368', river:'#8ec7ea', sea:'#6699cc', route:'#b8860b',
   haze:'rgba(226,206,168,', ash:'rgba(190,186,180,',
@@ -185,7 +185,7 @@ painted:{
   darkForest:[52,78,56], enchanted:[136,188,112], greyForest:[112,118,104], greyMist:[206,206,196],
   badA:[164,96,58], badB:[198,138,88], badCanyon:[110,62,38],
   scar:[60,48,44], lavadot:[220,110,60],
-  seaIce:[226,234,232], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
+  seaIce:[226,234,232], greyWater:[116,120,116], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
   border:'rgba(74,53,32,0.75)', label:'#4a3520', halo:'rgba(240,228,200,0.9)',
   town:'#3a2a18', river:'#3f7fa0', sea:'#2f6f8c', route:'#7a5230',
   haze:'rgba(216,186,132,', ash:'rgba(140,124,104,',
@@ -208,6 +208,60 @@ const SEASONPAR = {
   bleach:      [0, 0, 0.35, 0.55],
 };
 const SAHEL_BAND = { y0:4380, y1:5120 };
+
+/* ---------- sea ice ----------
+   An organic sheet, never a band. The edge latitude is perturbed by three
+   octaves of fbm — long swells, then bays and tongues, then crenellation at
+   ~95 miles, so no straight run of edge survives — it runs south along every
+   coast it touches (the frozen shoreline, which ice-locks the northern isles),
+   thins over a wide margin instead of stopping, and sheds detached floes
+   beyond itself. */
+/* A ~300-mile undulation under the noise. fbm alone leaves occasional calm
+   patches where the edge drifts under 10 miles across 150+ — visually a
+   straight line. A sine of this wavelength cannot: even a window centred on
+   its own extremum swings ~23 miles, so no flat run survives anywhere. */
+function seaIceSwell(x){ return Math.sin(x*0.0212+1.3)*24; }
+/* The two long octaves plus the swell and the shoreline term. Cheap, and on
+   its own enough to resolve most pixels: the fine octaves below can only move
+   the edge by ±96 miles, so anything well inside or well outside is decided
+   here without touching them. */
+function seaIceCoarse(x,y,base,dLand){
+  let edge = base + seaIceSwell(x)
+    + (fbm(x*0.00115+3.1,  y*0.00115+8.7 )-0.5)*560    // long swells   ~870 mi
+    + (fbm(x*0.00380+11.3, y*0.00380+2.2 )-0.5)*230;   // bays, tongues ~265 mi
+  if(dLand<150) edge += (150-dLand)*1.30;              // the frozen shoreline
+  return edge;
+}
+const ICE_FINE_MAX=96;                                 // 42.5 + 36 + 17, rounded up
+function seaIceEdge(x,y,base,dLand){
+  return seaIceCoarse(x,y,base,dLand)
+    + (fbm(x*0.01050+5.9,  y*0.01050+17.4)-0.5)*85     // crenellation  ~95 mi
+    + (fbm(x*0.02600+7.7,  y*0.02600+31.1)-0.5)*72     // pack-ice grain ~38 mi
+    + (fbm(x*0.05400+23.5, y*0.05400+13.9)-0.5)*34;    // floe edge     ~19 mi
+}
+function seaIceAt(x,y,season,dLand){
+  const base=SEASONPAR.iceLine[season];
+  if(y>base+1100) return 0;                            // south of any tongue or floe
+  const coarse=seaIceCoarse(x,y,base,dLand);
+  if(y < coarse-165-ICE_FINE_MAX) return 1;            // solid, deep inside the sheet
+  if(y > coarse+430+ICE_FINE_MAX) return 0;            // beyond the edge and its floes
+  const edge=seaIceEdge(x,y,base,dLand);
+  const a=(edge-y)/165;                                // thins over ~165 mi
+  if(a>=1) return 1;
+  if(a>0) return a;
+  const band=(y-edge)/430;                             // detached floes beyond the edge
+  if(band<1){
+    const f=fbm(x*0.017+29.3, y*0.017+41.7);
+    if(f>0.70) return Math.min(0.6,(f-0.70)*3.6)*(1-band);
+  }
+  return 0;
+}
+
+/* The Isle of the Last Fish: grey, unreflective water inside its ring.
+   Its clouds are BLACK — the Isle of the Last Door's are red. */
+const LASTFISH = ISLANDS.find(s=>s.id==='lastfish');
+const LF_HALO = 210;                                   // ~125 mi of grey beyond the rim
+const LF_HALO_Y = LF_HALO*0.86;
 /* Lake of a Hundred Autumns: deterministic dry-season sub-pools inside the shrunken bound */
 const HA = LAKES.find(l=>l.id==='hundredautumns');
 const HA_POOLS = (()=>{ const out=[]; for(let i=0;i<10;i++){
@@ -300,7 +354,8 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
   const style=opts.style||'satellite', season=opts.season==null?1:opts.season;
   const waterAlpha=opts.waterAlpha==null?255:opts.waterAlpha;
   const P=PALETTES[style];
-  const snowShift=SEASONPAR.snowShift[season], iceLine=SEASONPAR.iceLine[season];
+  const snowShift=SEASONPAR.snowShift[season];
+  const iceReach=SEASONPAR.iceLine[season]+1100;   // south of this no ice, tongue or floe reaches
   const capT=SEASONPAR.capThresh[season], green=SEASONPAR.greening[season], bleach=SEASONPAR.bleach[season];
   MTNFIELD.build();
   const sw=SW_HIDDEN, gl=GLASS_W;
@@ -315,10 +370,13 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
       const onCont = er<=cr;
       if(!onCont && !isl){
         const dn=n*0.5+0.5;
+        // the atlas style has no contour banding, so it only needs the
+        // distance-to-land field where the sea ice can reach
+        const dLand=(style!=='atlas'||y<=iceReach) ? seaDistToLand(x,y,th,cr,er) : 0;
         if(style==='painted'){
           // A1.1: coastal contour banding — discrete turquoise→teal steps
           // hugging the noisy coast, every island, strait and cluster.
-          const dj=seaDistToLand(x,y,th,cr,er) + (fbm(x*0.012,y*0.012)-0.5)*14;
+          const dj=dLand + (fbm(x*0.012,y*0.012)-0.5)*14;
           const B=P.bandCols, T=P.bandDist;
           let bi=B.length-1;
           for(let b=0;b<T.length;b++){ if(dj<T[b]){ bi=b; break; } }
@@ -327,7 +385,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
         } else if(style==='satellite'){
           // A2: deep navy base, abyssal ridge noise, pale shelf ring,
           // slightly lighter basins toward the map-centre latitude.
-          const d=seaDistToLand(x,y,th,cr,er);
+          const d=dLand;
           if(d<38) col=lerpC(P.shallow,P.shelf, Math.min(1,d/38)*0.8+dn*0.2);
           else if(d<95) col=lerpC(P.shelf,P.mid,(d-38)/57*(0.75+dn*0.25));
           else col=lerpC(P.mid,P.deep, Math.min(1,(d-95)/220)*0.8+dn*0.2);
@@ -350,10 +408,19 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(depth<=0) col=lerpC(P.shelf,P.shallow, dn*0.6);
           else col=lerpC(P.mid,P.deep, Math.min(1,depth*0.7+dn*0.3));
         }
-        // seasonal sea ice: the edge moves south in deep winter
-        if(y<iceLine+180){
-          const f=Math.min(1,Math.max(0,(iceLine+180-y)/360));
-          col=lerpC(col,P.seaIce, f*(0.55+dn*0.45));
+        // the grey, unreflective water inside the Last Fish ring
+        if(LASTFISH){
+          const ax=x-LASTFISH.x, ay=y-LASTFISH.y;
+          if(ax>-LF_HALO&&ax<LF_HALO&&ay>-LF_HALO_Y&&ay<LF_HALO_Y){
+            const lfd=Math.hypot(ax,ay/0.86);
+            if(lfd<LF_HALO) col=lerpC(col,P.greyWater, (1-lfd/LF_HALO)*0.80);
+          }
+        }
+        // seasonal sea ice: an organic sheet whose edge is fbm-perturbed,
+        // hugs every coast, thins outward and sheds floes (never a band)
+        if(y<=iceReach){
+          const ice=seaIceAt(x,y,season,dLand);
+          if(ice>0) col=lerpC(col,P.seaIce, ice*(0.55+dn*0.45));
         }
         alpha=waterAlpha;
       } else {
@@ -545,6 +612,21 @@ function paintWeather(g, W, H, x0, y0, x1, y1, opts){
   const style=opts.style||'satellite', season=opts.season==null?1:opts.season;
   const P=PALETTES[style];
   const px=x=> (x-x0)/(x1-x0)*W, py=y=> (y-y0)/(y1-y0)*H;
+  // The Isle of the Last Fish: black cloud over black ground, and a dark haze
+  // ring standing off the isle. Deliberately NOT the Last Door's red.
+  if(LASTFISH){
+    const cx=px(LASTFISH.x), cy=py(LASTFISH.y);
+    const R=px(LASTFISH.x+330)-cx, RY=py(LASTFISH.y+330*0.86)-cy;
+    if(Math.abs(R)>0.5){
+      const rg=g.createRadialGradient(cx,cy,0,cx,cy,Math.abs(R));
+      rg.addColorStop(0,'rgba(10,10,13,0.52)');
+      rg.addColorStop(0.34,'rgba(14,14,18,0.40)');
+      rg.addColorStop(0.72,'rgba(18,18,23,0.20)');
+      rg.addColorStop(1,'rgba(18,18,23,0)');
+      g.fillStyle=rg;
+      g.beginPath(); g.ellipse(cx,cy,Math.abs(R),Math.abs(RY),0,0,7); g.fill();
+    }
+  }
   if(season>=2){
     // Harmattan haze: a translucent tan gradient blowing in from the north of the Sunlands
     const a= season===3?0.30:0.20;
@@ -784,6 +866,12 @@ function landCheck(){
   if(D.MAELSTROMS) for(const ms of D.MAELSTROMS){
     if(landAt(ms.x,ms.y)||hiddenIslandAt(ms.x,ms.y)) bad.push('maelstrom-on-land:'+ms.id);
   }
+  /* Sea-mountains are water markers: they must stand out of open sea. */
+  if(SEAMOUNTS) for(let i=0;i<SEAMOUNTS.length;i++){
+    const sm=SEAMOUNTS[i];
+    if(landAt(sm.x,sm.y)||hiddenIslandAt(sm.x,sm.y)) bad.push('seamount-on-land:'+sm.ring+'#'+i);
+    if(sm.x<0||sm.y<0||sm.x>WORLD.w||sm.y>WORLD.h) bad.push('seamount-off-map:'+sm.ring+'#'+i);
+  }
   for(const rg of RING_GATES){ const[x,y]=ringGatePos(rg.deg); if(!onContinent(x,y)) bad.push('ringgate:'+rg.id); }
   for(const fo of FORESTS){ if(!landAt(fo.x,fo.y)) bad.push('forest:'+fo.id); }
   for(const lk of LAKES){ if(!onContinent(lk.x,lk.y)) bad.push('lake:'+lk.id); }
@@ -799,7 +887,7 @@ function landCheck(){
 return { thetaOf, ellipseR, coastRadiusAt, onContinent, islandAt, hiddenIslandAt, landAt, angDeg,
   VISIBLE_ISLANDS, HIDDEN_ISLANDS, inForestBody, forestAt,
   inForestRing, inPoly, distToPath, kingdomAt, lakeAt, MTNFIELD, hash2, vnoise, fbm,
-  PALETTES, lerpC, SEASONPAR, HA_POOLS, terrainAt, paintRegion, paintWeather,
+  PALETTES, lerpC, SEASONPAR, HA_POOLS, terrainAt, paintRegion, paintWeather, seaIceAt,
   seasonalMult, sampleTerrainSpeeds, fmtDays, nearestGate, computeJourney, landCheck,
   computeDomains, domainInfoAt, routeWaterAudit, popOf, seaDistToLand };
 })(typeof TDA_DATA !== 'undefined' ? TDA_DATA : require('./data.js'));
