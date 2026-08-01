@@ -372,6 +372,8 @@ function drawOverlay(now){
 
   // the Isle of the Last Fish: black cloud, sparks where rain should be
   drawLastFishSky();
+  // the Far Shore: pale mist along the beach at the edge of the world
+  drawFarShoreMist();
 
   // routes
   if(LAYERS.routes){
@@ -815,6 +817,38 @@ function drawLastFishSky(){
   }
 }
 
+/* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
+   is painted by the raster (ashen, no vegetation); this is the shoreline
+   haze that marks it as the edge of the world. */
+let FS_MIST=null;
+function drawFarShoreMist(){
+  const isl=ISLANDS.find(s=>s.special==='farshore');
+  if(!isl) return;
+  const p=w2s(isl.x,isl.y);
+  const rx=isl.rx*view.scale*DPR, ry=isl.ry*view.scale*DPR;
+  if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) return;
+  if(!FS_MIST){
+    FS_MIST=[];
+    for(let i=0;i<64;i++){
+      const th=i/64*Math.PI*2;
+      const R=islandNoise(th,isl.seed)*0.85*(0.94+G.hash2(i,7)*0.16);
+      FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
+                    0.5+G.hash2(i,11)*0.8]);
+    }
+  }
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(const [mx,my,s] of FS_MIST){
+    const q=w2s(mx,my);
+    const r=Math.max(3*DPR, 46*s*view.scale*DPR);
+    const g2=ctx.createRadialGradient(q[0],q[1],0,q[0],q[1],r);
+    g2.addColorStop(0,'rgba(214,218,222,0.30)');
+    g2.addColorStop(1,'rgba(214,218,222,0)');
+    ctx.beginPath(); ctx.arc(q[0],q[1],r,0,7); ctx.fillStyle=g2; ctx.fill();
+  }
+  ctx.restore();
+}
+
 /* The hidden isles are absent from the raster by design (see geo.js
    VISIBLE_ISLANDS), so the Hidden World layer draws them itself: the same
    islandNoise rim the raster uses for every other island, over a slick of
@@ -1140,8 +1174,13 @@ function drawLabels(){
   for(const isl of ISLANDS){
     if(!isl.name) continue;
     if(isl.hidden && !LAYERS.hidden) continue;      // the hidden isles are on no chart
-    cands.push({pri:4, text:isl.name, x:isl.x, y:isl.y, dyPx:(isl.ry*view.scale+12), size:10.5,
-      fill: isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
+    cands.push({pri: isl.special==='farshore'?1:4,
+      text:isl.name, x:isl.x, y:isl.y,
+      dyPx:(isl.special==='farshore'? 0 : isl.ry*view.scale+12),
+      size: isl.special==='farshore'?12:10.5,
+      italic: isl.special==='farshore',
+      fill: isl.special==='farshore' ? (STYLE==='atlas'?'#7b8288':'#dfe6ea')
+        : isl.hidden ? (STYLE==='satellite'?'#c99ae0':'#8b5bb0')
         : (painted?'#4a3520':(STYLE==='satellite'?'rgba(255,255,255,0.92)':'#5f6368'))});
   }
   if(view.scale>0.07){

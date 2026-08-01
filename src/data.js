@@ -706,6 +706,17 @@ const SEAMOUNTS = (()=>{
   return out;
 })();
 
+/* ---- ITEM 5: The Far Shore — the Land of the Dead (July 2026 lockdown).
+   Placed at the far north-eastern corner so its ellipse runs off the edge of
+   the map on purpose: the far shore lies beyond the world's edge, and the
+   clipping is the point. Never nudge it inland. kind:'grey' paints ashen
+   coast with no vegetation; special:'farshore' drives the mist, the spectral
+   label, and the grey unreflecting water between it and the Last Door. ---- */
+ISLANDS.push(
+  { id:'landofthedead', name:'The Far Shore — the Land of the Dead', x:8880, y:180, rx:220, ry:150, seed:0.0, kind:'grey', special:'farshore',
+    info:'The Underworld: the far shore of the dead, beyond the Isle of the Last Door, across water no chart measures. Only a hull of Wardwood timber reaches it, and the druids decide who receives one. The dead can be spoken to and cannot be returned. They do not want to come. [LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]' }
+);
+
 /* ---- The Unhealed / The Angels Door: the two far-northern isles
    (July 2026 lockdown). hidden:true keeps them out of the raster, the
    terrain model and the coastal banding entirely \u2014 they draw, label and

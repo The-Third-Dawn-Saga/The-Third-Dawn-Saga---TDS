@@ -453,6 +453,45 @@ console.log('— the frozen sea is organic, not a rectangle —');
   t('no sea ice in the southern ocean', [0,1,2,3].every(s=>G.seaIceAt(4500,6600,s,9999)===0));
 }
 
+console.log('— ITEM 5: The Far Shore — the Land of the Dead —');
+{
+  const fs=D.ISLANDS.find(i=>i.id==='landofthedead');
+  t('landofthedead merged into ISLANDS', !!fs);
+  t('at the far north-eastern corner', fs.x===8880 && fs.y===180);
+  t('sized 220 x 150, kind grey, special farshore',
+    fs.rx===220 && fs.ry===150 && fs.kind==='grey' && fs.special==='farshore');
+  t('its ellipse clips off the map edge on purpose', fs.x+fs.rx>D.WORLD.w,
+    `runs ${(fs.x+fs.rx)-D.WORLD.w} mi past x=${D.WORLD.w}`);
+  t('NOT nudged inland — centre stays at 8880', fs.x===8880);
+  t('its centre resolves to it (clickable)', (G.islandAt(fs.x,fs.y)||{}).id==='landofthedead');
+  t('renders always — not a hidden-layer isle', !fs.hidden);
+  t('info verbatim, tag intact', fs.info.includes('The dead can be spoken to and cannot be returned.')
+    && fs.info.includes('[LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]'));
+  // ashen coast, no vegetation colour anywhere on it
+  const on=new Uint8ClampedArray(4);
+  G.paintRegion(on,1,1,fs.x-60,fs.y,fs.x-59,fs.y+1,{style:'satellite',season:1});
+  t('ashen coast: neutral grey, no vegetation', Math.abs(on[0]-on[1])<12 && Math.abs(on[1]-on[2])<12,
+    [...on].join(','));
+  const veg=G.PALETTES.satellite.vegLush;
+  t('nothing on it uses the vegetation palette', !(on[1]>on[0]+15 && on[1]>on[2]+15), [...on].join(','));
+  // grey unreflecting water on the crossing to the Last Door
+  const ld=D.ISLANDS.find(i=>i.id==='lastdoor');
+  const cross=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
+  G.paintRegion(cross,1,1,(fs.x+ld.x)/2,(fs.y+ld.y)/2,(fs.x+ld.x)/2+1,(fs.y+ld.y)/2+1,{style:'satellite',season:1});
+  G.paintRegion(open_,1,1,8100,1400,8101,1401,{style:'satellite',season:1});
+  t('the crossing water is greyer than the open sea',
+    Math.abs(cross[2]-cross[0]) < Math.abs(open_[2]-open_[0]),
+    [...cross].join(',')+' vs '+[...open_].join(','));
+  t('clear of the Isle of the Last Door', Math.hypot(fs.x-ld.x,fs.y-ld.y)>400,
+    Math.hypot(fs.x-ld.x,fs.y-ld.y).toFixed(0)+' mi');
+  // it must not swallow any charted island
+  const rim=(isl,th)=>D.islandNoise(th,isl.seed)*0.85;
+  const inside=(isl,x,y)=>{const dx=(x-isl.x)/isl.rx, dy=(y-isl.y)/isl.ry, r=Math.hypot(dx,dy);
+    return r<=rim(isl,Math.atan2(dy,dx));};
+  const swallowed=D.ISLANDS.filter(o=>o.id!=='landofthedead' && inside(fs,o.x,o.y)).map(o=>o.id);
+  t('swallows no other island', swallowed.length===0, swallowed.join(','));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

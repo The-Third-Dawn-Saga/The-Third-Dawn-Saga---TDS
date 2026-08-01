@@ -149,7 +149,7 @@ satellite:{
   darkForest:[26,52,34], enchanted:[74,142,84], greyForest:[86,96,84], greyMist:[178,182,172],
   badA:[150,96,62], badB:[190,138,92], badCanyon:[92,56,40],
   scar:[16,12,16], lavadot:[255,110,50],
-  seaIce:[214,230,240], greyWater:[92,96,100], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
+  seaIce:[214,230,240], greyWater:[92,96,100], ashen:[[84,86,88],[102,104,105]], ashenRim:[168,172,174], sahelGreen:[128,146,72], mudflat:[158,142,104], bloom:[122,214,120],
   border:'rgba(255,255,255,0.55)',           /* A2: thin translucent white */
   label:'#ffffff', halo:'rgba(0,0,0,0.65)',
   town:'#ffffff', river:'#3b7fae', sea:'#7fb2d9', route:'#f0dc9a',
@@ -164,7 +164,7 @@ atlas:{
   darkForest:[142,182,152], enchanted:[172,224,172], greyForest:[188,196,186], greyMist:[226,228,222],
   badA:[232,212,192], badB:[222,198,176], badCanyon:[198,172,152],
   scar:[206,200,196], lavadot:[230,150,110],
-  seaIce:[236,244,248], greyWater:[178,182,186], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
+  seaIce:[236,244,248], greyWater:[178,182,186], ashen:[[204,206,208],[216,218,219]], ashenRim:[236,238,240], sahelGreen:[198,220,158], mudflat:[228,216,192], bloom:[176,232,176],
   border:'#9aa0a6', label:'#3c4043', halo:'rgba(255,255,255,0.85)',
   town:'#5f6368', river:'#8ec7ea', sea:'#6699cc', route:'#b8860b',
   haze:'rgba(226,206,168,', ash:'rgba(190,186,180,',
@@ -185,7 +185,7 @@ painted:{
   darkForest:[52,78,56], enchanted:[136,188,112], greyForest:[112,118,104], greyMist:[206,206,196],
   badA:[164,96,58], badB:[198,138,88], badCanyon:[110,62,38],
   scar:[60,48,44], lavadot:[220,110,60],
-  seaIce:[226,234,232], greyWater:[116,120,116], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
+  seaIce:[226,234,232], greyWater:[116,120,116], ashen:[[116,114,110],[134,132,128]], ashenRim:[196,196,192], sahelGreen:[146,155,86], mudflat:[176,156,112], bloom:[150,206,120],
   border:'rgba(74,53,32,0.75)', label:'#4a3520', halo:'rgba(240,228,200,0.9)',
   town:'#3a2a18', river:'#3f7fa0', sea:'#2f6f8c', route:'#7a5230',
   haze:'rgba(216,186,132,', ash:'rgba(140,124,104,',
@@ -262,6 +262,24 @@ function seaIceAt(x,y,season,dLand){
 const LASTFISH = ISLANDS.find(s=>s.id==='lastfish');
 const LF_HALO = 210;                                   // ~125 mi of grey beyond the rim
 const LF_HALO_Y = LF_HALO*0.86;
+
+/* The crossing to the Far Shore: the water between the Land of the Dead and
+   the Isle of the Last Door is grey and does not reflect. Tinted along the
+   segment between them, strongest at the far shore's own beach. */
+const FARSHORE  = ISLANDS.find(s=>s.special==='farshore');
+const LASTDOOR  = ISLANDS.find(s=>s.id==='lastdoor');
+const FS_REACH  = 300;                                 // half-width of the grey crossing
+function farShoreGrey(x,y){
+  if(!FARSHORE||!LASTDOOR) return 0;
+  const ax=FARSHORE.x, ay=FARSHORE.y, bx=LASTDOOR.x, by=LASTDOOR.y;
+  const dx=bx-ax, dy=by-ay, len2=dx*dx+dy*dy;
+  let t=((x-ax)*dx+(y-ay)*dy)/len2;
+  t=Math.max(0,Math.min(1,t));
+  const d=Math.hypot(x-(ax+t*dx), y-(ay+t*dy));
+  if(d>FS_REACH) return 0;
+  // fades with distance from the crossing, and along it toward the Last Door
+  return (1-d/FS_REACH)*(1-t*0.55);
+}
 /* Lake of a Hundred Autumns: deterministic dry-season sub-pools inside the shrunken bound */
 const HA = LAKES.find(l=>l.id==='hundredautumns');
 const HA_POOLS = (()=>{ const out=[]; for(let i=0;i<10;i++){
@@ -295,7 +313,7 @@ function terrainAt(x,y){
   const land=landAt(x,y);
   if(!land) return 'water';
   if(land.type==='island'){
-    return {lush:'plains',snow:'snow',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain'}[land.isl.kind]||'plains';
+    return {lush:'plains',snow:'snow',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain',grey:'waste'}[land.isl.kind]||'plains';
   }
   if(lakeAt(x,y)) return 'water';
   if(forestAt(x,y)) return 'forest';
@@ -416,6 +434,11 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
             if(lfd<LF_HALO) col=lerpC(col,P.greyWater, (1-lfd/LF_HALO)*0.80);
           }
         }
+        // the grey, unreflecting crossing to the Far Shore
+        if(FARSHORE){
+          const fs=farShoreGrey(x,y);
+          if(fs>0) col=lerpC(col,P.greyWater, fs*0.72);
+        }
         // seasonal sea ice: an organic sheet whose edge is fbm-perturbed,
         // hugs every coast, thins outward and sheds floes (never a band)
         if(y<=iceReach){
@@ -425,7 +448,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
         alpha=waterAlpha;
       } else {
         let terr;
-        if(isl) terr={lush:'plains',snow:'snow',sand:'desert',rock:'ridge',pirate:'plains',pillar:'pillar'}[isl.kind];
+        if(isl) terr={lush:'plains',snow:'snow',sand:'desert',rock:'ridge',pirate:'plains',pillar:'pillar',grey:'farshore'}[isl.kind];
         else {
           if(Math.hypot(x-sw.x,y-sw.y)<=sw.r) terr='swamp';
           else if(Math.hypot(x-gl.x,y-gl.y)<=95) terr='glass';
@@ -535,6 +558,15 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
               const mist=fbm(x*0.03+23,y*0.03+41);
               if(mist>0.56) col=lerpC(col,P.greyMist,Math.min(0.5,(mist-0.56)*1.5));
             }
+          }
+        }
+        else if(terr==='farshore'){
+          // ashen ground, no vegetation anywhere on it, and a pale bleached
+          // rim toward the shoreline where the mist lies
+          col=lerpC(P.ashen[0],P.ashen[1],n);
+          if(isl){
+            const rn=Math.hypot((x-isl.x)/isl.rx,(y-isl.y)/isl.ry);
+            if(rn>0.55) col=lerpC(col,P.ashenRim,Math.min(1,(rn-0.55)/0.45)*0.7);
           }
         }
         else if(terr==='scar') col=P.scar;
