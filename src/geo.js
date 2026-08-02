@@ -257,11 +257,9 @@ function seaIceAt(x,y,season,dLand){
   return 0;
 }
 
-/* The Isle of the Last Fish: grey, unreflective water inside its ring.
-   Its clouds are BLACK — the Isle of the Last Door's are red. */
-const LASTFISH = ISLANDS.find(s=>s.id==='lastfish');
-const LF_HALO = 210;                                   // ~125 mi of grey beyond the rim
-const LF_HALO_Y = LF_HALO*0.86;
+/* (The Last Fish's former grey-water halo is gone — ITEM 1: the isle is
+   green and living. The grey, unreflecting water belongs to the Land of the
+   Dead now: a ~150-mile radial ring around it, plus the crossing corridor.) */
 
 /* The crossing to the Far Shore: the water between the Land of the Dead and
    the Isle of the Last Door is grey and does not reflect. Tinted along the
@@ -269,6 +267,15 @@ const LF_HALO_Y = LF_HALO*0.86;
 const FARSHORE  = ISLANDS.find(s=>s.special==='farshore');
 const LASTDOOR  = ISLANDS.find(s=>s.id==='lastdoor');
 const FS_REACH  = 300;                                 // half-width of the grey crossing
+/* ITEM 2: grey water for ~150 mi out from the Far Shore's rim, all around */
+function farShoreRing(x,y){
+  if(!FARSHORE) return 0;
+  const rn=Math.hypot((x-FARSHORE.x)/FARSHORE.rx,(y-FARSHORE.y)/FARSHORE.ry);
+  const halo=150/((FARSHORE.rx+FARSHORE.ry)/2);        // ~150 mi in normalized units
+  if(rn>=1+halo) return 0;
+  if(rn<=1) return 1;
+  return 1-(rn-1)/halo;
+}
 function farShoreGrey(x,y){
   if(!FARSHORE||!LASTDOOR) return 0;
   const ax=FARSHORE.x, ay=FARSHORE.y, bx=LASTDOOR.x, by=LASTDOOR.y;
@@ -426,17 +433,10 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(depth<=0) col=lerpC(P.shelf,P.shallow, dn*0.6);
           else col=lerpC(P.mid,P.deep, Math.min(1,depth*0.7+dn*0.3));
         }
-        // the grey, unreflective water inside the Last Fish ring
-        if(LASTFISH){
-          const ax=x-LASTFISH.x, ay=y-LASTFISH.y;
-          if(ax>-LF_HALO&&ax<LF_HALO&&ay>-LF_HALO_Y&&ay<LF_HALO_Y){
-            const lfd=Math.hypot(ax,ay/0.86);
-            if(lfd<LF_HALO) col=lerpC(col,P.greyWater, (1-lfd/LF_HALO)*0.80);
-          }
-        }
-        // the grey, unreflecting crossing to the Far Shore
+        // the grey, unreflecting waters of the dead: the crossing corridor
+        // and the ~150-mile ring around the Far Shore itself
         if(FARSHORE){
-          const fs=farShoreGrey(x,y);
+          const fs=Math.max(farShoreGrey(x,y), farShoreRing(x,y));
           if(fs>0) col=lerpC(col,P.greyWater, fs*0.72);
         }
         // seasonal sea ice: an organic sheet whose edge is fbm-perturbed,
@@ -644,17 +644,16 @@ function paintWeather(g, W, H, x0, y0, x1, y1, opts){
   const style=opts.style||'satellite', season=opts.season==null?1:opts.season;
   const P=PALETTES[style];
   const px=x=> (x-x0)/(x1-x0)*W, py=y=> (y-y0)/(y1-y0)*H;
-  // The Isle of the Last Fish: black cloud over black ground, and a dark haze
-  // ring standing off the isle. Deliberately NOT the Last Door's red.
-  if(LASTFISH){
-    const cx=px(LASTFISH.x), cy=py(LASTFISH.y);
-    const R=px(LASTFISH.x+330)-cx, RY=py(LASTFISH.y+330*0.86)-cy;
+  // (The Last Fish's black haze is gone — ITEM 1: the isle is green. The
+  // Far Shore's greyish cast over the landmass is baked here instead.)
+  if(FARSHORE){
+    const cx=px(FARSHORE.x), cy=py(FARSHORE.y);
+    const R=px(FARSHORE.x+FARSHORE.rx*1.35)-cx, RY=py(FARSHORE.y+FARSHORE.ry*1.35)-cy;
     if(Math.abs(R)>0.5){
       const rg=g.createRadialGradient(cx,cy,0,cx,cy,Math.abs(R));
-      rg.addColorStop(0,'rgba(10,10,13,0.52)');
-      rg.addColorStop(0.34,'rgba(14,14,18,0.40)');
-      rg.addColorStop(0.72,'rgba(18,18,23,0.20)');
-      rg.addColorStop(1,'rgba(18,18,23,0)');
+      rg.addColorStop(0,'rgba(96,98,102,0.34)');
+      rg.addColorStop(0.7,'rgba(96,98,102,0.18)');
+      rg.addColorStop(1,'rgba(96,98,102,0)');
       g.fillStyle=rg;
       g.beginPath(); g.ellipse(cx,cy,Math.abs(R),Math.abs(RY),0,0,7); g.fill();
     }

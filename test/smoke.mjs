@@ -351,11 +351,11 @@ console.log('— Kaelen’s Sanctuary: shrunk and moved to deep water —');
 console.log('— The Isle of the Last Fish —');
 {
   const m=D.ISLANDS.find(i=>i.id==='lastfish');
-  t('main isle merged', !!m && m.kind==='rock');
+  t('ITEM 1: main isle is GREEN (kind lush) and bigger', !!m && m.kind==='lush' && m.rx===110 && m.ry===72);
   t('ITEM 1: relocated to the deep eastern ocean', m.x===8600 && m.y===2190, `(${m.x},${m.y})`);
   t('ITEM 1: between Zar’kaine’s arc and the Jade arc', m.x>8000 && m.y>1900 && m.y<2700);
   t('far out in the eastern ocean, off the continent', !G.onContinent(m.x,m.y)
-    && G.terrainAt(m.x, m.y+m.ry*2.4)==='water' && G.terrainAt(m.x-m.rx*2.4, m.y)==='water');
+    && G.terrainAt(m.x+180, m.y+180)==='water' && G.terrainAt(m.x-180, m.y-180)==='water');
   t('its centre resolves to it', (G.islandAt(m.x,m.y)||{}).id==='lastfish');
   // ITEM 1: the complex moved as a UNIT — every relative offset preserved
   {
@@ -382,11 +382,12 @@ console.log('— The Isle of the Last Fish —');
       Math.max(...D.SEAMOUNTS.map(s=>s.x))<=8960,
       Math.max(...D.SEAMOUNTS.map(s=>s.x)).toFixed(0));
   }
-  t('tag verbatim', m.info.includes('[Event canon per author; name and placement PROPOSED, July 2026]'));
+  t('ITEM 1: info text replaced verbatim', m.info==='The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. A green and living isle far out in the eastern ocean, ringed by its own small islands, by sea-rocks, and by two guardian whirlpools at its western and eastern gates. [Event canon per author; name and placement PROPOSED]');
+  t('ITEM 1: no volcanoes, no dark treatment on the isle', !m.volcanoes);
   // four outer isles
   const sats=['lastfish_n','lastfish_e','lastfish_s','lastfish_w'].map(id=>D.ISLANDS.find(i=>i.id===id));
-  t('four outer isles merged, unnamed', sats.every(s=>s && s.name==='' && s.kind==='rock'));
-  t('outer isles sized 24–32 × 16–22', sats.every(s=>s.rx>=24&&s.rx<=32&&s.ry>=16&&s.ry<=22));
+  t('ITEM 1: four outer isles green, unnamed', sats.every(s=>s && s.name==='' && s.kind==='lush'));
+  t('ITEM 1: outer isles sized 34–44 × 22–30', sats.every(s=>s.rx>=34&&s.rx<=44&&s.ry>=22&&s.ry<=30));
   t('outer isles offset 140–180 mi', sats.every(s=>{const d=Math.hypot(s.x-m.x,s.y-m.y); return d>=140&&d<=180;}),
     sats.map(s=>Math.hypot(s.x-m.x,s.y-m.y).toFixed(0)).join(','));
   t('outer isles tagged [PROPOSED]', sats.every(s=>s.info==='Outer isle of the Last Fish ring. [PROPOSED]'));
@@ -401,11 +402,6 @@ console.log('— The Isle of the Last Fish —');
       if(inside(b,a.x+Math.cos(th)*a.rx*R, a.y+Math.sin(th)*a.ry*R)){ hits.push(a.id+'/'+b.id); break; } }
   }
   t('no island-to-island collisions in the ring', hits.length===0, hits.join(','));
-  // three volcanoes, two fore (south) and one behind (north)
-  t('three volcanoes on the main isle', m.volcanoes && m.volcanoes.length===3);
-  t('all three stand on the isle', m.volcanoes.every(v=>(G.islandAt(v[0],v[1])||{}).id==='lastfish'));
-  t('two at the fore, one behind', m.volcanoes.filter(v=>v[1]>m.y).length===2
-    && m.volcanoes.filter(v=>v[1]<m.y).length===1);
   // the sea-mountain ring
   const S=D.SEAMOUNTS.filter(s=>s.ring==='lastfish_ring');
   t('sea-mountain ring generated', S.length>=14, S.length+' peaks');
@@ -427,15 +423,16 @@ console.log('— The Isle of the Last Fish —');
   const ld=D.ISLANDS.find(i=>i.id==='lastdoor');
   t('clear of the Isle of the Last Door', w.every(x=>Math.hypot(x.x-ld.x,x.y-ld.y)>=400),
     w.map(x=>Math.hypot(x.x-ld.x,x.y-ld.y).toFixed(0)).join(','));
-  // black clouds here, red clouds there — the two must never be conflated
-  t('the Last Fish sky is black, the Last Door’s is red',
-    m.info.includes('The clouds above it are black') && ld.info.includes('The clouds above it are red'));
-  // grey, unreflective water inside the ring
-  const grey=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
-  G.paintRegion(grey,1,1,m.x-150,m.y,m.x-149,m.y+1,{style:'satellite',season:1});
+  // ITEM 1: the ring water is living sea again — no grey tint
+  const inring=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
+  G.paintRegion(inring,1,1,m.x+120,m.y+120,m.x+121,m.y+121,{style:'satellite',season:1});
   G.paintRegion(open_,1,1,m.x,m.y+800,m.x+1,m.y+801,{style:'satellite',season:1});
-  t('water inside the ring is greyer than the open sea',
-    Math.abs(grey[2]-grey[0])<Math.abs(open_[2]-open_[0]), grey.join()+' vs '+open_.join());
+  t('ITEM 1: ring water is ordinary blue sea (grey tint removed)',
+    inring[2]>inring[0]+30, inring.join());
+  // and the isle itself paints green
+  const on=new Uint8ClampedArray(4);
+  G.paintRegion(on,1,1,m.x,m.y,m.x+1,m.y+1,{style:'satellite',season:1});
+  t('ITEM 1: the isle paints vegetation green', on[1]>on[0] && on[1]>on[2], on.join());
 }
 
 console.log('— the frozen sea is organic, not a rectangle —');

@@ -676,17 +676,20 @@ const ISLANDS = [
    (+2350,+1860) from its first placement beside the Northern Throne. The
    calibrated target was (8600,2100); nudged 90 mi south so every isle and
    whirlpool clears the Drowned Wheel by 450+.] ---- */
+/* [ITEM 1, this round: the isle turns GREEN. The dark treatment — volcanoes,
+   black ground, spark-fall, dark haze, grey water — moves to the Land of the
+   Dead; the Last Fish is a living isle. Ring arrangement, sea-rocks and the
+   two guardian whirlpool gates stay.] */
 ISLANDS.push(
-  { id:'lastfish', name:'The Isle of the Last Fish', x:8600, y:2190, rx:85, ry:55, seed:3.9, kind:'rock',
-    volcanoes:[[8562,2212],[8638,2208],[8602,2160]],   // two at the fore (south), one behind
-    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. It lies far out in the eastern ocean, ringed by sea-mountains at its front, sides, and back, and by whirlpools beyond them. The clouds above it are black; the ground is black; the water is grey; and sparks fall where rain should. Three volcanoes stand on it, two at the fore and one behind. [Event canon per author; name and placement PROPOSED, July 2026]' },
-  { id:'lastfish_n', name:'', x:8600, y:2040, rx:26, ry:18, seed:1.15, kind:'rock',
+  { id:'lastfish', name:'The Isle of the Last Fish', x:8600, y:2190, rx:110, ry:72, seed:3.9, kind:'lush',
+    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. A green and living isle far out in the eastern ocean, ringed by its own small islands, by sea-rocks, and by two guardian whirlpools at its western and eastern gates. [Event canon per author; name and placement PROPOSED]' },
+  { id:'lastfish_n', name:'', x:8600, y:2040, rx:38, ry:26, seed:1.15, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_e', name:'', x:8765, y:2190, rx:30, ry:20, seed:2.65, kind:'rock',
+  { id:'lastfish_e', name:'', x:8765, y:2190, rx:40, ry:27, seed:2.65, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_s', name:'', x:8600, y:2340, rx:32, ry:22, seed:4.05, kind:'rock',
+  { id:'lastfish_s', name:'', x:8600, y:2340, rx:44, ry:30, seed:4.05, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_w', name:'', x:8435, y:2190, rx:24, ry:16, seed:5.35, kind:'rock',
+  { id:'lastfish_w', name:'', x:8435, y:2190, rx:34, ry:22, seed:5.35, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' }
 );
 

@@ -370,8 +370,6 @@ function drawOverlay(now){
     drawIsleVolcanoes();
   }
 
-  // the Isle of the Last Fish: black cloud, sparks where rain should be
-  drawLastFishSky();
   // the Far Shore: pale mist along the beach at the edge of the world
   drawFarShoreMist();
   // Kaelen's Sanctuary: the warm glow of an Immortal's isle
@@ -472,6 +470,18 @@ function paintedTrees(){
         : fo.kind==='grey' ? 'grey'
         : (fo.y<2400 ? 'pine' : 'round');             // taiga = conical
       out.push([x,y,kind,0.75+G.hash2(i,3)*0.65]);
+    }
+  }
+  // green islands wear trees too (ITEM 1/3): lush + pirate get round
+  // canopies, boreal isles conical pines — hidden isles and grey ground none
+  for(const isl of ISLANDS){
+    if(isl.hidden||isl.special==='farshore') continue;
+    if(!['lush','pirate','boreal'].includes(isl.kind)) continue;
+    const count=Math.max(3, Math.min(46, Math.round(isl.rx*isl.ry/380)));
+    for(let i=0;i<count;i++){
+      const a=G.hash2(i*2.3,isl.x)*6.2832, rr=Math.sqrt(G.hash2(i*1.3,isl.y));
+      const x=isl.x+Math.cos(a)*isl.rx*rr*0.66, y=isl.y+Math.sin(a)*isl.ry*rr*0.66;
+      out.push([x,y, isl.kind==='boreal'?'pine':'round', 0.6+G.hash2(i,isl.seed)*0.5]);
     }
   }
   for(let i=0;i<620;i++){                              // the Ring: umbrella pines
@@ -787,8 +797,8 @@ function drawIsleVolcanoes(){
     }
   }
 }
-/* Black cloud over the isle, and sparks falling where rain should.
-   The Isle of the Last Door's sky is RED — the two must never read alike. */
+/* spark/ember streak scatter — used by the Last Door (red sparks) and the
+   Land of the Dead (ember-fall). The Last Fish no longer uses it: green isle. */
 function isleSparks(isl,seedOff,reach){
   const out=[];
   for(let i=0;i<70;i++){
@@ -797,90 +807,6 @@ function isleSparks(isl,seedOff,reach){
               0.5+G.hash2(i,seedOff+3)*0.9]);
   }
   return out;
-}
-let LF_SPARKS=null;
-function drawLastFishSky(){
-  const isl=ISLANDS.find(s=>s.id==='lastfish');
-  if(!isl) return;
-  const p=w2s(isl.x,isl.y);
-  const R=250*view.scale*DPR;
-  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
-  // black cloud deck (the raster already carries the haze; this is its core)
-  const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
-  cg.addColorStop(0,'rgba(6,6,9,0.42)'); cg.addColorStop(0.6,'rgba(10,10,14,0.20)');
-  cg.addColorStop(1,'rgba(10,10,14,0)');
-  ctx.beginPath(); ctx.ellipse(p[0],p[1],R,R*0.86,0,0,7); ctx.fillStyle=cg; ctx.fill();
-  if(!LF_SPARKS) LF_SPARKS=isleSparks(isl,0,230);
-  for(const [sx,sy,s] of LF_SPARKS){
-    const q=w2s(sx,sy);
-    const len=Math.max(1.2*DPR, 16*s*view.scale*DPR);
-    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
-    ctx.strokeStyle='rgba(255,196,120,0.85)';
-    ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
-  }
-}
-
-/* ITEM 6: the Floating Isles above the Veiled Vortex. Each isle is drawn
-   twice — once as a hard offset shadow on the water, once as the rock itself.
-   The offset between the two is what reads as altitude. */
-const FI_SHADOW=[52,72];                     // world-mile offset of the shadow
-function floatingIsleRim(cx,cy,r,seed,k){
-  const p=new Path2D();
-  for(let i=0;i<=40;i++){
-    const th=i/40*Math.PI*2;
-    const R=r*(0.80+0.34*islandNoise(th,seed)*0.55);
-    const x=cx+Math.cos(th)*R, y=cy+Math.sin(th)*R*0.62;
-    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
-  }
-  p.closePath(); return p;
-}
-function drawFloatingIsles(){
-  const f=WONDERS.find(w=>w.id==='floatingisles');
-  if(!f||!f.isles) return;
-  const p=w2s(f.x,f.y);
-  const R=260*view.scale*DPR;
-  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
-  const painted=STYLE==='painted';
-  withWorld(ctx,S=>{
-    // shadows first, all of them, so no isle casts onto another's rock
-    ctx.fillStyle='rgba(6,14,26,0.42)';
-    f.isles.forEach((is,i)=>{
-      ctx.fill(floatingIsleRim(f.x+is[0]+FI_SHADOW[0], f.y+is[1]+FI_SHADOW[1], is[2], 1.7+i*0.9, i));
-    });
-    f.isles.forEach((is,i)=>{
-      const cx=f.x+is[0], cy=f.y+is[1];
-      const rim=floatingIsleRim(cx,cy,is[2],1.7+i*0.9,i);
-      ctx.fillStyle= painted ? '#7d6a4e' : '#5d5a52';        // the rock underside
-      ctx.fill(rim);
-      ctx.strokeStyle= painted ? 'rgba(74,53,32,0.85)' : 'rgba(232,238,246,0.75)';
-      ctx.lineWidth=1.6*DPR/S; ctx.stroke(rim);
-      // a green cap on top, offset up so the rock reads as an underside
-      const cap=floatingIsleRim(cx,cy-is[2]*0.16,is[2]*0.88,1.7+i*0.9,i);
-      ctx.fillStyle= painted ? '#5d8a48' : '#4f8a52';
-      ctx.fill(cap);
-    });
-  });
-  // mountain glyphs on the two largest
-  const big=[...f.isles].sort((a,b)=>b[2]-a[2]).slice(0,2);
-  for(const is of big){
-    const q=w2s(f.x+is[0], f.y+is[1]-is[2]*0.30);
-    const h=Math.max(5*DPR, Math.min(30*DPR, is[2]*0.85*view.scale*DPR));
-    for(const off of [-h*0.55, h*0.45]){
-      ctx.beginPath();
-      ctx.moveTo(q[0]+off, q[1]-h);
-      ctx.lineTo(q[0]+off-h*0.5, q[1]);
-      ctx.lineTo(q[0]+off+h*0.5, q[1]);
-      ctx.closePath();
-      ctx.fillStyle= painted ? '#cbb693' : '#8e8b84'; ctx.fill();
-      ctx.strokeStyle='rgba(40,44,50,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(q[0]+off, q[1]-h);
-      ctx.lineTo(q[0]+off-h*0.17, q[1]-h*0.62);
-      ctx.lineTo(q[0]+off+h*0.17, q[1]-h*0.62);
-      ctx.closePath();
-      ctx.fillStyle='#f4efe2'; ctx.fill();
-    }
-  }
 }
 
 /* ITEM 2: Kaelen's Sanctuary — a faint warm glow halo around the isle of an
