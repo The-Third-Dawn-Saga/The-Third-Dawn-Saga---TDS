@@ -367,6 +367,7 @@ function drawOverlay(now){
       }
     }
     drawSeamounts();
+    drawFarShoreMountains();
     drawIsleVolcanoes();
   }
 
@@ -776,25 +777,65 @@ function drawSeamounts(){
     ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
   }
 }
-/* The three volcanoes on the Last Fish: two at the fore, one behind. */
+/* Island volcanoes (ITEM 2: the three that burn about the Land of the Dead —
+   dull red glow, unlike the bright orange of the living volcanic chains). */
 function drawIsleVolcanoes(){
   const P=G.PALETTES[STYLE];
   for(const isl of ISLANDS){
     if(!isl.volcanoes) continue;
     if(isl.hidden && !LAYERS.hidden) continue;
+    const dull=isl.special==='farshore';
     for(const [vx,vy] of isl.volcanoes){
       const p=w2s(vx,vy);
-      const r=Math.max(2.4*DPR, Math.min(9*DPR, 26*view.scale*DPR));
+      const r=Math.max(2.4*DPR, Math.min(10*DPR, 28*view.scale*DPR));
       const gl=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],r*2.6);
-      gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)');
+      if(dull){ gl.addColorStop(0,'rgba(196,64,44,0.42)'); gl.addColorStop(1,'rgba(170,50,36,0)'); }
+      else    { gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)'); }
       ctx.beginPath(); ctx.arc(p[0],p[1],r*2.6,0,7); ctx.fillStyle=gl; ctx.fill();
       ctx.beginPath();
       ctx.moveTo(p[0],p[1]-r*1.5); ctx.lineTo(p[0]-r,p[1]+r*0.5); ctx.lineTo(p[0]+r,p[1]+r*0.5);
       ctx.closePath();
-      ctx.fillStyle='#241d1a'; ctx.fill();
+      ctx.fillStyle= dull ? '#1c1614' : '#241d1a'; ctx.fill();
       ctx.beginPath(); ctx.arc(p[0],p[1]-r*1.2,r*0.42,0,7);
-      ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
+      ctx.fillStyle= dull ? '#b8422e' : `rgb(${P.lavadot.join(',')})`; ctx.fill();
     }
+  }
+}
+/* ITEM 2: the mountain wall of the Land of the Dead — jagged, snowless
+   black-rock peaks along the visible perimeter (the front and sides; the
+   far side lies beyond the map's edge). */
+let FS_WALL=null;
+function drawFarShoreMountains(){
+  const isl=ISLANDS.find(s=>s.special==='farshore');
+  if(!isl) return;
+  if(!FS_WALL){
+    FS_WALL=[];
+    for(let i=0;i<44;i++){
+      const th=i/44*Math.PI*2;
+      const R=islandNoise(th,isl.seed)*0.85*(0.90+G.hash2(i,3)*0.10);
+      const x=isl.x+Math.cos(th)*isl.rx*R, y=isl.y+Math.sin(th)*isl.ry*R;
+      if(x>WORLD.w-24||y<24) continue;                 // beyond the world's edge
+      FS_WALL.push([x,y,0.75+G.hash2(i,9)*0.6]);
+    }
+  }
+  const W=canvas.width,H=canvas.height;
+  for(const [x,y,s] of FS_WALL){
+    const p=w2s(x,y);
+    if(p[0]<-40||p[1]<-40||p[0]>W+40||p[1]>H+40) continue;
+    const h=Math.max(5*DPR, Math.min(30*DPR, 58*s*view.scale*DPR));
+    const w2=h*0.94;
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-w2*0.34,p[1]-h*0.42);
+    ctx.lineTo(p[0]-w2*0.5,p[1]);
+    ctx.lineTo(p[0]+w2*0.18,p[1]-h*0.10);
+    ctx.lineTo(p[0]+w2*0.5,p[1]);
+    ctx.closePath();
+    ctx.fillStyle='#232122'; ctx.fill();               // black rock, snowless
+    ctx.strokeStyle='rgba(8,8,10,0.9)'; ctx.lineWidth=Math.max(0.8,h*0.06); ctx.stroke();
+    ctx.beginPath();                                    // a grey lit flank
+    ctx.moveTo(p[0],p[1]-h); ctx.lineTo(p[0]-w2*0.34,p[1]-h*0.42); ctx.lineTo(p[0]-w2*0.12,p[1]-h*0.30);
+    ctx.closePath(); ctx.fillStyle='rgba(120,118,120,0.5)'; ctx.fill();
   }
 }
 /* spark/ember streak scatter — used by the Last Door (red sparks) and the
@@ -826,10 +867,11 @@ function drawSanctuaryGlow(){
   ctx.beginPath(); ctx.arc(p[0],p[1],R,0,7); ctx.fillStyle=g2; ctx.fill();
 }
 
-/* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
-   is painted by the raster (ashen, no vegetation); this is the shoreline
-   haze that marks it as the edge of the world. */
-let FS_MIST=null;
+/* ITEM 2: the Far Shore's atmosphere — layered fog banks along the coast,
+   RED clouds ringing the landmass (the Last Door's palette family: they are
+   neighbors on the road of the dead), and slow ember-fall in the air around
+   it, denser near the shore. */
+let FS_MIST=null, FS_EMBERS=null;
 function drawFarShoreMist(){
   const isl=ISLANDS.find(s=>s.special==='farshore');
   if(!isl) return;
@@ -838,24 +880,53 @@ function drawFarShoreMist(){
   if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) return;
   if(!FS_MIST){
     FS_MIST=[];
-    for(let i=0;i<64;i++){
-      const th=i/64*Math.PI*2;
-      const R=islandNoise(th,isl.seed)*0.85*(0.94+G.hash2(i,7)*0.16);
-      FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
-                    0.5+G.hash2(i,11)*0.8]);
+    // three layered banks: the beach line, a standing bank offshore, a thin far veil
+    for(const [scale,alpha,n,seed] of [[0.97,0.30,64,7],[1.22,0.20,44,23],[1.45,0.12,30,41]]){
+      for(let i=0;i<n;i++){
+        const th=i/n*Math.PI*2;
+        const R=islandNoise(th,isl.seed)*0.85*scale*(0.96+G.hash2(i,seed)*0.10);
+        FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
+                      0.5+G.hash2(i,seed+4)*0.8, alpha]);
+      }
     }
   }
+  // the red cloud ring (drawn under the fog banks)
   ctx.save();
+  const rr=Math.max(rx,ry);
+  const red=ctx.createRadialGradient(p[0],p[1],rr*0.72,p[0],p[1],rr*1.55);
+  red.addColorStop(0,'rgba(126,26,24,0)');
+  red.addColorStop(0.45,'rgba(140,32,26,0.30)');
+  red.addColorStop(0.8,'rgba(126,26,24,0.16)');
+  red.addColorStop(1,'rgba(126,26,24,0)');
+  ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*1.6,ry*1.6,0,0,7); ctx.fillStyle=red; ctx.fill();
   ctx.globalCompositeOperation='lighter';
-  for(const [mx,my,s] of FS_MIST){
+  for(const [mx,my,s,alpha] of FS_MIST){
     const q=w2s(mx,my);
     const r=Math.max(3*DPR, 46*s*view.scale*DPR);
     const g2=ctx.createRadialGradient(q[0],q[1],0,q[0],q[1],r);
-    g2.addColorStop(0,'rgba(214,218,222,0.30)');
+    g2.addColorStop(0,`rgba(214,218,222,${alpha})`);
     g2.addColorStop(1,'rgba(214,218,222,0)');
     ctx.beginPath(); ctx.arc(q[0],q[1],r,0,7); ctx.fillStyle=g2; ctx.fill();
   }
   ctx.restore();
+  // ember-fall: fire where rain should be, denser near the shore
+  if(!FS_EMBERS){
+    FS_EMBERS=[];
+    for(const [reach,n,seed] of [[1.28,70,0],[1.8,34,50]]){
+      const set=isleSparks({x:isl.x,y:isl.y,rx:isl.rx*reach,ry:isl.ry*reach,seed:isl.seed},seed,isl.rx*reach);
+      for(let i=0;i<n&&i<set.length;i++) FS_EMBERS.push(set[i]);
+    }
+  }
+  for(const [sx,sy,s] of FS_EMBERS){
+    if(sx>WORLD.w-10||sy<10) continue;
+    const q=w2s(sx,sy);
+    const len=Math.max(1.2*DPR, 13*s*view.scale*DPR);
+    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.2,q[1]+len);
+    ctx.strokeStyle='rgba(255,116,58,0.85)';
+    ctx.lineWidth=Math.max(0.7,1.2*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(0.6,1.3*DPR*Math.min(1,view.scale*3)),0,7);
+    ctx.fillStyle='rgba(255,168,96,0.9)'; ctx.fill();
+  }
 }
 
 /* The hidden isles are absent from the raster by design (see geo.js

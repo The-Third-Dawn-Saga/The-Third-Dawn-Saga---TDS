@@ -483,8 +483,36 @@ console.log('— ITEM 5: The Far Shore — the Land of the Dead —');
   const fs=D.ISLANDS.find(i=>i.id==='landofthedead');
   t('landofthedead merged into ISLANDS', !!fs);
   t('at the far north-eastern corner', fs.x===8880 && fs.y===180);
-  t('sized 220 x 150, kind grey, special farshore',
-    fs.rx===220 && fs.ry===150 && fs.kind==='grey' && fs.special==='farshore');
+  t('ITEM 2: sized 300 x 200, kind grey, special farshore',
+    fs.rx===300 && fs.ry===200 && fs.kind==='grey' && fs.special==='farshore');
+  t('ITEM 2: three volcanoes about it — two front, one behind',
+    fs.volcanoes && fs.volcanoes.length===3
+    && fs.volcanoes.filter(v=>v[1]>fs.y).length===2
+    && fs.volcanoes.filter(v=>v[1]<fs.y).length===1);
+  t('ITEM 2: volcanoes ring it, none on its centre',
+    fs.volcanoes.every(v=>Math.hypot((v[0]-fs.x)/fs.rx,(v[1]-fs.y)/fs.ry)>0.5));
+  t('ITEM 2: dread sentence appended, tag intact',
+    fs.info.includes('Mountains wall its shore; three volcanoes burn about it; the clouds above it are red, and fire falls where rain should.')
+    && fs.info.includes('[LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]'));
+  // grey water ~150 mi out from the rim, all around
+  {
+    const g150=new Uint8ClampedArray(4), far=new Uint8ClampedArray(4);
+    G.paintRegion(g150,1,1,fs.x-fs.rx-120,fs.y+120,fs.x-fs.rx-119,fs.y+121,{style:'satellite',season:1});
+    G.paintRegion(far,1,1,fs.x-1200,fs.y+1200,fs.x-1199,fs.y+1201,{style:'satellite',season:1});
+    t('ITEM 2: grey unreflecting water within ~150 mi of the shore',
+      Math.abs(g150[2]-g150[0]) < Math.abs(far[2]-far[0]), g150.join()+' vs '+far.join());
+  }
+  // the ice never touches the doors of the dead
+  {
+    const ld2=D.ISLANDS.find(i=>i.id==='lastdoor');
+    t('ITEM 2: no ice on the Far Shore rim in Deep',
+      G.seaIceAt(fs.x-fs.rx-40, fs.y, 3, 9999)===0 && G.seaIceAt(fs.x, fs.y+fs.ry+40, 3, 9999)===0);
+    t('ITEM 2: no ice at the Isle of the Last Door in Deep',
+      G.seaIceAt(ld2.x, ld2.y, 3, 9999)===0 && G.seaIceAt(ld2.x-90, ld2.y+60, 3, 9999)===0
+      && G.seaIceAt(ld2.x-100, ld2.y+80, 3, 9999)<=0.01);
+    t('ITEM 2: the sheet still exists at the same latitude elsewhere',
+      G.seaIceAt(6000, 350, 3, 9999)>0.9, String(G.seaIceAt(6000,350,3,9999)));
+  }
   t('its ellipse clips off the map edge on purpose', fs.x+fs.rx>D.WORLD.w,
     `runs ${(fs.x+fs.rx)-D.WORLD.w} mi past x=${D.WORLD.w}`);
   t('NOT nudged inland — centre stays at 8880', fs.x===8880);

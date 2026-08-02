@@ -738,9 +738,14 @@ const SEAMOUNTS = (()=>{
    clipping is the point. Never nudge it inland. kind:'grey' paints ashen
    coast with no vegetation; special:'farshore' drives the mist, the spectral
    label, and the grey unreflecting water between it and the Last Door. ---- */
+/* [ITEM 2, this round: the full dread treatment. Bigger, walled by dark
+   mountains, three volcanoes burning about it, red clouds, fog banks,
+   ember-fall, grey water for ~150 mi and along the crossing. The sea never
+   freezes here or at the Isle of the Last Door.] */
 ISLANDS.push(
-  { id:'landofthedead', name:'The Far Shore — the Land of the Dead', x:8880, y:180, rx:220, ry:150, seed:0.0, kind:'grey', special:'farshore',
-    info:'The Underworld: the far shore of the dead, beyond the Isle of the Last Door, across water no chart measures. Only a hull of Wardwood timber reaches it, and the druids decide who receives one. The dead can be spoken to and cannot be returned. They do not want to come. [LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]' }
+  { id:'landofthedead', name:'The Far Shore — the Land of the Dead', x:8880, y:180, rx:300, ry:200, seed:0.0, kind:'grey', special:'farshore',
+    volcanoes:[[8680,345],[8950,400],[8705,40]],   // two flanking the front approach, one behind
+    info:'The Underworld: the far shore of the dead, beyond the Isle of the Last Door, across water no chart measures. Only a hull of Wardwood timber reaches it, and the druids decide who receives one. The dead can be spoken to and cannot be returned. They do not want to come. Mountains wall its shore; three volcanoes burn about it; the clouds above it are red, and fire falls where rain should. [LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]' }
 );
 
 /* ---- The Unhealed / The Angels Door: the two far-northern isles

@@ -239,20 +239,38 @@ function seaIceEdge(x,y,base,dLand){
     + (fbm(x*0.02600+7.7,  y*0.02600+31.1)-0.5)*72     // pack-ice grain ~38 mi
     + (fbm(x*0.05400+23.5, y*0.05400+13.9)-0.5)*34;    // floe edge     ~19 mi
 }
+/* ITEM 2: the sea never freezes at the doors of the dead — the ice sheet
+   must NEVER cover or touch the Land of the Dead or the Isle of the Last
+   Door. Clear inside the zone, feathered outward. */
+function iceExclusion(x,y){
+  let f=1;
+  if(FARSHORE){
+    const rn=Math.hypot((x-FARSHORE.x)/(FARSHORE.rx*1.25),(y-FARSHORE.y)/(FARSHORE.ry*1.25));
+    if(rn<1.5) f=Math.min(f, Math.max(0,(rn-1.15)/0.35));
+  }
+  if(LASTDOOR){
+    const d=Math.hypot(x-LASTDOOR.x,y-LASTDOOR.y);
+    const R0=Math.max(LASTDOOR.rx,LASTDOOR.ry)*1.6+40;
+    if(d<R0+180) f=Math.min(f, Math.max(0,(d-R0)/180));
+  }
+  return f;
+}
 function seaIceAt(x,y,season,dLand){
   const base=SEASONPAR.iceLine[season];
   if(y>base+1100) return 0;                            // south of any tongue or floe
+  const ex=iceExclusion(x,y);
+  if(ex<=0) return 0;
   const coarse=seaIceCoarse(x,y,base,dLand);
-  if(y < coarse-165-ICE_FINE_MAX) return 1;            // solid, deep inside the sheet
+  if(y < coarse-165-ICE_FINE_MAX) return ex;           // solid, deep inside the sheet
   if(y > coarse+430+ICE_FINE_MAX) return 0;            // beyond the edge and its floes
   const edge=seaIceEdge(x,y,base,dLand);
   const a=(edge-y)/165;                                // thins over ~165 mi
-  if(a>=1) return 1;
-  if(a>0) return a;
+  if(a>=1) return ex;
+  if(a>0) return a*ex;
   const band=(y-edge)/430;                             // detached floes beyond the edge
   if(band<1){
     const f=fbm(x*0.017+29.3, y*0.017+41.7);
-    if(f>0.70) return Math.min(0.6,(f-0.70)*3.6)*(1-band);
+    if(f>0.70) return Math.min(0.6,(f-0.70)*3.6)*(1-band)*ex;
   }
   return 0;
 }
