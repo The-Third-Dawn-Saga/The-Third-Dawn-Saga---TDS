@@ -30,7 +30,7 @@ const LAYERS = {
   war:false, borders:true, rivers:true, mountains:true,
   settlements:true, gates:true, wonders:true, routes:true,
   hidden:false, labels:true, migrations:true, activities:true,
-  domains:false,
+  domains:false, roads:true, locallanes:true,
 };
 
 /* ============================================================
@@ -399,6 +399,9 @@ function drawOverlay(now){
   // Kaelen's Sanctuary: the warm glow of an Immortal's isle
   drawSanctuaryGlow();
 
+  // ITEM 1: the road network — what ordinary people walk
+  if(LAYERS.roads) drawRoads();
+
   // routes
   if(LAYERS.routes){
     withWorld(ctx,S=>{
@@ -445,7 +448,7 @@ function drawOverlay(now){
   if(LAYERS.activities) drawActivities(now||performance.now());
 
   // hidden world (the two far-northern isles sit under the site markers)
-  if(LAYERS.hidden){ drawHiddenIslands(); drawHidden(); }
+  if(LAYERS.hidden){ drawHiddenIslands(); drawIceBridge(); drawHidden(); }
 
   // gates + ring gates
   if(LAYERS.gates) drawGates();
@@ -804,6 +807,75 @@ function drawSeamounts(){
     ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
   }
 }
+/* ============================================================
+   ITEM 1: ROAD RENDERING — four tiers, per-style palettes,
+   bridge/ford ticks, ferry dashes. Path2D built once, never per frame.
+   ============================================================ */
+let ROADS=null, ROAD_P2D=null, ROADS_PENDING=false;
+function roadsReady(){
+  if(ROADS) return ROADS;
+  if(!ROADS_PENDING){
+    ROADS_PENDING=true;
+    // ~1.2 s of generation: deferred off the first frame, like the Domains
+    setTimeout(()=>{
+      ROADS=G.computeRoads();
+      ROAD_P2D=ROADS.edges.map(e=>{
+        const p=new Path2D();
+        p.moveTo(e.path[0][0],e.path[0][1]);
+        for(let i=1;i<e.path.length;i++) p.lineTo(e.path[i][0],e.path[i][1]);
+        return p; });
+      dirty(false,true);
+    },120);
+  }
+  return null;
+}
+const ROAD_STYLE={
+  satellite:{ royal:'rgba(214,204,186,0.95)', kingdom:'rgba(196,186,168,0.8)',
+              country:'rgba(178,170,156,0.6)', track:'rgba(164,158,146,0.45)' },
+  atlas:    { royal:'rgba(122,90,52,0.95)',  kingdom:'rgba(138,106,66,0.8)',
+              country:'rgba(150,122,86,0.6)', track:'rgba(160,136,104,0.5)' },
+  painted:  { royal:'rgba(110,76,38,0.95)',  kingdom:'rgba(122,88,48,0.8)',
+              country:'rgba(134,102,62,0.6)', track:'rgba(146,116,78,0.5)' },
+};
+function drawRoads(){
+  const R=roadsReady();
+  if(!R) return;                           // still generating (deferred)
+  const S2=ROAD_STYLE[STYLE];
+  const painted=STYLE==='painted';
+  const hideMinor = view.scale<0.14 || !LAYERS.locallanes;   // spec floor 0.06; zoom floor is 0.10
+  const hideTracks = view.scale<0.14;
+  withWorld(ctx,S=>{
+    for(const tier of ['track','country','kingdom','royal']){
+      for(let i=0;i<R.edges.length;i++){
+        const e=R.edges[i];
+        if(e.tier!==tier) continue;
+        if(e.local && hideMinor) continue;
+        if(tier==='track' && hideTracks && !e.badland) continue;
+        ctx.lineCap='round'; ctx.lineJoin='round';
+        ctx.strokeStyle=S2[tier];
+        if(e.ferry){ ctx.setLineDash([6*DPR/S,8*DPR/S]); ctx.lineWidth=1.6*DPR/S; }
+        else if(tier==='royal'){ ctx.setLineDash(painted?[5*DPR/S,3*DPR/S]:[]); ctx.lineWidth=3.2*DPR/S; }
+        else if(tier==='kingdom'){ ctx.setLineDash(painted?[4*DPR/S,3*DPR/S]:[]); ctx.lineWidth=2.2*DPR/S; }
+        else if(tier==='country'){ ctx.setLineDash(painted?[3*DPR/S,3*DPR/S]:[]); ctx.lineWidth=1.4*DPR/S; }
+        else { ctx.setLineDash([4*DPR/S,5*DPR/S]); ctx.lineWidth=1.1*DPR/S; }
+        ctx.stroke(ROAD_P2D[i]);
+      }
+    }
+    ctx.setLineDash([]);
+    // bridge / ford ticks: tiny perpendicular marks at river crossings
+    if(view.scale>0.16){
+      ctx.strokeStyle= painted ? 'rgba(74,53,32,0.9)' : (STYLE==='satellite'?'rgba(230,224,210,0.9)':'rgba(96,72,44,0.9)');
+      ctx.lineWidth=1.4*DPR/S;
+      for(const e of R.edges) for(const [cx2,cy2,ang] of e.crossings){
+        const t=9;
+        ctx.beginPath();
+        ctx.moveTo(cx2+Math.cos(ang+Math.PI/2)*t, cy2+Math.sin(ang+Math.PI/2)*t);
+        ctx.lineTo(cx2-Math.cos(ang+Math.PI/2)*t, cy2-Math.sin(ang+Math.PI/2)*t);
+        ctx.stroke();
+      }
+    }
+  });
+}
 /* 5.6: undersea ridge ticks along the Serpent's Spine water crossings */
 let SERP_TICKS=null;
 function drawSerpentRidge(){
@@ -1083,6 +1155,41 @@ function drawHiddenIslands(){
       ctx.fillStyle='#2c2a28'; ctx.fill(path);                    // the ground is black
       ctx.strokeStyle=purple; ctx.lineWidth=2*DPR/S; ctx.stroke(path);
     });
+    if(isl.id==='lostisle'){
+      // ITEM 2: the Sirens' Roost — cold grey-green water, a mist ring, a
+      // circle of sea-stacks, and dark winged silhouettes on the stacks
+      const gg=ctx.createRadialGradient(p[0],p[1],rx*0.6,p[0],p[1],rx*2.4);
+      gg.addColorStop(0,'rgba(84,102,96,0.45)');
+      gg.addColorStop(0.7,'rgba(90,108,102,0.22)');
+      gg.addColorStop(1,'rgba(90,108,102,0)');
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.4,ry*2.4,0,0,7); ctx.fillStyle=gg; ctx.fill();
+      const mist=ctx.createRadialGradient(p[0],p[1],rx*1.35,p[0],p[1],rx*2.0);
+      mist.addColorStop(0,'rgba(206,214,210,0)');
+      mist.addColorStop(0.5,'rgba(206,214,210,0.28)');
+      mist.addColorStop(1,'rgba(206,214,210,0)');
+      ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*2.0,ry*2.0,0,0,7); ctx.fillStyle=mist; ctx.fill();
+      // sea-stacks ringing the isle, sirens perched at closer zooms
+      for(let i=0;i<12;i++){
+        const th=i/12*Math.PI*2+0.26;
+        const sx=isl.x+Math.cos(th)*isl.rx*1.55, sy=isl.y+Math.sin(th)*isl.ry*1.55;
+        const q=w2s(sx,sy);
+        const h=Math.max(3*DPR, (13+G.hash2(i,3)*9)*view.scale*DPR);
+        ctx.beginPath();
+        ctx.moveTo(q[0],q[1]-h);
+        ctx.lineTo(q[0]-h*0.4,q[1]+h*0.14);
+        ctx.lineTo(q[0]+h*0.4,q[1]+h*0.14);
+        ctx.closePath(); ctx.fillStyle='#1d1f1e'; ctx.fill();
+        if(view.scale>0.34 && G.hash2(i,7)>0.35){
+          // a winged silhouette on the stack: two arced strokes
+          ctx.strokeStyle='rgba(16,16,18,0.95)'; ctx.lineWidth=Math.max(1,h*0.10); ctx.lineCap='round';
+          ctx.beginPath();
+          ctx.moveTo(q[0]-h*0.42,q[1]-h*1.02);
+          ctx.quadraticCurveTo(q[0],q[1]-h*1.34,q[0],q[1]-h*1.06);
+          ctx.quadraticCurveTo(q[0],q[1]-h*1.34,q[0]+h*0.42,q[1]-h*1.02);
+          ctx.stroke();
+        }
+      }
+    }
     if(isl.id==='lastdoor'){
       // red clouds that drop sparks instead of rain
       const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],rx*3.2);
@@ -1098,6 +1205,27 @@ function drawHiddenIslands(){
       }
     }
   }
+}
+/* ITEM 2: in Deep season the frozen sea carries the sirens to the mainland —
+   a walked crossing from the Roost toward the Ice Edge, drawn as a pale
+   trodden trail on the ice. Hidden layer only (the isle is on no chart). */
+function drawIceBridge(){
+  if(SEASON!==3) return;
+  const isl=ISLANDS.find(s2=>s2.id==='lostisle');
+  const ie=HIDDEN.find(h2=>h2.id==='iceedge');
+  if(!isl||!ie) return;
+  const a2=w2s(isl.x,isl.y+isl.ry*0.8), b2=w2s(ie.x,ie.y-30);
+  ctx.save();
+  ctx.strokeStyle='rgba(226,236,242,0.85)';
+  ctx.lineWidth=3.5*DPR; ctx.lineCap='round';
+  ctx.setLineDash([2.2*DPR,7*DPR]);
+  ctx.beginPath(); ctx.moveTo(a2[0],a2[1]);
+  const mx=(a2[0]+b2[0])/2+18*view.scale*DPR, my=(a2[1]+b2[1])/2;
+  ctx.quadraticCurveTo(mx,my,b2[0],b2[1]); ctx.stroke();
+  ctx.setLineDash([]);
+  if(LAYERS.labels && view.scale>0.18)
+    label('the winter crossing',(a2[0]+b2[0])/2,(a2[1]+b2[1])/2-10*DPR,9.5,'rgba(200,215,225,0.9)',true);
+  ctx.restore();
 }
 function drawHidden(){
   for(const h of HIDDEN){
@@ -1577,6 +1705,18 @@ function featureAt(wx,wy){
     const dx=(wx-ma.x)/ma.rx, dy=(wy-ma.y)/ma.ry;
     if(dx*dx+dy*dy<=1) return {kind:'marsh',o:ma};
   }
+  if(LAYERS.roads){
+    const R=roadsReady();
+    if(R){
+    const tol2=Math.max(10, 10/view.scale);
+    let bi=-1,bd2=1e9;
+    for(let i=0;i<R.edges.length;i++){
+      const d=G.distToPath(wx,wy,R.edges[i].path);
+      if(d<bd2){ bd2=d; bi=i; }
+    }
+    if(bi>=0&&bd2<tol2) return {kind:'road',o:R.edges[bi],net:R};
+    }
+  }
   if(G.onContinent(wx,wy)&&G.inPoly(wx,wy,BADLANDS.poly)) return {kind:'badlands',o:BADLANDS};
   if(G.onContinent(wx,wy)&&G.inForestRing(wx,wy)) return {kind:'ring',o:FOREST_RING};
   if(G.onContinent(wx,wy)){
@@ -1645,6 +1785,26 @@ function showInfo(f){
   } else if(f.kind==='wonder'){
     fly={x:f.o.x,y:f.o.y,name:f.o.name};
     h=`<div class="ip-kicker">WONDER</div><h2>${f.o.name}</h2><div class="ip-sect">${f.o.info}</div>`;
+  } else if(f.kind==='road'){
+    const R=f.net, e=f.o;
+    const A=R.nodes[e.a], B2=R.nodes[e.b];
+    const TIER={royal:'Royal Road',kingdom:'Kingdom Road',country:'Country Road',track:'Track'};
+    // terrain summary via the travel sampler along the road
+    const seen={};
+    for(let i=0;i<e.path.length;i+=Math.max(1,Math.floor(e.path.length/30))){
+      const t2=G.terrainAt(e.path[i][0],e.path[i][1]); seen[t2]=(seen[t2]||0)+1;
+    }
+    const terrs=Object.entries(seen).sort((p2,q2)=>q2[1]-p2[1]).slice(0,3)
+      .map(en=>({plains:'plains',desert:'desert',glass:'glass desert',mountain:'mountains',forest:'forest',
+        swamp:'swamp',waste:'corrupted waste',badlands:'badlands',snow:'snowfields',water:'open water'}[en[0]]||en[0])).join(', ');
+    fly={x:(A.x+B2.x)/2,y:(A.y+B2.y)/2,name:TIER[e.tier]};
+    h=`<div class="ip-kicker">${e.ferry?'FERRY / GUARDED BRIDGE':'ROAD — '+TIER[e.tier].toUpperCase()}</div>
+       <h2>${A.name} — ${B2.name}</h2>
+       <div class="ip-grid"><div><label>Length</label>${e.len} miles</div><div><label>Tier</label>${TIER[e.tier]}${e.badland?' (unmaintained)':''}</div></div>
+       <div class="ip-sect"><label>Passes through</label>${terrs}${e.crossings.length?` — ${e.crossings.length} river crossing${e.crossings.length>1?'s':''} (bridge or ford)`:''}</div>`;
+    if(e.tier==='royal') h+=`<div class="ip-sect"><label>Note</label>The Royal Road spines follow the self-repairing ancient roads — the Crown Roads — which predate the Forgetting; no living mason can mend them, and none needs to.</div>`;
+    if(e.badland) h+=`<div class="ip-sect"><label>Warning</label>A Red Reaches track: unmaintained, unclaimed, and washed out without notice. [Roads layer PROPOSED]</div>`;
+    else h+=`<div class="ip-sect" style="opacity:0.75">[Roads layer PROPOSED — generated from terrain cost]</div>`;
   } else if(f.kind==='hidden'){
     fly={x:f.o.x,y:f.o.y,name:f.o.name};
     h=`<div class="ip-kicker">HIDDEN WORLD</div><h2>${f.o.name}</h2><div class="ip-sect">${f.o.info}</div>`;
@@ -1822,6 +1982,9 @@ window.__rasterStats=function(){
   return { rasters:[...rasterCache.keys()], oceans:[...oceanCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
 };
 window.__oceanReady=function(){ return requestOcean(STYLE,SEASON,0); };
+window.__roadsReady=function(){ return new Promise(res=>{
+  const spin=()=>{ const R=roadsReady(); if(R) res({nodes:R.nodes.length,edges:R.edges.length,orphans:R.orphans}); else setTimeout(spin,120); };
+  spin(); }); };
 /* click-test hook: resolve a world point exactly as a canvas click would,
    open the info panel, and report what the reader ends up looking at. */
 window.__pick=function(wx,wy){

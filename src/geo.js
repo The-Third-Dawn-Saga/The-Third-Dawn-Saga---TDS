@@ -773,6 +773,38 @@ function computeJourney(a,b,season){
       .map(e=>TRAVEL.terrain[e[0]].name).join(', ');
     out.push({mode:TRAVEL.modes[mode].label,modeId:mode,days,recharges,time:fmtDays(days),detail:`through ${terrs}${note}`});
   }
+  /* ITEM 1g: By road — when both endpoints sit on (or near) the network.
+     Road distance runs longer than the crow flies, but the going is easier:
+     foot 1.15x, mounted 1.3x. [PROPOSED] */
+  { const R=computeRoads();
+    const nearNode=pt=>{ let best=-1,bd=1e18;
+      for(let i=0;i<R.nodes.length;i++){ const d=Math.hypot(R.nodes[i].x-pt.x,R.nodes[i].y-pt.y);
+        if(d<bd){ bd=d; best=i; } }
+      return {i:best,d:bd}; };
+    const na=nearNode(a), nb=nearNode(b);
+    if(na.d<60 && nb.d<60 && na.i!==nb.i){
+      const adj=new Map();
+      R.edges.forEach(e=>{ if(!adj.has(e.a)) adj.set(e.a,[]); if(!adj.has(e.b)) adj.set(e.b,[]);
+        adj.get(e.a).push([e.b,e.len]); adj.get(e.b).push([e.a,e.len]); });
+      const dist2=new Map([[na.i,0]]), Q=[[0,na.i]];
+      while(Q.length){ Q.sort((p,q)=>p[0]-q[0]); const [d,v]=Q.shift();
+        if(v===nb.i) break;
+        if(d>(dist2.get(v)??Infinity)) continue;
+        for(const [w2,l2] of (adj.get(v)||[])){
+          const nd=d+l2;
+          if(nd<(dist2.get(w2)??Infinity)){ dist2.set(w2,nd); Q.push([nd,w2]); } } }
+      const roadLen=dist2.get(nb.i);
+      if(roadLen!=null && isFinite(roadLen)){
+        const total=roadLen+na.d+nb.d;
+        for(const [mode,bonus] of [['foot',1.15],['mount',1.3]]){
+          const days=total/(TRAVEL.modes[mode].base*bonus);
+          out.push({mode:'By road ('+TRAVEL.modes[mode].label.toLowerCase()+')',modeId:'road_'+mode,
+            days, time:fmtDays(days), roadLen:Math.round(total),
+            detail:`${Math.round(total)} road miles via ${R.nodes[na.i].name} and ${R.nodes[nb.i].name} — easier going than open country (${bonus}× speed) [PROPOSED]`});
+        }
+      }
+    }
+  }
   const gA=nearestGate(a,false), gB=nearestGate(b,true);
   let embargoSkipped=false;
   if(gA.gate&&gB.gate&&gA.gate!==gB.gate){
@@ -954,7 +986,368 @@ function landCheck(){
   return bad;
 }
 
+/* ============================================================
+   ITEM 1: THE CONTINENTAL ROAD NETWORK
+   Generated, not hand-placed: a terrain cost field, a least-cost
+   node graph (multi-source Dijkstra Voronoi adjacency -> Kruskal
+   MST + redundancy + forced trunk corridors), per-edge A* routing,
+   Chaikin smoothing, river-crossing ticks, and betweenness-tiered
+   classification. Computed once and cached — never per frame.
+   Runs identically under Node (tests) and in the browser.
+   ============================================================ */
+const ROAD_CELL=24;                                      // grid cell, miles
+const RGW=Math.ceil(WORLD.w/ROAD_CELL), RGH=Math.ceil(WORLD.h/ROAD_CELL);
+/* named passes: mountain cells within ~50 mi drop to cost 2.0 */
+const ROAD_PASSES=[
+  { id:'p_heavensgate', name:'Heaven’s Gate Pass', x:5380, y:3210 },
+  { id:'p_highpass',   name:'The Crown Ridge crossing (Highpass)', x:4200, y:2250 },
+  { id:'p_ibex',       name:'The Ibex Passes', x:5480, y:2350 },
+  { id:'p_jadegap_n',  name:'Jade Wall gap — north valley', x:6300, y:2650 },
+  { id:'p_jadegap_s',  name:'Jade Wall gap — south valley', x:6300, y:3420 },
+  { id:'p_ashteeth_w', name:'Ashteeth crossing — the Ash Road', x:3060, y:4310 },
+  { id:'p_ashteeth_e', name:'Ashteeth crossing — the Dunmoor road', x:4000, y:4520 },
+];
+const DARK_KINDS=new Set(['dark','enchanted']);
+/* the gates' GEOMETRIC bearings (rg.deg is parametric; the ellipse squashes
+   angles, so the two differ by up to ~6 degrees off-axis) */
+const RING_GATE_GEO=RING_GATES.map(rg=>{ const[gx,gy]=ringGatePos(rg.deg); return angDeg(gx,gy); });
+/* settlements standing in the Ring band's inner fringe (Cinerra, Nyati,
+   Lu-Zhen, Hollowharbor...) keep a cleared last-mile: ring cells within
+   ~90 mi of a settlement are passable at forest cost. Through-crossings
+   remain forbidden — only the Thresholds cut the band. */
+const RING_CLEARINGS=SETTLEMENTS.filter(s2=>s2.type!=='site'&&onContinent(s2.x,s2.y))
+  .filter(s2=>{ const rn=ellipseR(s2.x,s2.y)/coastRadiusAt(s2.x,s2.y); return rn>0.80; })
+  .map(s2=>[s2.x,s2.y]);
+function roadCost(x,y){
+  if(!onContinent(x,y)) return -1;                       // water: impassable
+  if(Math.hypot(x-SW_HIDDEN.x,y-SW_HIDDEN.y)<=SW_HIDDEN.r+20) return -1;  // the Void Queen's Swamp: never
+  if(inForestRing(x,y)){
+    // the Nine Thresholds: an angular corridor cut clean through the band
+    // (the band is up to ~390 mi wide radially — a radius test cannot span it)
+    const a2=angDeg(x,y);
+    for(const g of RING_GATE_GEO){
+      let d=Math.abs(a2-g); if(d>180) d=360-d;
+      if(d<1.6) return 1.5;
+    }
+    for(const [cx,cy] of RING_CLEARINGS){ if(Math.hypot(x-cx,y-cy)<90) return 2.2; }
+    return -1;                                           // the Ring is the elves'
+  }
+  const fo=forestAt(x,y);
+  if(fo){
+    if(fo.kind==='grey') return 60;                      // the Forgetting: routed around
+    return DARK_KINDS.has(fo.kind) ? 4.0 : 2.2;
+  }
+  const terr=terrainAt(x,y);
+  if(terr==='water') return -1;
+  if(terr==='glass') return 40;                          // impassable in practice
+  if(terr==='swamp') return 8.0;
+  if(terr==='badlands') return 5.0;
+  if(terr==='mountain'){
+    for(const p of ROAD_PASSES){ if(Math.hypot(x-p.x,y-p.y)<50) return 2.0; }
+    return 12.0;
+  }
+  let c= terr==='desert'?2.6 : terr==='snow'?2.4 : terr==='waste'?6.0 : terr==='forest'?2.2 : 1.0;
+  if(c<=2.6){
+    const rn=ellipseR(x,y)/coastRadiusAt(x,y);
+    if(rn>0.979) c*=0.9;                                 // the coastal strip (~60 mi)
+    else { for(const r of RIVERS){ if(!r.underground && distToPath(x,y,r.path)<40){ c*=0.85; break; } } }
+  }
+  return c;
+}
+function roadRiverCell(x,y){
+  for(const r of RIVERS){ if(!r.underground && distToPath(x,y,r.path)<ROAD_CELL*0.55) return true; }
+  return false;
+}
+let ROADNET=null;
+function computeRoads(){
+  if(ROADNET) return ROADNET;
+  const N=RGW*RGH;
+  const cost=new Float32Array(N), river=new Uint8Array(N), zark=new Uint8Array(N);
+  const ZK=KINGDOMS.find(k=>k.id==='zarkaine');
+  for(let j=0;j<RGH;j++) for(let i=0;i<RGW;i++){
+    const x=(i+0.5)*ROAD_CELL, y=(j+0.5)*ROAD_CELL, o=j*RGW+i;
+    cost[o]=roadCost(x,y);
+    if(cost[o]>0){ if(roadRiverCell(x,y)) river[o]=1; if(inPoly(x,y,ZK.poly)) zark[o]=1; }
+  }
+  const cellOf=(x,y)=>{
+    const i=Math.max(0,Math.min(RGW-1,Math.floor(x/ROAD_CELL)));
+    const j=Math.max(0,Math.min(RGH-1,Math.floor(y/ROAD_CELL)));
+    return j*RGW+i;
+  };
+  /* nodes: continental settlements (not sites, not hidden) + junctions */
+  const nodes=[];
+  for(const s of SETTLEMENTS){
+    if(s.type==='site') continue;
+    if(!onContinent(s.x,s.y)) continue;                  // island towns are sea-reached
+    nodes.push({id:s.id,name:s.name,x:s.x,y:s.y,type:s.type,kingdom:s.kingdom||null});
+  }
+  for(const rg of RING_GATES){ const[x,y]=ringGatePos(rg.deg);
+    nodes.push({id:rg.id,name:rg.name,x,y,type:'threshold',kingdom:null}); }
+  for(const p of ROAD_PASSES) nodes.push({id:p.id,name:p.name,x:p.x,y:p.y,type:'pass',kingdom:null});
+  // snap each node to the nearest passable cell (a village can sit on a
+  // narrow coastal cell whose centre samples as water)
+  const nodeCell=new Int32Array(nodes.length);
+  for(let k=0;k<nodes.length;k++){
+    let c=cellOf(nodes[k].x,nodes[k].y);
+    if(cost[c]>0){ nodeCell[k]=c; continue; }
+    let best=-1,bd=1e9;
+    const ci=c%RGW, cj=(c-ci)/RGW;
+    for(let dj=-3;dj<=3;dj++) for(let di=-3;di<=3;di++){
+      const ii=ci+di, jj=cj+dj;
+      if(ii<0||jj<0||ii>=RGW||jj>=RGH) continue;
+      const o=jj*RGW+ii;
+      if(cost[o]>0 && di*di+dj*dj<bd){ bd=di*di+dj*dj; best=o; }
+    }
+    nodeCell[k]= best>=0?best:c;
+  }
+  /* a small binary heap */
+  function Heap(){ const k=[],v=[]; return {
+    push(key,val){ k.push(key); v.push(val); let i=k.length-1;
+      while(i>0){ const p=(i-1)>>1; if(k[p]<=k[i]) break;
+        [k[p],k[i]]=[k[i],k[p]]; [v[p],v[i]]=[v[i],v[p]]; i=p; } },
+    pop(){ const rk=k[0], rv=v[0], lk=k.pop(), lv=v.pop();
+      if(k.length){ k[0]=lk; v[0]=lv; let i=0;
+        for(;;){ const l=2*i+1,r=l+1; let m=i;
+          if(l<k.length&&k[l]<k[m]) m=l;
+          if(r<k.length&&k[r]<k[m]) m=r;
+          if(m===i) break; [k[m],k[i]]=[k[i],k[m]]; [v[m],v[i]]=[v[i],v[m]]; i=m; } }
+      return [rk,rv]; },
+    get size(){ return k.length; } }; }
+  const DIRS=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.4142],[1,-1,1.4142],[-1,1,1.4142],[-1,-1,1.4142]];
+  function stepCost(a,b,mult){
+    let c=(cost[a]+cost[b])/2*ROAD_CELL*mult;
+    if(river[b]&&!river[a]) c+=25;                       // river crossings cost +25 (bridged later)
+    return c;
+  }
+  /* multi-source Dijkstra: nearest-node Voronoi over the cost metric */
+  const label=new Int32Array(N).fill(-1), dist=new Float64Array(N).fill(Infinity);
+  { const h=Heap();
+    for(let k=0;k<nodes.length;k++){ const c=nodeCell[k];
+      if(cost[c]>0){ dist[c]=0; label[c]=k; h.push(0,c); } }
+    while(h.size){ const [d,o]=h.pop();
+      if(d>dist[o]) continue;
+      const i=o%RGW, j=(o-i)/RGW;
+      for(const [di,dj,m] of DIRS){
+        const ii=i+di, jj=j+dj;
+        if(ii<0||jj<0||ii>=RGW||jj>=RGH) continue;
+        const t=jj*RGW+ii;
+        if(cost[t]<=0) continue;
+        const nd=d+stepCost(o,t,m);
+        if(nd<dist[t]){ dist[t]=nd; label[t]=label[o]; h.push(nd,t); }
+      } } }
+  /* candidate edges where Voronoi regions touch */
+  const cand=new Map();                                  // "a:b" -> approx cost
+  for(let j=0;j<RGH;j++) for(let i=0;i<RGW;i++){
+    const o=j*RGW+i; if(label[o]<0) continue;
+    for(const [di,dj] of [[1,0],[0,1],[1,1],[1,-1]]){
+      const ii=i+di, jj=j+dj;
+      if(ii<0||jj<0||ii>=RGW||jj>=RGH) continue;
+      const t=jj*RGW+ii;
+      if(label[t]<0||label[t]===label[o]) continue;
+      const a=Math.min(label[o],label[t]), b=Math.max(label[o],label[t]);
+      const c=dist[o]+dist[t]+ROAD_CELL;
+      const key=a+':'+b;
+      if(!cand.has(key)||cand.get(key)>c) cand.set(key,c);
+    }
+  }
+  /* Zar'kaine is sealed: no overland edge crosses its border (Zhar'dei is
+     the sole sanctioned contact, added manually below) */
+  const zkNode=nodes.map(n=>n.kingdom==='zarkaine');
+  const candList=[...cand.entries()].map(([k,c])=>{ const [a,b]=k.split(':').map(Number); return {a,b,c}; })
+    .filter(e=>zkNode[e.a]===zkNode[e.b])
+    .sort((p,q)=>p.c-q.c);
+  /* Kruskal MST per component + redundancy */
+  const parent=new Int32Array(nodes.length).map((_,i)=>i);
+  const find=i=>{ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; };
+  const picked=new Map();
+  const pick=(a,b,c,why)=>{ const key=Math.min(a,b)+':'+Math.max(a,b);
+    if(!picked.has(key)) picked.set(key,{a,b,c,why}); };
+  for(const e of candList){ const ra=find(e.a), rb=find(e.b);
+    if(ra!==rb){ parent[ra]=rb; pick(e.a,e.b,e.c,'mst'); } }
+  const deg=new Int32Array(nodes.length);
+  for(const e of picked.values()){ deg[e.a]++; deg[e.b]++; }
+  const near=new Map();
+  for(const e of candList){ (near.get(e.a)||near.set(e.a,[]).get(e.a)).push(e); (near.get(e.b)||near.set(e.b,[]).get(e.b)).push(e); }
+  for(let k=0;k<nodes.length;k++){
+    const lst=(near.get(k)||[]).sort((p,q)=>p.c-q.c).slice(0,2);
+    for(const e of lst) pick(e.a,e.b,e.c,'nn');
+  }
+  const town=n=>['town','vassal','capital'].includes(n.type);
+  for(const e of candList){
+    if(e.c<250 && town(nodes[e.a]) && town(nodes[e.b])) pick(e.a,e.b,e.c,'town');
+  }
+  /* forced trunk corridors: the historic Crown Road / caravan spines */
+  const idOf=id=>nodes.findIndex(n=>n.id===id);
+  const TRUNKS=[['verdanthome','ironhaven'],['verdanthome','sundisk'],['verdanthome','trinity'],
+    ['verdanthome','mournscar'],['verdanthome','celestial'],['verdanthome','crownsburg'],
+    ['gladius','ironhaven'],['gladius','verdanthome'],['trinity','ironhaven'],['sundisk','crownsburg'],
+    ['mournscar','sundisk'],['gladius','mournscar']];
+  const trunkSet=new Set();
+  for(const [pa,pb] of TRUNKS){ const a=idOf(pa), b=idOf(pb);
+    if(a<0||b<0) continue;
+    pick(a,b,0,'trunk');
+    trunkSet.add(Math.min(a,b)+':'+Math.max(a,b));
+  }
+  /* local spurs: every village keeps a lane to its nearest town */
+  for(let k=0;k<nodes.length;k++){
+    if(nodes[k].type!=='village') continue;
+    let best=-1,bd=1e18;
+    for(let m2=0;m2<nodes.length;m2++){
+      if(m2===k||!town(nodes[m2])) continue;
+      if(zkNode[k]!==zkNode[m2]) continue;
+      const d=Math.hypot(nodes[k].x-nodes[m2].x,nodes[k].y-nodes[m2].y);
+      if(d<bd){ bd=d; best=m2; }
+    }
+    if(best>=0 && bd<400) pick(k,best,bd,'spur');
+  }
+  /* A* route every picked edge over the cost field */
+  function astar(sa,sb){
+    const start=nodeCell[sa], goal=nodeCell[sb];
+    const gx=goal%RGW, gy=(goal-gx)/RGW;
+    const g=new Float64Array(N).fill(Infinity), from=new Int32Array(N).fill(-1);
+    const h=Heap(); g[start]=0; h.push(0,start);
+    while(h.size){ const [,o]=h.pop();
+      if(o===goal) break;
+      const i=o%RGW, j=(o-i)/RGW;
+      for(const [di,dj,m] of DIRS){
+        const ii=i+di, jj=j+dj;
+        if(ii<0||jj<0||ii>=RGW||jj>=RGH) continue;
+        const t=jj*RGW+ii;
+        if(cost[t]<=0) continue;
+        if(zark[t]!==zark[o] && !(zkNode[sa]&&zkNode[sb])){ if(zark[t]||zark[o]) continue; }
+        const ng=g[o]+stepCost(o,t,m);
+        if(ng<g[t]){ g[t]=ng; from[t]=o;
+          h.push(ng+Math.hypot(ii-gx,jj-gy)*ROAD_CELL*0.9, t); }
+      } }
+    if(!isFinite(g[goal])) return null;
+    const path=[]; let o=goal;
+    while(o>=0){ const i=o%RGW, j=(o-i)/RGW;
+      path.push([(i+0.5)*ROAD_CELL,(j+0.5)*ROAD_CELL]); o=from[o]; }
+    path.reverse();
+    path[0]=[nodes[sa].x,nodes[sa].y]; path[path.length-1]=[nodes[sb].x,nodes[sb].y];
+    return {path, cost:g[goal]};
+  }
+  function chaikin(p){
+    if(p.length<3) return p;
+    const out=[p[0]];
+    for(let i=0;i<p.length-1;i++){
+      const [ax,ay]=p[i],[bx,by]=p[i+1];
+      out.push([ax*0.75+bx*0.25, ay*0.75+by*0.25],[ax*0.25+bx*0.75, ay*0.25+by*0.75]);
+    }
+    out.push(p[p.length-1]); return out;
+  }
+  const edges=[];
+  for(const e of picked.values()){
+    const r=astar(e.a,e.b);
+    if(!r) continue;
+    let path=chaikin(chaikin(r.path));
+    let len=0; for(let i=1;i<path.length;i++) len+=Math.hypot(path[i][0]-path[i-1][0],path[i][1]-path[i-1][1]);
+    // river crossings -> bridge/ford ticks
+    const crossings=[];
+    for(const rv of RIVERS){
+      if(rv.underground) continue;
+      for(let i=1;i<path.length;i++){
+        for(let s2=0;s2<rv.path.length-1;s2++){
+          const A=path[i-1],B=path[i],C=rv.path[s2],D2=rv.path[s2+1];
+          const d1x=B[0]-A[0],d1y=B[1]-A[1],d2x=D2[0]-C[0],d2y=D2[1]-C[1];
+          const den=d1x*d2y-d1y*d2x; if(!den) continue;
+          const t=((C[0]-A[0])*d2y-(C[1]-A[1])*d2x)/den, u=((C[0]-A[0])*d1y-(C[1]-A[1])*d1x)/den;
+          if(t>0&&t<1&&u>0&&u<1) crossings.push([A[0]+d1x*t, A[1]+d1y*t, Math.atan2(d1y,d1x)]);
+        }
+      }
+    }
+    const badland=path.some(p2=>inPoly(p2[0],p2[1],BADLANDS.poly));
+    edges.push({a:e.a,b:e.b,path,len:Math.round(len),cost:r.cost,why:e.why,crossings,badland,
+      trunk:trunkSet.has(Math.min(e.a,e.b)+':'+Math.max(e.a,e.b))});
+  }
+  /* orphan rescue: geography can trap a village (Foundling's Hollow sits
+     inside the Ring band). A forced forest track reaches it — rendered as a
+     Track that simply arrives, per canon's hidden-refuge roads. */
+  { const deg2=new Int32Array(nodes.length);
+    for(const e of edges){ deg2[e.a]++; deg2[e.b]++; }
+    for(let k=0;k<nodes.length;k++){
+      if(deg2[k]>0) continue;
+      if(!['village','town','vassal','capital'].includes(nodes[k].type)) continue;
+      let best=-1,bd=1e18;
+      for(let m2=0;m2<nodes.length;m2++){
+        if(m2===k||deg2[m2]===0) continue;
+        if(zkNode[k]!==zkNode[m2]) continue;
+        const d=Math.hypot(nodes[k].x-nodes[m2].x,nodes[k].y-nodes[m2].y);
+        if(d<bd){ bd=d; best=m2; }
+      }
+      if(best<0) continue;
+      const save=[];                                     // soften the Ring for this one path
+      for(let o=0;o<N;o++) if(cost[o]<0){
+        const i=o%RGW, j=(o-i)/RGW, x=(i+0.5)*ROAD_CELL, y=(j+0.5)*ROAD_CELL;
+        if(inForestRing(x,y) && Math.hypot(x-nodes[k].x,y-nodes[k].y)<600){ save.push(o); cost[o]=7; }
+      }
+      const r=astar(k,best);
+      for(const o of save) cost[o]=-1;
+      if(r){ let path=chaikin(chaikin(r.path));
+        let len=0; for(let i=1;i<path.length;i++) len+=Math.hypot(path[i][0]-path[i-1][0],path[i][1]-path[i-1][1]);
+        edges.push({a:k,b:best,path,len:Math.round(len),cost:r.cost,why:'rescue',
+          crossings:[],badland:false,trunk:false,rescue:true});
+        deg2[k]++; deg2[best]++;
+      }
+    }
+  }
+  /* Zhar'dei: the one guarded bridge to the sealed kingdom */
+  { const a=idOf('vorkane');
+    const zq=ISLANDS.find(i=>i.id==='zhardei');
+    if(a>=0&&zq){
+      nodes.push({id:'zhardei_quay',name:'Zhar’dei, the Sealed Quay',x:zq.x,y:zq.y,type:'quay',kingdom:'zarkaine'});
+      const b=nodes.length-1;
+      edges.push({a,b,path:[[nodes[a].x,nodes[a].y],[zq.x,zq.y]],
+        len:Math.round(Math.hypot(zq.x-nodes[a].x,zq.y-nodes[a].y)),cost:0,why:'ferry',
+        crossings:[],badland:false,trunk:false,ferry:true});
+    } }
+  /* tiers by betweenness centrality (Brandes, weighted) */
+  { const nv=nodes.length;
+    const adj=Array.from({length:nv},()=>[]);
+    edges.forEach((e,i)=>{ if(!e.ferry){ adj[e.a].push([e.b,e.cost||e.len,i]); adj[e.b].push([e.a,e.cost||e.len,i]); } });
+    const eb=new Float64Array(edges.length);
+    for(let s2=0;s2<nv;s2++){
+      const d=new Float64Array(nv).fill(Infinity), sig=new Float64Array(nv), S=[], P=Array.from({length:nv},()=>[]);
+      const h=Heap(); d[s2]=0; sig[s2]=1; h.push(0,s2);
+      const done=new Uint8Array(nv);
+      while(h.size){ const [dd,v2]=h.pop();
+        if(done[v2]) continue; done[v2]=1; S.push(v2);
+        for(const [w2,c2,ei] of adj[v2]){
+          if(d[v2]+c2 < d[w2]-1e-9){ d[w2]=d[v2]+c2; sig[w2]=sig[v2]; P[w2]=[[v2,ei]]; h.push(d[w2],w2); }
+          else if(Math.abs(d[v2]+c2-d[w2])<1e-9){ sig[w2]+=sig[v2]; P[w2].push([v2,ei]); }
+        } }
+      const delta=new Float64Array(nv);
+      for(let i=S.length-1;i>=0;i--){ const w2=S[i];
+        for(const [v2,ei] of P[w2]){ const f=sig[v2]/sig[w2]*(1+delta[w2]); eb[ei]+=f; delta[v2]+=f; } }
+    }
+    const order=[...eb.keys()].sort((p,q)=>eb[q]-eb[p]);
+    const n1=Math.ceil(order.length*0.10), n2=Math.ceil(order.length*0.35), n3=Math.ceil(order.length*0.75);
+    order.forEach((ei,rank)=>{
+      const e=edges[ei];
+      e.tier= rank<n1?'royal' : rank<n2?'kingdom' : rank<n3?'country' : 'track';
+      if(e.trunk) e.tier='royal';                        // the Crown Road spines
+      if(e.badland) e.tier='track';                      // the Red Reaches: unmaintained
+      if(e.why==='spur'&&e.tier!=='track') e.tier='country';
+      if(e.rescue) e.tier='track';
+      if(e.ferry) e.tier='country';
+    });
+    edges.forEach(e=>{ e.local = !e.trunk && !e.ferry && e.len<220
+      && (nodes[e.a].type==='village'||nodes[e.b].type==='village'); });
+  }
+  /* orphan audit */
+  { const par2=new Int32Array(nodes.length).map((_,i)=>i);
+    const f2=i=>{ while(par2[i]!==i){ par2[i]=par2[par2[i]]; i=par2[i]; } return i; };
+    for(const e of edges){ const ra=f2(e.a), rb=f2(e.b); if(ra!==rb) par2[ra]=rb; }
+    const comps=new Map();
+    nodes.forEach((n,i)=>{ const r=f2(i); comps.set(r,(comps.get(r)||0)+1); });
+    ROADNET={nodes,edges,components:comps.size,
+      orphans:nodes.filter((n,i)=>{ let c=0; for(const e of edges) if(e.a===i||e.b===i) c++; return c===0; }).map(n=>n.id)};
+  }
+  return ROADNET;
+}
+
 return { thetaOf, ellipseR, coastRadiusAt, onContinent, islandAt, hiddenIslandAt, landAt, angDeg,
+  computeRoads, roadCost, ROAD_PASSES,
   VISIBLE_ISLANDS, HIDDEN_ISLANDS, inForestBody, forestAt,
   inForestRing, inPoly, distToPath, kingdomAt, lakeAt, MTNFIELD, hash2, vnoise, fbm,
   PALETTES, lerpC, SEASONPAR, HA_POOLS, terrainAt, paintRegion, paintWeather, seaIceAt,
