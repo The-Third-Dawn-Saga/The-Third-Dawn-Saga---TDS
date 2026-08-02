@@ -639,6 +639,86 @@ console.log('— ITEM 5: logic audit —');
     'seamounts '+minSeam.toFixed(0)+', gates '+minWhirl.toFixed(0));
 }
 
+console.log('— ITEM 1: the continental road network —');
+{
+  const R=G.computeRoads();
+  t('ITEM 1: network computed and cached', !!R && R===G.computeRoads());
+  t('ITEM 1: nodes cover settlements + thresholds + passes', R.nodes.length>=100, R.nodes.length+' nodes');
+  t('ITEM 1: edges form a real network, not a tree', R.edges.length>R.nodes.length-R.components,
+    R.edges.length+' edges, '+R.components+' components');
+  t('ITEM 1: ZERO orphaned settlements', R.orphans.length===0, JSON.stringify(R.orphans));
+  t('ITEM 1: exactly two components (mainland + sealed Zar\u2019kaine)', R.components===2, String(R.components));
+  const tiers={}; for(const e of R.edges) tiers[e.tier]=(tiers[e.tier]||0)+1;
+  t('ITEM 1: all four tiers present', ['royal','kingdom','country','track'].every(k=>tiers[k]>0), JSON.stringify(tiers));
+  t('ITEM 1: Red Reaches roads are Tracks by definition', R.edges.filter(e=>e.badland).every(e=>e.tier==='track'));
+  // the Crown Road spines are Royal
+  const idOf=id=>R.nodes.findIndex(n=>n.id===id);
+  const hasRoyal=(pa,pb)=>R.edges.some(e=>e.tier==='royal'
+    && ((e.a===idOf(pa)&&e.b===idOf(pb))||(e.a===idOf(pb)&&e.b===idOf(pa))));
+  t('ITEM 1: the Crown Road corridors are Royal Roads',
+    hasRoyal('verdanthome','ironhaven') && hasRoyal('verdanthome','sundisk')
+    && hasRoyal('verdanthome','trinity') && hasRoyal('verdanthome','mournscar'));
+  // canon guards
+  const F=D.FORESTS.find(f=>f.id==='forgetting');
+  const GL=D.WONDERS.find(w=>w.id==='glass');
+  const SW=D.HIDDEN.find(h=>h.id==='voidswamp');
+  let inForget=0,inGlass=0,inSwamp=0,ringViol=0;
+  const gates=D.RING_GATES.map(rg=>{ const[gx,gy]=D.ringGatePos(rg.deg); return G.angDeg(gx,gy); });
+  const SET=D.SETTLEMENTS.filter(x=>x.type!=='site');
+  for(const e of R.edges) for(const [x,y] of e.path){
+    if(Math.hypot((x-F.x)/F.rx,(y-F.y)/F.ry)<1) inForget++;
+    if(Math.hypot(x-GL.x,y-GL.y)<95) inGlass++;
+    if(Math.hypot(x-SW.x,y-SW.y)<SW.r) inSwamp++;
+    if(G.inForestRing(x,y)&&!e.rescue){
+      const a2=G.angDeg(x,y);
+      let ok=false;
+      for(const g of gates){ let d=Math.abs(a2-g); if(d>180)d=360-d; if(d<2.6){ ok=true; break; } }
+      if(!ok) for(const s2 of SET){ if(Math.hypot(x-s2.x,y-s2.y)<130){ ok=true; break; } }
+      if(!ok) ringViol++;
+    }
+  }
+  t('ITEM 1: no road enters the Forest of the Forgetting', inForget===0, String(inForget));
+  t('ITEM 1: no road enters the Glass Desert', inGlass===0, String(inGlass));
+  t('ITEM 1: no road enters the Void Queen\u2019s Swamp', inSwamp===0, String(inSwamp));
+  t('ITEM 1: the Ring is crossed only at Thresholds (+ fringe clearings)', ringViol===0, String(ringViol));
+  // hidden sites are not nodes
+  t('ITEM 1: no hidden-layer site is a road node',
+    !R.nodes.some(n=>D.HIDDEN.some(h=>h.id===n.id)));
+  // Zar'kaine sealed: its settlements connect only among themselves + Zhar'dei
+  const zkIds=new Set(R.nodes.map((n,i)=>n.kingdom==='zarkaine'?i:-1).filter(i=>i>=0));
+  t('ITEM 1: Zar\u2019kaine roads never cross its border',
+    R.edges.every(e=>zkIds.has(e.a)===zkIds.has(e.b)));
+  t('ITEM 1: Zhar\u2019dei is the sealed kingdom\u2019s one contact (ferry present)',
+    R.edges.some(e=>e.ferry && (R.nodes[e.a].id==='zhardei_quay'||R.nodes[e.b].id==='zhardei_quay')));
+  // river crossings got ticks
+  t('ITEM 1: river crossings marked (bridges/fords)', R.edges.reduce((s2,e)=>s2+e.crossings.length,0)>=20);
+  // travel integration
+  const j=G.computeJourney({x:4500,y:3500},{x:4450,y:1500},1);
+  const rd=j.out.find(r=>r.modeId==='road_mount');
+  t('ITEM 1: travel calculator offers By road, tagged PROPOSED',
+    !!rd && rd.detail.includes('[PROPOSED]') && rd.roadLen>0);
+  const direct=Math.hypot(4450-4500,1500-3500);
+  t('ITEM 1: road distance exceeds the crow-flies distance', rd.roadLen>direct, rd.roadLen+' vs '+direct.toFixed(0));
+}
+
+console.log('— ITEM 2: the Sirens\u2019 Roost —');
+{
+  const li=D.ISLANDS.find(i=>i.id==='lostisle');
+  t('ITEM 2: restored at 60 x 40 under its full name',
+    li.rx===60 && li.ry===40 && li.name==='The Lost Isle — the Sirens’ Roost');
+  t('ITEM 2: still hidden — on no chart', li.hidden===true);
+  t('ITEM 2: winter-crossing sentence + tags verbatim',
+    li.info.includes('When the northern ocean freezes, they walk the ice to the mainland, and the Stone-Ears hold the line.')
+    && li.info.includes('[LOCKED — The Unhealed. PROPOSED: they are psychopomps; never stated on the page.]'));
+  t('ITEM 2: hidden-island hit path works', (G.hiddenIslandAt(li.x,li.y)||{}).id==='lostisle' && G.islandAt(li.x,li.y)===null);
+  t('ITEM 2: the Deep ice reaches the Roost (no exclusion here)',
+    G.seaIceAt(li.x,li.y+li.ry+30,3,25)>0.9);
+  const R=G.computeRoads();
+  t('ITEM 2: no road connects to it',
+    !R.nodes.some(n=>n.id==='lostisle') &&
+    R.edges.every(e=>e.path.every(([x,y])=>Math.hypot(x-li.x,y-li.y)>150)));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

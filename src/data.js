@@ -759,8 +759,12 @@ ISLANDS.push(
 ISLANDS.push(
   { id:'lastdoor', name:'The Isle of the Last Door', x:7300, y:350, rx:55, ry:38, seed:4.4, kind:'rock', hidden:true,
     info:'Northeast of the continent, past the last of the northern islands: ringed by whirlpools and jagged rock, sirens roosting on the stones. The clouds above it are red and drop sparks instead of rain; the ground is black; the water for a mile out is grey and does not reflect. The gate on it is an angelic repair built from the remains of the Tree of Souls \u2014 given mockingly by Serathane, through whom the road to the dead now runs. The gate works. The dead come, and it is genuinely them. The price is a soul name, and the names feed his frozen archive; he holds only the souls who passed before his consumption of the Tree. Only a hull of Wardwood timber reaches it. [LOCKED \u2014 The Unhealed + The Angels Door amendment, July 2026]' },
-  { id:'lostisle', name:'The Lost Isle', x:4300, y:250, rx:48, ry:32, seed:1.7, kind:'rock', hidden:true,
-    info:'Among the many islands of the Northern Sea, beyond the shores of the Northern Throne. It is on no chart, no ship has ever reached it on purpose, and roughly one crew a generation reaches it by accident and does not return. The sirens roost here: a woman\u2019s head, a woman\u2019s hands, enormous wings, the body of a raptor \u2014 and cloaks, which is the detail that should not belong on a monster. [LOCKED \u2014 The Unhealed. PROPOSED: they are psychopomps; never stated on the page.]' }
+  /* [ITEM 2, this round: the Sirens' Roost restored at full canon strength \u2014
+     bigger, named for what roosts there, and carrying the winter-crossing
+     sentence. Still hidden:true \u2014 on no chart \u2014 and the Deep-season ice
+     reaches it: the sirens walk to the mainland across the frozen sea.] */
+  { id:'lostisle', name:'The Lost Isle \u2014 the Sirens\u2019 Roost', x:4300, y:250, rx:60, ry:40, seed:1.7, kind:'rock', hidden:true,
+    info:'Among the many islands of the Northern Sea, beyond the shores of the Northern Throne. It is on no chart, no ship has ever reached it on purpose, and roughly one crew a generation reaches it by accident and does not return. The sirens roost here: a woman\u2019s head, a woman\u2019s hands, enormous wings, the body of a raptor \u2014 and cloaks, which is the detail that should not belong on a monster. When the northern ocean freezes, they walk the ice to the mainland, and the Stone-Ears hold the line. [LOCKED \u2014 The Unhealed. PROPOSED: they are psychopomps; never stated on the page.]' }
 );
 
 /* ---- elven ring gates: passage to and from the coast ---- */
