@@ -534,7 +534,11 @@ const ROUTES = [
   { name:'Border link: Dunmoor\u2013Sundisk', path:[[3700,4200],[4000,4650],[4330,5320]], kind:'caravan' },
   { name:'The Charter Run (Albion island chain)', path:[[6350,5200],[6850,5500],[7150,5750],[7550,5580],[7820,5150],[7980,4720],[8180,4980]], kind:'sea' },
   { name:'The Silk Run: Crownsburg\u2013Dragon\u2019s Throat', path:[[6950,5450],[7500,4900],[7900,4300],[7940,3650]], kind:'sea' },
-  { name:'The Iron Run: Dragon\u2019s Throat\u2013Iron Islands', path:[[7940,3650],[8250,2500],[8000,1200],[7000,700],[5900,650],[5450,820]], kind:'sea' },
+  /* 5.1: rerouted westward \u2014 the old leg through (8250,2500) ran straight
+     through the Last Fish ring's guardian gates. The bow now hugs the corridor
+     between the Jade coast bulge and the ring, 300+ mi clear of every
+     seamount, gate whirlpool and isle. */
+  { name:'The Iron Run: Dragon\u2019s Throat\u2013Iron Islands', path:[[7940,3650],[8320,3300],[8100,2750],[7940,2350],[7830,1500],[7000,700],[5900,650],[5450,820]], kind:'sea' },
   { name:'Sea lane: Iron Islands\u2013Iron Mouth', path:[[5450,820],[4900,760],[4400,830]], kind:'sea' },
   { name:'Sea lane: northern isles\u2013Iron Mouth', path:[[3300,760],[4000,800],[4400,830]], kind:'sea' },
   { name:'Sea lane: Liu-Chai\u2013Dragon\u2019s Throat', path:[[8500,4300],[8200,3900],[7940,3650]], kind:'sea' },

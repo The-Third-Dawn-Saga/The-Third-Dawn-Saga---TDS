@@ -421,6 +421,10 @@ function drawOverlay(now){
     });
   }
 
+  // 5.6: the Serpent's Spine runs partly under the sea — draw undersea-ridge
+  // ticks over the water crossings so its label never floats over nothing
+  if(LAYERS.mountains||LAYERS.labels) drawSerpentRidge();
+
   // seasonal ice-road dash across Deepmere in deep winter — along the lake's
   // long axis, so the haulers' route reads as crossing it end to end
   if(SEASON===3){
@@ -800,6 +804,34 @@ function drawSeamounts(){
     ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
   }
 }
+/* 5.6: undersea ridge ticks along the Serpent's Spine water crossings */
+let SERP_TICKS=null;
+function drawSerpentRidge(){
+  if(!SERP_TICKS){
+    SERP_TICKS=[];
+    const m=MOUNTAINS.find(x=>x.id==='serpent');
+    for(let i=0;i<m.path.length-1;i++){
+      const [ax,ay]=m.path[i],[bx,by]=m.path[i+1];
+      const L=Math.hypot(bx-ax,by-ay), n=Math.max(1,Math.round(L/80));
+      for(let k=0;k<=n;k++){
+        const t=k/n, x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+        if(!G.onContinent(x,y)) SERP_TICKS.push([x,y,0.7+G.hash2(i*7+k,3)*0.6]);
+      }
+    }
+  }
+  const dark= STYLE==='atlas' ? 'rgba(120,116,110,0.85)' : 'rgba(40,38,36,0.85)';
+  for(const [x,y,sc] of SERP_TICKS){
+    const p=w2s(x,y);
+    if(p[0]<-20||p[1]<-20||p[0]>canvas.width+20||p[1]>canvas.height+20) continue;
+    const h=Math.max(2.5*DPR, Math.min(10*DPR, 22*sc*view.scale*DPR));
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-h*0.55,p[1]+h*0.15);
+    ctx.lineTo(p[0]+h*0.55,p[1]+h*0.15);
+    ctx.closePath();
+    ctx.fillStyle=dark; ctx.fill();
+  }
+}
 /* Island volcanoes (ITEM 2: the three that burn about the Land of the Dead —
    dull red glow, unlike the bright orange of the living volcanic chains). */
 function drawIsleVolcanoes(){
@@ -871,6 +903,69 @@ function isleSparks(isl,seedOff,reach){
               0.5+G.hash2(i,seedOff+3)*0.9]);
   }
   return out;
+}
+
+/* ITEM 6: the Floating Isles above the Veiled Vortex. Each isle is drawn
+   twice — once as a hard offset shadow on the water, once as the rock itself.
+   The offset between the two is what reads as altitude. */
+const FI_SHADOW=[52,72];                     // world-mile offset of the shadow
+function floatingIsleRim(cx,cy,r,seed,k){
+  const p=new Path2D();
+  for(let i=0;i<=40;i++){
+    const th=i/40*Math.PI*2;
+    const R=r*(0.80+0.34*islandNoise(th,seed)*0.55);
+    const x=cx+Math.cos(th)*R, y=cy+Math.sin(th)*R*0.62;
+    if(i===0) p.moveTo(x,y); else p.lineTo(x,y);
+  }
+  p.closePath(); return p;
+}
+function drawFloatingIsles(){
+  const f=WONDERS.find(w=>w.id==='floatingisles');
+  if(!f||!f.isles) return;
+  const p=w2s(f.x,f.y);
+  const R=260*view.scale*DPR;
+  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
+  const painted=STYLE==='painted';
+  withWorld(ctx,S=>{
+    // shadows first, all of them, so no isle casts onto another's rock
+    ctx.fillStyle='rgba(6,14,26,0.42)';
+    f.isles.forEach((is,i)=>{
+      ctx.fill(floatingIsleRim(f.x+is[0]+FI_SHADOW[0], f.y+is[1]+FI_SHADOW[1], is[2], 1.7+i*0.9, i));
+    });
+    f.isles.forEach((is,i)=>{
+      const cx=f.x+is[0], cy=f.y+is[1];
+      const rim=floatingIsleRim(cx,cy,is[2],1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#7d6a4e' : '#5d5a52';        // the rock underside
+      ctx.fill(rim);
+      ctx.strokeStyle= painted ? 'rgba(74,53,32,0.85)' : 'rgba(232,238,246,0.75)';
+      ctx.lineWidth=1.6*DPR/S; ctx.stroke(rim);
+      // a green cap on top, offset up so the rock reads as an underside
+      const cap=floatingIsleRim(cx,cy-is[2]*0.16,is[2]*0.88,1.7+i*0.9,i);
+      ctx.fillStyle= painted ? '#5d8a48' : '#4f8a52';
+      ctx.fill(cap);
+    });
+  });
+  // mountain glyphs on the two largest
+  const big=[...f.isles].sort((a,b)=>b[2]-a[2]).slice(0,2);
+  for(const is of big){
+    const q=w2s(f.x+is[0], f.y+is[1]-is[2]*0.30);
+    const h=Math.max(5*DPR, Math.min(30*DPR, is[2]*0.85*view.scale*DPR));
+    for(const off of [-h*0.55, h*0.45]){
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.5, q[1]);
+      ctx.lineTo(q[0]+off+h*0.5, q[1]);
+      ctx.closePath();
+      ctx.fillStyle= painted ? '#cbb693' : '#8e8b84'; ctx.fill();
+      ctx.strokeStyle='rgba(40,44,50,0.8)'; ctx.lineWidth=Math.max(0.8,h*0.05); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(q[0]+off, q[1]-h);
+      ctx.lineTo(q[0]+off-h*0.17, q[1]-h*0.62);
+      ctx.lineTo(q[0]+off+h*0.17, q[1]-h*0.62);
+      ctx.closePath();
+      ctx.fillStyle='#f4efe2'; ctx.fill();
+    }
+  }
 }
 
 /* ITEM 2: Kaelen's Sanctuary — a faint warm glow halo around the isle of an
@@ -1097,7 +1192,9 @@ function drawMaelstroms(){
       ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.68,R0*1.34,0,0,7); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if(LAYERS.labels && view.scale>0.07)
+    // 5.2: the two Guardian Whirlpool gate labels are placed by the
+    // declutterer at outward anchors instead (see drawLabels)
+    if(LAYERS.labels && view.scale>0.07 && ms.id!=='m_fish_w' && ms.id!=='m_fish_e')
       label(ms.name,p[0],p[1]+R0+12*DPR,10.5, col, true);
   }
 }
@@ -1233,9 +1330,18 @@ function drawLabels(){
   // priority 0: landmark sites (the Celestial Circle) — label sits BELOW the
   // glyph so it clears Pilgrim's Rest to the north-west
   {
+    // 5.3: the Floating Isles label sits seaward BELOW the cluster, clear of
+    // the coast labels to the north
     const fi=WONDERS.find(w=>w.id==='floatingisles');
-    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dy:-46, size:11.5, italic:true,
+    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dyPx:(70*view.scale+16), size:11.5, italic:true,
       fill: painted?'#4a3520':(STYLE==='satellite'?'#e6ecf5':'#4a5560')});
+    // 5.2: gate labels at outward anchors, collision-tracked
+    if(view.scale>0.07){
+      const gcol= painted ? '#2f6f8c' : (STYLE==='satellite'?'#8fc4e8':'#3b7fae');
+      const gw=MAELSTROMS.find(m=>m.id==='m_fish_w'), ge=MAELSTROMS.find(m=>m.id==='m_fish_e');
+      if(gw) cands.push({pri:4, text:gw.name, x:gw.x-160, y:gw.y+80, dy:0, size:10.5, italic:true, fill:gcol});
+      if(ge) cands.push({pri:4, text:ge.name, x:ge.x, y:ge.y+110, dy:0, size:10.5, italic:true, fill:gcol});
+    }
   }
   if(view.scale>=0.08){
     const cc=WONDERS.find(w=>w.id==='celestialcircle');

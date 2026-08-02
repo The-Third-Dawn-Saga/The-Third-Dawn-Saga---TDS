@@ -622,6 +622,23 @@ console.log('— ITEM 3: island greening pass —');
   t('ITEM 3: boreal ground shows green in High', green);
 }
 
+console.log('— ITEM 5: logic audit —');
+{
+  // 5.1 the Iron Run clears the Last Fish ring by 300+
+  const run=D.ROUTES.find(r=>r.name.includes('Iron Run'));
+  let minSeam=1e9, minWhirl=1e9;
+  for(let i=0;i<run.path.length-1;i++){
+    const [ax,ay]=run.path[i],[bx,by]=run.path[i+1];
+    const L=Math.hypot(bx-ax,by-ay), steps=Math.ceil(L/10);
+    for(let k=0;k<=steps;k++){ const t=k/steps, x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+      for(const sm of D.SEAMOUNTS) minSeam=Math.min(minSeam,Math.hypot(x-sm.x,y-sm.y));
+      for(const id of ['m_fish_w','m_fish_e']){ const w=D.MAELSTROMS.find(m=>m.id===id);
+        minWhirl=Math.min(minWhirl,Math.hypot(x-w.x,y-w.y)); } }
+  }
+  t('5.1: Iron Run 300+ mi clear of the ring', minSeam>=300 && minWhirl>=300,
+    'seamounts '+minSeam.toFixed(0)+', gates '+minWhirl.toFixed(0));
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';

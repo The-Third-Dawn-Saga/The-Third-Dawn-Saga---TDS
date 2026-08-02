@@ -442,6 +442,24 @@ function init(){
     }
   }
 
+  /* 5.4: the Far Shore hinted at the cage's far northeastern waters — a low,
+     mist-wrapped grey landmass beyond the Isle of the Last Door's position,
+     so "Fly there" from the Land of the Dead has a target to land on. */
+  {
+    const fsd=ISLANDS.find(i=>i.special==='farshore');
+    if(fsd){
+      const sx=wx2s(fsd.x), sz=wy2s(fsd.y);
+      const land=new THREE.Mesh(new THREE.SphereGeometry(90,20,14),
+        new THREE.MeshStandardMaterial({color:0x5c5e60,roughness:0.98}));
+      land.scale.y=0.16; land.position.set(sx,3,sz);
+      land.userData={name:fsd.name,info:fsd.info};
+      pickables.push(land); scene.add(land);
+      const mist=new THREE.Mesh(new THREE.SphereGeometry(118,20,14), atmosphereMaterial(0xb9bec4,0.55,false));
+      mist.scale.y=0.30; mist.position.set(sx,8,sz); scene.add(mist);
+      const ember=new THREE.PointLight(0x8a2a1e,0.5,240); ember.position.set(sx,40,sz); scene.add(ember);
+    }
+  }
+
   /* sea-mountains: jagged rock standing out of the water around the Last Fish */
   {
     const rockMat=new THREE.MeshStandardMaterial({color:0x2e2a26,roughness:0.95});
