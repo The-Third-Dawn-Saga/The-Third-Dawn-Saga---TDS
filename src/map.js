@@ -37,6 +37,13 @@ const LAYERS = {
    RASTER SERVICE — Worker with priority queue, main-thread fallback
    ============================================================ */
 const RW=1500, RH=1167;
+/* ITEM 4: the extended ocean — the same painter continued far past the world
+   bounds (deep-ocean shading, coastal banding falloff, the ice/cloud field at
+   the top) so the map never floats as a rectangle. Sized so that at the
+   minimum zoom (0.10), with the view centre clamped to the world, no screen
+   edge can outrun it even on tall portrait displays. */
+const EXTO={x0:-13000, y0:-13000, x1:22000, y1:20000, W:1750, H:1650};
+const oceanCache=new Map();    // 'style|season' -> ImageBitmap|Canvas
 const TILE_LEVELS=[{n:4,minZoom:0.28},{n:8,minZoom:0.75}]; // ≈3000- and 6000-px-equivalent pyramids
 const rasterCache=new Map();   // 'style|season' -> ImageBitmap|Canvas
 const tileCache=new Map();     // 'style|season|tx|ty' -> ImageBitmap (LRU)
@@ -56,6 +63,7 @@ function getWorker(){
     worker.onmessage=e=>{
       const m=e.data;
       if(m.type==='raster') rasterCache.set(rKey(m.style,m.season), m.bitmap);
+      else if(m.type==='ocean') oceanCache.set(rKey(m.style,m.season), m.bitmap);
       else if(m.type==='tile'){ tileCache.set(tKey(m.style,m.season,m.n,m.tx,m.ty), m.bitmap); trimTiles(); }
       const waiters=pendingJobs.get(m.id)||{resolve:[]};
       pendingJobs.delete(m.id);
@@ -94,6 +102,7 @@ function pump(){
       const m=next.job;
       const out=renderSync(m);
       if(m.type==='raster') rasterCache.set(rKey(m.style,m.season), out);
+      else if(m.type==='ocean') oceanCache.set(rKey(m.style,m.season), out);
       else if(m.type==='tile'){ tileCache.set(tKey(m.style,m.season,m.n,m.tx,m.ty), out); trimTiles(); }
       const waiters=pendingJobs.get(next.key)||{resolve:[]};
       pendingJobs.delete(next.key);
@@ -105,6 +114,7 @@ function pump(){
 function renderSync(m){
   let W,H,x0,y0,x1,y1,opts={style:m.style,season:m.season};
   if(m.type==='raster'){ W=RW;H=RH;x0=0;y0=0;x1=WORLD.w;y1=WORLD.h; }
+  else if(m.type==='ocean'){ W=m.W;H=m.H;x0=m.x0;y0=m.y0;x1=m.x1;y1=m.y1; }
   else if(m.type==='tile'){ const tw=WORLD.w/m.n, th=WORLD.h/m.n;
     W=750;H=584;x0=m.tx*tw;y0=m.ty*th;x1=x0+tw;y1=y0+th; }
   else { const pad=1.13; W=m.size||2048; H=Math.round(W*(WORLD.b/WORLD.a));
@@ -137,6 +147,11 @@ function requestRaster(style,season,prio){
   if(rasterCache.has(k)) return Promise.resolve(rasterCache.get(k));
   return submit('r:'+k, {type:'raster',style,season}, prio==null?1:prio);
 }
+function requestOcean(style,season,prio){
+  const k=rKey(style,season);
+  if(oceanCache.has(k)) return Promise.resolve(oceanCache.get(k));
+  return submit('o:'+k, {type:'ocean',style,season,...EXTO}, prio==null?3:prio);
+}
 function requestTile(style,season,n,tx,ty){
   const k=tKey(style,season,n,tx,ty);
   if(tileCache.has(k)) return Promise.resolve(tileCache.get(k));
@@ -145,6 +160,7 @@ function requestTile(style,season,n,tx,ty){
 /* eager background builds: other styles at this season, then the other seasons */
 function prebuild(){
   requestRaster(STYLE,SEASON,0).then(()=>{
+    requestOcean(STYLE,SEASON,3);
     for(const st of ['satellite','atlas','painted']) if(st!==STYLE) requestRaster(st,SEASON,5);
     for(let s=0;s<4;s++) if(s!==SEASON) requestRaster(STYLE,s,8);
   });
@@ -208,6 +224,13 @@ function drawBase(){
     if(!bm) bm=lowResPlaceholder(STYLE,SEASON);
   }
   bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
+  // ITEM 4: the extended ocean first — the world raster lands on top of it,
+  // painted by the same functions, so no seam marks the world's bounds
+  const ob=oceanCache.get(rKey(STYLE,SEASON));
+  if(ob){
+    const [ex,ey]=w2s(EXTO.x0,EXTO.y0);
+    bctx.drawImage(ob, ex, ey, (EXTO.x1-EXTO.x0)*view.scale*DPR, (EXTO.y1-EXTO.y0)*view.scale*DPR);
+  } else requestOcean(STYLE,SEASON,1);
   const [ox,oy]=w2s(0,0);
   const ww=WORLD.w*view.scale*DPR, wh=WORLD.h*view.scale*DPR;
   if(bm) bctx.drawImage(bm, ox, oy, ww, wh);
@@ -1587,7 +1610,8 @@ canvas.addEventListener('pointermove',e=>{
   if(!dragging) return;
   const dx=e.clientX-lastP[0],dy=e.clientY-lastP[1];
   if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
-  view.x-=dx/view.scale; view.y-=dy/view.scale;
+  view.x=Math.min(WORLD.w,Math.max(0,view.x-dx/view.scale));
+  view.y=Math.min(WORLD.h,Math.max(0,view.y-dy/view.scale));
   lastP=[e.clientX,e.clientY]; dirty(true,true);
 });
 canvas.addEventListener('pointerup',e=>{
@@ -1607,7 +1631,7 @@ canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   const rect=canvas.getBoundingClientRect();
   const [wx,wy]=s2w(e.clientX-rect.left,e.clientY-rect.top);
-  view.scale=Math.min(2.2,Math.max(0.045,view.scale*Math.exp(-e.deltaY*0.0012)));
+  view.scale=Math.min(2.2,Math.max(0.10,view.scale*Math.exp(-e.deltaY*0.0012)));
   const [nwx,nwy]=s2w(e.clientX-rect.left,e.clientY-rect.top);
   view.x+=wx-nwx; view.y+=wy-nwy;
   dirty(true,true);
@@ -1648,7 +1672,7 @@ document.getElementById('btnMeasure').addEventListener('click',function(){
   dirty(false,true);
 });
 document.getElementById('btnZoomIn').addEventListener('click',()=>{view.scale=Math.min(2.2,view.scale*1.4);dirty(true,true);});
-document.getElementById('btnZoomOut').addEventListener('click',()=>{view.scale=Math.max(0.045,view.scale/1.4);dirty(true,true);});
+document.getElementById('btnZoomOut').addEventListener('click',()=>{view.scale=Math.max(0.10,view.scale/1.4);dirty(true,true);});
 document.getElementById('btnHome').addEventListener('click',()=>{view={x:WORLD.cx,y:WORLD.cy,scale:0.12};dirty(true,true);});
 document.querySelector('#infoPanel .ip-close').addEventListener('click',()=>showInfo(null));
 document.querySelectorAll('.quickJ').forEach(btn=>{
@@ -1689,8 +1713,9 @@ window.__tilesReady=function(){
   return Promise.all(wants).then(()=>{ dirty(true,true); return tileCache.size; });
 };
 window.__rasterStats=function(){
-  return { rasters:[...rasterCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
+  return { rasters:[...rasterCache.keys()], oceans:[...oceanCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
 };
+window.__oceanReady=function(){ return requestOcean(STYLE,SEASON,0); };
 /* click-test hook: resolve a world point exactly as a canvas click would,
    open the info panel, and report what the reader ends up looking at. */
 window.__pick=function(wx,wy){

@@ -445,17 +445,35 @@ console.log('— the frozen sea is organic, not a rectangle —');
       if(v<0.5) return y-1+(prev-0.5)/Math.max(1e-6,(prev-v)); prev=v; }
     return null;
   };
+  // audit the SHEET edge; the deliberate exclusion holes at the Last Door and
+  // the Far Shore are circles, skipped here (their arcs are curved features)
+  const skipX=x=> (x>6950&&x<7650) || x>8250;
   for(const season of [0,1,2,3]){
     const xs=[],es=[];
-    for(let x=0;x<=9000;x+=4){ const e=edgeAt(x,season); if(e!=null){xs.push(x);es.push(e);} }
-    // longest run over which the edge is straight (stays inside an 8-mile band)
+    for(let x=0;x<=9000;x+=4){ if(skipX(x)) continue;
+      const e=edgeAt(x,season); if(e!=null){xs.push(x);es.push(e);} }
     let straight=0;
     for(let i=0;i<es.length;i++){ let mn=es[i],mx=es[i];
-      for(let k=i+1;k<es.length;k++){ mn=Math.min(mn,es[k]); mx=Math.max(mx,es[k]);
+      for(let k=i+1;k<es.length;k++){
+        if(xs[k]-xs[k-1]>8) break;
+        mn=Math.min(mn,es[k]); mx=Math.max(mx,es[k]);
         if(mx-mn>8){ straight=Math.max(straight,xs[k-1]-xs[i]); break; } } }
     const range=Math.max(...es)-Math.min(...es);
-    t(`season ${season}: no straight ice edge over 150 mi`, straight<150, straight.toFixed(0)+' mi');
+    t(`ITEM 4: season ${season}: no straight ice edge over 100 mi (domain-warped)`, straight<100, straight.toFixed(0)+' mi');
     t(`season ${season}: the edge wanders 300+ mi of latitude`, range>=300, range.toFixed(0)+' mi');
+  }
+  // ITEM 4: the thaw is legible — Early already retreats from the coast
+  {
+    const hv=D.SETTLEMENTS.find(x=>x.id==='hvalvik');
+    t('ITEM 4: Hvalvik breaks free in Early', G.seaIceAt(hv.x,hv.y-40,0,20)<0.5,
+      String(G.seaIceAt(hv.x,hv.y-40,0,20)));
+    const free=['skarnholm','hrafney','ironisles'].every(id=>{
+      const s2=D.ISLANDS.find(i=>i.id===id);
+      return G.seaIceAt(s2.x,s2.y+s2.ry+30,0,25)<0.5; });
+    t('ITEM 4: jarl-isles breaking free in Early, locked in Deep', free
+      && ['skarnholm','hrafney','ironisles'].every(id=>{
+        const s2=D.ISLANDS.find(i=>i.id===id);
+        return G.seaIceAt(s2.x,s2.y+s2.ry+30,3,25)>0.9; }));
   }
   // the frozen shoreline ice-locks the northern isles
   for(const id of ['skarnholm','isbrand','wolfteeth','hrafney']){

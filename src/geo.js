@@ -221,23 +221,33 @@ const SAHEL_BAND = { y0:4380, y1:5120 };
    straight line. A sine of this wavelength cannot: even a window centred on
    its own extremum swings ~23 miles, so no flat run survives anywhere. */
 function seaIceSwell(x){ return Math.sin(x*0.0212+1.3)*24; }
+/* ITEM 4: the octaves are sampled through a DOMAIN WARP — the sampling
+   coordinates are themselves displaced by a second noise field — so the edge
+   meanders in deep lobes and fjords instead of undulating around a latitude.
+   The seasonal shoreline hug makes the thaw legible: in Early the coast band
+   is weak and the jarl-isles break free; only Deep locks them solid. */
+const ICE_HUG=[0.45, 0, 1.0, 1.30];                    // Early / High / Late / Deep
+function iceWarp(x,y){
+  return [ x+(fbm(x*0.0016+51.7, y*0.0016+9.2 )-0.5)*260,
+           y+(fbm(x*0.0016+3.4,  y*0.0016+77.1)-0.5)*260 ];
+}
 /* The two long octaves plus the swell and the shoreline term. Cheap, and on
    its own enough to resolve most pixels: the fine octaves below can only move
    the edge by ±96 miles, so anything well inside or well outside is decided
    here without touching them. */
-function seaIceCoarse(x,y,base,dLand){
+function seaIceCoarse(wx,wy,x,base,dLand,hug){
   let edge = base + seaIceSwell(x)
-    + (fbm(x*0.00115+3.1,  y*0.00115+8.7 )-0.5)*560    // long swells   ~870 mi
-    + (fbm(x*0.00380+11.3, y*0.00380+2.2 )-0.5)*230;   // bays, tongues ~265 mi
-  if(dLand<150) edge += (150-dLand)*1.30;              // the frozen shoreline
+    + (fbm(wx*0.00115+3.1,  wy*0.00115+8.7 )-0.5)*560  // long swells   ~870 mi
+    + (fbm(wx*0.00380+11.3, wy*0.00380+2.2 )-0.5)*230; // bays, tongues ~265 mi
+  if(dLand<150) edge += (150-dLand)*hug;               // the frozen shoreline
   return edge;
 }
 const ICE_FINE_MAX=96;                                 // 42.5 + 36 + 17, rounded up
-function seaIceEdge(x,y,base,dLand){
-  return seaIceCoarse(x,y,base,dLand)
-    + (fbm(x*0.01050+5.9,  y*0.01050+17.4)-0.5)*85     // crenellation  ~95 mi
-    + (fbm(x*0.02600+7.7,  y*0.02600+31.1)-0.5)*72     // pack-ice grain ~38 mi
-    + (fbm(x*0.05400+23.5, y*0.05400+13.9)-0.5)*34;    // floe edge     ~19 mi
+function seaIceEdge(wx,wy,x,base,dLand,hug){
+  return seaIceCoarse(wx,wy,x,base,dLand,hug)
+    + (fbm(wx*0.01050+5.9,  wy*0.01050+17.4)-0.5)*85   // crenellation  ~95 mi
+    + (fbm(wx*0.02600+7.7,  wy*0.02600+31.1)-0.5)*72   // pack-ice grain ~38 mi
+    + (fbm(wx*0.05400+23.5, wy*0.05400+13.9)-0.5)*34;  // floe edge     ~19 mi
 }
 /* ITEM 2: the sea never freezes at the doors of the dead — the ice sheet
    must NEVER cover or touch the Land of the Dead or the Isle of the Last
@@ -260,10 +270,12 @@ function seaIceAt(x,y,season,dLand){
   if(y>base+1100) return 0;                            // south of any tongue or floe
   const ex=iceExclusion(x,y);
   if(ex<=0) return 0;
-  const coarse=seaIceCoarse(x,y,base,dLand);
+  const [wx,wy]=iceWarp(x,y);
+  const hug=ICE_HUG[season];
+  const coarse=seaIceCoarse(wx,wy,x,base,dLand,hug);
   if(y < coarse-165-ICE_FINE_MAX) return ex;           // solid, deep inside the sheet
   if(y > coarse+430+ICE_FINE_MAX) return 0;            // beyond the edge and its floes
-  const edge=seaIceEdge(x,y,base,dLand);
+  const edge=seaIceEdge(wx,wy,x,base,dLand,hug);
   const a=(edge-y)/165;                                // thins over ~165 mi
   if(a>=1) return ex;
   if(a>0) return a*ex;
