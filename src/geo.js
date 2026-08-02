@@ -221,47 +221,75 @@ const SAHEL_BAND = { y0:4380, y1:5120 };
    straight line. A sine of this wavelength cannot: even a window centred on
    its own extremum swings ~23 miles, so no flat run survives anywhere. */
 function seaIceSwell(x){ return Math.sin(x*0.0212+1.3)*24; }
+/* ITEM 4: the octaves are sampled through a DOMAIN WARP — the sampling
+   coordinates are themselves displaced by a second noise field — so the edge
+   meanders in deep lobes and fjords instead of undulating around a latitude.
+   The seasonal shoreline hug makes the thaw legible: in Early the coast band
+   is weak and the jarl-isles break free; only Deep locks them solid. */
+const ICE_HUG=[0.45, 0, 1.0, 1.30];                    // Early / High / Late / Deep
+function iceWarp(x,y){
+  return [ x+(fbm(x*0.0016+51.7, y*0.0016+9.2 )-0.5)*260,
+           y+(fbm(x*0.0016+3.4,  y*0.0016+77.1)-0.5)*260 ];
+}
 /* The two long octaves plus the swell and the shoreline term. Cheap, and on
    its own enough to resolve most pixels: the fine octaves below can only move
    the edge by ±96 miles, so anything well inside or well outside is decided
    here without touching them. */
-function seaIceCoarse(x,y,base,dLand){
+function seaIceCoarse(wx,wy,x,base,dLand,hug){
   let edge = base + seaIceSwell(x)
-    + (fbm(x*0.00115+3.1,  y*0.00115+8.7 )-0.5)*560    // long swells   ~870 mi
-    + (fbm(x*0.00380+11.3, y*0.00380+2.2 )-0.5)*230;   // bays, tongues ~265 mi
-  if(dLand<150) edge += (150-dLand)*1.30;              // the frozen shoreline
+    + (fbm(wx*0.00115+3.1,  wy*0.00115+8.7 )-0.5)*560  // long swells   ~870 mi
+    + (fbm(wx*0.00380+11.3, wy*0.00380+2.2 )-0.5)*230; // bays, tongues ~265 mi
+  if(dLand<150) edge += (150-dLand)*hug;               // the frozen shoreline
   return edge;
 }
 const ICE_FINE_MAX=96;                                 // 42.5 + 36 + 17, rounded up
-function seaIceEdge(x,y,base,dLand){
-  return seaIceCoarse(x,y,base,dLand)
-    + (fbm(x*0.01050+5.9,  y*0.01050+17.4)-0.5)*85     // crenellation  ~95 mi
-    + (fbm(x*0.02600+7.7,  y*0.02600+31.1)-0.5)*72     // pack-ice grain ~38 mi
-    + (fbm(x*0.05400+23.5, y*0.05400+13.9)-0.5)*34;    // floe edge     ~19 mi
+function seaIceEdge(wx,wy,x,base,dLand,hug){
+  return seaIceCoarse(wx,wy,x,base,dLand,hug)
+    + (fbm(wx*0.01050+5.9,  wy*0.01050+17.4)-0.5)*85   // crenellation  ~95 mi
+    + (fbm(wx*0.02600+7.7,  wy*0.02600+31.1)-0.5)*72   // pack-ice grain ~38 mi
+    + (fbm(wx*0.05400+23.5, wy*0.05400+13.9)-0.5)*34;  // floe edge     ~19 mi
+}
+/* ITEM 2: the sea never freezes at the doors of the dead — the ice sheet
+   must NEVER cover or touch the Land of the Dead or the Isle of the Last
+   Door. Clear inside the zone, feathered outward. */
+function iceExclusion(x,y){
+  let f=1;
+  if(FARSHORE){
+    const rn=Math.hypot((x-FARSHORE.x)/(FARSHORE.rx*1.25),(y-FARSHORE.y)/(FARSHORE.ry*1.25));
+    if(rn<1.5) f=Math.min(f, Math.max(0,(rn-1.15)/0.35));
+  }
+  if(LASTDOOR){
+    const d=Math.hypot(x-LASTDOOR.x,y-LASTDOOR.y);
+    const R0=Math.max(LASTDOOR.rx,LASTDOOR.ry)*1.6+40;
+    if(d<R0+180) f=Math.min(f, Math.max(0,(d-R0)/180));
+  }
+  return f;
 }
 function seaIceAt(x,y,season,dLand){
   const base=SEASONPAR.iceLine[season];
   if(y>base+1100) return 0;                            // south of any tongue or floe
-  const coarse=seaIceCoarse(x,y,base,dLand);
-  if(y < coarse-165-ICE_FINE_MAX) return 1;            // solid, deep inside the sheet
+  const ex=iceExclusion(x,y);
+  if(ex<=0) return 0;
+  const [wx,wy]=iceWarp(x,y);
+  const hug=ICE_HUG[season];
+  const coarse=seaIceCoarse(wx,wy,x,base,dLand,hug);
+  if(y < coarse-165-ICE_FINE_MAX) return ex;           // solid, deep inside the sheet
   if(y > coarse+430+ICE_FINE_MAX) return 0;            // beyond the edge and its floes
-  const edge=seaIceEdge(x,y,base,dLand);
+  const edge=seaIceEdge(wx,wy,x,base,dLand,hug);
   const a=(edge-y)/165;                                // thins over ~165 mi
-  if(a>=1) return 1;
-  if(a>0) return a;
+  if(a>=1) return ex;
+  if(a>0) return a*ex;
   const band=(y-edge)/430;                             // detached floes beyond the edge
   if(band<1){
     const f=fbm(x*0.017+29.3, y*0.017+41.7);
-    if(f>0.70) return Math.min(0.6,(f-0.70)*3.6)*(1-band);
+    if(f>0.70) return Math.min(0.6,(f-0.70)*3.6)*(1-band)*ex;
   }
   return 0;
 }
 
-/* The Isle of the Last Fish: grey, unreflective water inside its ring.
-   Its clouds are BLACK — the Isle of the Last Door's are red. */
-const LASTFISH = ISLANDS.find(s=>s.id==='lastfish');
-const LF_HALO = 210;                                   // ~125 mi of grey beyond the rim
-const LF_HALO_Y = LF_HALO*0.86;
+/* (The Last Fish's former grey-water halo is gone — ITEM 1: the isle is
+   green and living. The grey, unreflecting water belongs to the Land of the
+   Dead now: a ~150-mile radial ring around it, plus the crossing corridor.) */
 
 /* The crossing to the Far Shore: the water between the Land of the Dead and
    the Isle of the Last Door is grey and does not reflect. Tinted along the
@@ -269,6 +297,15 @@ const LF_HALO_Y = LF_HALO*0.86;
 const FARSHORE  = ISLANDS.find(s=>s.special==='farshore');
 const LASTDOOR  = ISLANDS.find(s=>s.id==='lastdoor');
 const FS_REACH  = 300;                                 // half-width of the grey crossing
+/* ITEM 2: grey water for ~150 mi out from the Far Shore's rim, all around */
+function farShoreRing(x,y){
+  if(!FARSHORE) return 0;
+  const rn=Math.hypot((x-FARSHORE.x)/FARSHORE.rx,(y-FARSHORE.y)/FARSHORE.ry);
+  const halo=150/((FARSHORE.rx+FARSHORE.ry)/2);        // ~150 mi in normalized units
+  if(rn>=1+halo) return 0;
+  if(rn<=1) return 1;
+  return 1-(rn-1)/halo;
+}
 function farShoreGrey(x,y){
   if(!FARSHORE||!LASTDOOR) return 0;
   const ax=FARSHORE.x, ay=FARSHORE.y, bx=LASTDOOR.x, by=LASTDOOR.y;
@@ -313,7 +350,7 @@ function terrainAt(x,y){
   const land=landAt(x,y);
   if(!land) return 'water';
   if(land.type==='island'){
-    return {lush:'plains',snow:'snow',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain',grey:'waste'}[land.isl.kind]||'plains';
+    return {lush:'plains',snow:'snow',boreal:'plains',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain',grey:'waste'}[land.isl.kind]||'plains';
   }
   if(lakeAt(x,y)) return 'water';
   if(forestAt(x,y)) return 'forest';
@@ -426,17 +463,10 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
           if(depth<=0) col=lerpC(P.shelf,P.shallow, dn*0.6);
           else col=lerpC(P.mid,P.deep, Math.min(1,depth*0.7+dn*0.3));
         }
-        // the grey, unreflective water inside the Last Fish ring
-        if(LASTFISH){
-          const ax=x-LASTFISH.x, ay=y-LASTFISH.y;
-          if(ax>-LF_HALO&&ax<LF_HALO&&ay>-LF_HALO_Y&&ay<LF_HALO_Y){
-            const lfd=Math.hypot(ax,ay/0.86);
-            if(lfd<LF_HALO) col=lerpC(col,P.greyWater, (1-lfd/LF_HALO)*0.80);
-          }
-        }
-        // the grey, unreflecting crossing to the Far Shore
+        // the grey, unreflecting waters of the dead: the crossing corridor
+        // and the ~150-mile ring around the Far Shore itself
         if(FARSHORE){
-          const fs=farShoreGrey(x,y);
+          const fs=Math.max(farShoreGrey(x,y), farShoreRing(x,y));
           if(fs>0) col=lerpC(col,P.greyWater, fs*0.72);
         }
         // seasonal sea ice: an organic sheet whose edge is fbm-perturbed,
@@ -448,7 +478,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
         alpha=waterAlpha;
       } else {
         let terr;
-        if(isl) terr={lush:'plains',snow:'snow',sand:'desert',rock:'ridge',pirate:'plains',pillar:'pillar',grey:'farshore'}[isl.kind];
+        if(isl) terr={lush:'plains',snow:'snow',boreal:'boreal',sand:'desert',rock:'ridge',pirate:'heart',pillar:'pillar',grey:'farshore'}[isl.kind];
         else {
           if(Math.hypot(x-sw.x,y-sw.y)<=sw.r) terr='swamp';
           else if(Math.hypot(x-gl.x,y-gl.y)<=95) terr='glass';
@@ -560,6 +590,12 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
             }
           }
         }
+        else if(terr==='boreal'){
+          // ITEM 3: the jarl-isles — hardy green under broken snow
+          col=lerpC(P.ring,P.plains[0],n*0.55);
+          const sp=fbm(x*0.02+13,y*0.02+7);
+          if(sp>0.55) col=lerpC(col,P.snow[1],Math.min(1,(sp-0.55)*2.4));
+        }
         else if(terr==='farshore'){
           // ashen ground, no vegetation anywhere on it, and a pale bleached
           // rim toward the shoreline where the mist lies
@@ -644,17 +680,16 @@ function paintWeather(g, W, H, x0, y0, x1, y1, opts){
   const style=opts.style||'satellite', season=opts.season==null?1:opts.season;
   const P=PALETTES[style];
   const px=x=> (x-x0)/(x1-x0)*W, py=y=> (y-y0)/(y1-y0)*H;
-  // The Isle of the Last Fish: black cloud over black ground, and a dark haze
-  // ring standing off the isle. Deliberately NOT the Last Door's red.
-  if(LASTFISH){
-    const cx=px(LASTFISH.x), cy=py(LASTFISH.y);
-    const R=px(LASTFISH.x+330)-cx, RY=py(LASTFISH.y+330*0.86)-cy;
+  // (The Last Fish's black haze is gone — ITEM 1: the isle is green. The
+  // Far Shore's greyish cast over the landmass is baked here instead.)
+  if(FARSHORE){
+    const cx=px(FARSHORE.x), cy=py(FARSHORE.y);
+    const R=px(FARSHORE.x+FARSHORE.rx*1.35)-cx, RY=py(FARSHORE.y+FARSHORE.ry*1.35)-cy;
     if(Math.abs(R)>0.5){
       const rg=g.createRadialGradient(cx,cy,0,cx,cy,Math.abs(R));
-      rg.addColorStop(0,'rgba(10,10,13,0.52)');
-      rg.addColorStop(0.34,'rgba(14,14,18,0.40)');
-      rg.addColorStop(0.72,'rgba(18,18,23,0.20)');
-      rg.addColorStop(1,'rgba(18,18,23,0)');
+      rg.addColorStop(0,'rgba(96,98,102,0.34)');
+      rg.addColorStop(0.7,'rgba(96,98,102,0.18)');
+      rg.addColorStop(1,'rgba(96,98,102,0)');
       g.fillStyle=rg;
       g.beginPath(); g.ellipse(cx,cy,Math.abs(R),Math.abs(RY),0,0,7); g.fill();
     }

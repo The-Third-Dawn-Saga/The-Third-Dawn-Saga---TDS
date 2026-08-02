@@ -24,6 +24,10 @@ self.onmessage = function(e){
   let bitmap;
   if(m.type==='raster'){
     bitmap=renderRect(RW,RH,0,0,W.w,W.h,{style:m.style,season:m.season});
+  } else if(m.type==='ocean'){
+    // ITEM 4: the extended ocean — the same painter continued far beyond the
+    // world bounds so no seam or edge line ever shows at any zoom
+    bitmap=renderRect(m.W,m.H,m.x0,m.y0,m.x1,m.y1,{style:m.style,season:m.season});
   } else if(m.type==='tile'){
     const w=W.w/m.n, h=W.h/m.n;
     bitmap=renderRect(TW,TH, m.tx*w, m.ty*h, (m.tx+1)*w, (m.ty+1)*h, {style:m.style,season:m.season});

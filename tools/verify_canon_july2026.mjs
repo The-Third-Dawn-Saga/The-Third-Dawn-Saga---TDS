@@ -176,6 +176,8 @@ async function capture(name, { x, y, scale, style = 'satellite', season = 1, hid
   await page.evaluate(() => document.querySelector('#infoPanel .ip-close').click());  // clear the click-test panel
   await page.evaluate(([st, se]) => { window.__setStyle(st); window.__setSeason(se); }, [style, season]);
   await page.evaluate(() => window.__rasterReady());
+  await page.evaluate(() => window.__oceanReady());
+  await page.waitForFunction(([st, se]) => window.__rasterStats().oceans.includes(st + '|' + se), [style, season], { timeout: 60000 });
   await page.evaluate(h => window.__setLayer('hidden', h), hidden);
   await page.evaluate(([x, y, s]) => window.__setView(x, y, s), [x, y, scale]);
   await page.evaluate(() => window.__tilesReady());
@@ -229,6 +231,54 @@ t('every ocean feature stays between coast and wall', cage.featuresInside === tr
 t('the cage fits the default camera framing', cage.fitsDefaultView === true,
   `dist ${cage.dist}, worst on-screen margin ${cage.framingMargin} (must be <= 1)`);
 
+
+/* ---------- 5.5: hidden features vanish entirely when the layer is off ---------- */
+console.log('— 5.5: hidden layer states —');
+{
+  await page.evaluate(() => window.__go('map'));
+  await page.waitForTimeout(300);
+  async function inkAt(wx, wy) {
+    return page.evaluate(([wx, wy]) => {
+      const c = document.getElementById('mapCanvas');
+      const DPR = Math.min(2, window.devicePixelRatio || 1);
+      const sx = (wx - 4500) * 0.2 * DPR + c.width / 2, sy = (wy - 3500) * 0.2 * DPR + c.height / 2;
+      const px = c.getContext('2d').getImageData(Math.round(sx) - 10, Math.round(sy) - 10, 21, 21).data;
+      let ink = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 20) ink++;
+      return ink;
+    }, [wx, wy]);
+  }
+  await page.evaluate(() => { window.__setLayer('hidden', false); window.__setView(4500, 3500, 0.2); });
+  await page.waitForTimeout(400);
+  // note: 0.2 zoom centred at world centre puts the far north off-screen; centre near them instead
+  await page.evaluate(() => window.__setView(5800, 400, 0.2));
+  await page.waitForTimeout(400);
+  // probe ON the isle body, clear of the NORTHERN FROZEN SEA seamark at (4400,330)
+  const lostInk = h => page.evaluate(([wx, wy, on]) => {
+    return new Promise(res => {
+      window.__setLayer('hidden', on);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const c = document.getElementById('mapCanvas');
+        const DPR = Math.min(2, window.devicePixelRatio || 1);
+        const sx = (wx - 5800) * 0.2 * DPR + c.width / 2, sy = (wy - 400) * 0.2 * DPR + c.height / 2;
+        const px = c.getContext('2d').getImageData(Math.round(sx) - 8, Math.round(sy) - 8, 17, 17).data;
+        let ink = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 20) ink++;
+        res(ink);
+      }));
+    });
+  }, [4270, 235, h]);
+  const inkOff = await lostInk(false), inkOn = await lostInk(true);
+  await page.evaluate(() => window.__setLayer('hidden', false));
+  t('5.5: the Lost Isle draws NOTHING with Hidden World off, and draws when on',
+    inkOff === 0 && inkOn > 0, `off ${inkOff}, on ${inkOn} ink px`);
+  const offPick1 = await pick(4300, 250, { zoom: 0.5 });
+  t('5.5: the Lost Isle is unclickable with Hidden World off', !offPick1 || offPick1.id !== 'lostisle', offPick1 && offPick1.id);
+  await page.evaluate(() => window.__setLayer('hidden', true));
+  const onPick1 = await pick(4300, 250, { zoom: 0.5 });
+  const onPick2 = await pick(7300, 350, { zoom: 0.5 });
+  t('5.5: both hidden isles clickable with Hidden World on',
+    onPick1 && onPick1.id === 'lostisle' && onPick2 && onPick2.id === 'lastdoor');
+  await page.evaluate(() => window.__setLayer('hidden', false));
+}
 
 /* ---------- ITEM 5 + ITEM 6 ---------- */
 console.log('— ITEM 5: the Far Shore / ITEM 6: the Floating Isles —');

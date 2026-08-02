@@ -351,11 +351,11 @@ console.log('— Kaelen’s Sanctuary: shrunk and moved to deep water —');
 console.log('— The Isle of the Last Fish —');
 {
   const m=D.ISLANDS.find(i=>i.id==='lastfish');
-  t('main isle merged', !!m && m.kind==='rock');
+  t('ITEM 1: main isle is GREEN (kind lush) and bigger', !!m && m.kind==='lush' && m.rx===110 && m.ry===72);
   t('ITEM 1: relocated to the deep eastern ocean', m.x===8600 && m.y===2190, `(${m.x},${m.y})`);
   t('ITEM 1: between Zar’kaine’s arc and the Jade arc', m.x>8000 && m.y>1900 && m.y<2700);
   t('far out in the eastern ocean, off the continent', !G.onContinent(m.x,m.y)
-    && G.terrainAt(m.x, m.y+m.ry*2.4)==='water' && G.terrainAt(m.x-m.rx*2.4, m.y)==='water');
+    && G.terrainAt(m.x+180, m.y+180)==='water' && G.terrainAt(m.x-180, m.y-180)==='water');
   t('its centre resolves to it', (G.islandAt(m.x,m.y)||{}).id==='lastfish');
   // ITEM 1: the complex moved as a UNIT — every relative offset preserved
   {
@@ -382,11 +382,12 @@ console.log('— The Isle of the Last Fish —');
       Math.max(...D.SEAMOUNTS.map(s=>s.x))<=8960,
       Math.max(...D.SEAMOUNTS.map(s=>s.x)).toFixed(0));
   }
-  t('tag verbatim', m.info.includes('[Event canon per author; name and placement PROPOSED, July 2026]'));
+  t('ITEM 1: info text replaced verbatim', m.info==='The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. A green and living isle far out in the eastern ocean, ringed by its own small islands, by sea-rocks, and by two guardian whirlpools at its western and eastern gates. [Event canon per author; name and placement PROPOSED]');
+  t('ITEM 1: no volcanoes, no dark treatment on the isle', !m.volcanoes);
   // four outer isles
   const sats=['lastfish_n','lastfish_e','lastfish_s','lastfish_w'].map(id=>D.ISLANDS.find(i=>i.id===id));
-  t('four outer isles merged, unnamed', sats.every(s=>s && s.name==='' && s.kind==='rock'));
-  t('outer isles sized 24–32 × 16–22', sats.every(s=>s.rx>=24&&s.rx<=32&&s.ry>=16&&s.ry<=22));
+  t('ITEM 1: four outer isles green, unnamed', sats.every(s=>s && s.name==='' && s.kind==='lush'));
+  t('ITEM 1: outer isles sized 34–44 × 22–30', sats.every(s=>s.rx>=34&&s.rx<=44&&s.ry>=22&&s.ry<=30));
   t('outer isles offset 140–180 mi', sats.every(s=>{const d=Math.hypot(s.x-m.x,s.y-m.y); return d>=140&&d<=180;}),
     sats.map(s=>Math.hypot(s.x-m.x,s.y-m.y).toFixed(0)).join(','));
   t('outer isles tagged [PROPOSED]', sats.every(s=>s.info==='Outer isle of the Last Fish ring. [PROPOSED]'));
@@ -401,11 +402,6 @@ console.log('— The Isle of the Last Fish —');
       if(inside(b,a.x+Math.cos(th)*a.rx*R, a.y+Math.sin(th)*a.ry*R)){ hits.push(a.id+'/'+b.id); break; } }
   }
   t('no island-to-island collisions in the ring', hits.length===0, hits.join(','));
-  // three volcanoes, two fore (south) and one behind (north)
-  t('three volcanoes on the main isle', m.volcanoes && m.volcanoes.length===3);
-  t('all three stand on the isle', m.volcanoes.every(v=>(G.islandAt(v[0],v[1])||{}).id==='lastfish'));
-  t('two at the fore, one behind', m.volcanoes.filter(v=>v[1]>m.y).length===2
-    && m.volcanoes.filter(v=>v[1]<m.y).length===1);
   // the sea-mountain ring
   const S=D.SEAMOUNTS.filter(s=>s.ring==='lastfish_ring');
   t('sea-mountain ring generated', S.length>=14, S.length+' peaks');
@@ -427,15 +423,16 @@ console.log('— The Isle of the Last Fish —');
   const ld=D.ISLANDS.find(i=>i.id==='lastdoor');
   t('clear of the Isle of the Last Door', w.every(x=>Math.hypot(x.x-ld.x,x.y-ld.y)>=400),
     w.map(x=>Math.hypot(x.x-ld.x,x.y-ld.y).toFixed(0)).join(','));
-  // black clouds here, red clouds there — the two must never be conflated
-  t('the Last Fish sky is black, the Last Door’s is red',
-    m.info.includes('The clouds above it are black') && ld.info.includes('The clouds above it are red'));
-  // grey, unreflective water inside the ring
-  const grey=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
-  G.paintRegion(grey,1,1,m.x-150,m.y,m.x-149,m.y+1,{style:'satellite',season:1});
+  // ITEM 1: the ring water is living sea again — no grey tint
+  const inring=new Uint8ClampedArray(4), open_=new Uint8ClampedArray(4);
+  G.paintRegion(inring,1,1,m.x+120,m.y+120,m.x+121,m.y+121,{style:'satellite',season:1});
   G.paintRegion(open_,1,1,m.x,m.y+800,m.x+1,m.y+801,{style:'satellite',season:1});
-  t('water inside the ring is greyer than the open sea',
-    Math.abs(grey[2]-grey[0])<Math.abs(open_[2]-open_[0]), grey.join()+' vs '+open_.join());
+  t('ITEM 1: ring water is ordinary blue sea (grey tint removed)',
+    inring[2]>inring[0]+30, inring.join());
+  // and the isle itself paints green
+  const on=new Uint8ClampedArray(4);
+  G.paintRegion(on,1,1,m.x,m.y,m.x+1,m.y+1,{style:'satellite',season:1});
+  t('ITEM 1: the isle paints vegetation green', on[1]>on[0] && on[1]>on[2], on.join());
 }
 
 console.log('— the frozen sea is organic, not a rectangle —');
@@ -448,17 +445,35 @@ console.log('— the frozen sea is organic, not a rectangle —');
       if(v<0.5) return y-1+(prev-0.5)/Math.max(1e-6,(prev-v)); prev=v; }
     return null;
   };
+  // audit the SHEET edge; the deliberate exclusion holes at the Last Door and
+  // the Far Shore are circles, skipped here (their arcs are curved features)
+  const skipX=x=> (x>6950&&x<7650) || x>8250;
   for(const season of [0,1,2,3]){
     const xs=[],es=[];
-    for(let x=0;x<=9000;x+=4){ const e=edgeAt(x,season); if(e!=null){xs.push(x);es.push(e);} }
-    // longest run over which the edge is straight (stays inside an 8-mile band)
+    for(let x=0;x<=9000;x+=4){ if(skipX(x)) continue;
+      const e=edgeAt(x,season); if(e!=null){xs.push(x);es.push(e);} }
     let straight=0;
     for(let i=0;i<es.length;i++){ let mn=es[i],mx=es[i];
-      for(let k=i+1;k<es.length;k++){ mn=Math.min(mn,es[k]); mx=Math.max(mx,es[k]);
+      for(let k=i+1;k<es.length;k++){
+        if(xs[k]-xs[k-1]>8) break;
+        mn=Math.min(mn,es[k]); mx=Math.max(mx,es[k]);
         if(mx-mn>8){ straight=Math.max(straight,xs[k-1]-xs[i]); break; } } }
     const range=Math.max(...es)-Math.min(...es);
-    t(`season ${season}: no straight ice edge over 150 mi`, straight<150, straight.toFixed(0)+' mi');
+    t(`ITEM 4: season ${season}: no straight ice edge over 100 mi (domain-warped)`, straight<100, straight.toFixed(0)+' mi');
     t(`season ${season}: the edge wanders 300+ mi of latitude`, range>=300, range.toFixed(0)+' mi');
+  }
+  // ITEM 4: the thaw is legible — Early already retreats from the coast
+  {
+    const hv=D.SETTLEMENTS.find(x=>x.id==='hvalvik');
+    t('ITEM 4: Hvalvik breaks free in Early', G.seaIceAt(hv.x,hv.y-40,0,20)<0.5,
+      String(G.seaIceAt(hv.x,hv.y-40,0,20)));
+    const free=['skarnholm','hrafney','ironisles'].every(id=>{
+      const s2=D.ISLANDS.find(i=>i.id===id);
+      return G.seaIceAt(s2.x,s2.y+s2.ry+30,0,25)<0.5; });
+    t('ITEM 4: jarl-isles breaking free in Early, locked in Deep', free
+      && ['skarnholm','hrafney','ironisles'].every(id=>{
+        const s2=D.ISLANDS.find(i=>i.id===id);
+        return G.seaIceAt(s2.x,s2.y+s2.ry+30,3,25)>0.9; }));
   }
   // the frozen shoreline ice-locks the northern isles
   for(const id of ['skarnholm','isbrand','wolfteeth','hrafney']){
@@ -486,8 +501,36 @@ console.log('— ITEM 5: The Far Shore — the Land of the Dead —');
   const fs=D.ISLANDS.find(i=>i.id==='landofthedead');
   t('landofthedead merged into ISLANDS', !!fs);
   t('at the far north-eastern corner', fs.x===8880 && fs.y===180);
-  t('sized 220 x 150, kind grey, special farshore',
-    fs.rx===220 && fs.ry===150 && fs.kind==='grey' && fs.special==='farshore');
+  t('ITEM 2: sized 300 x 200, kind grey, special farshore',
+    fs.rx===300 && fs.ry===200 && fs.kind==='grey' && fs.special==='farshore');
+  t('ITEM 2: three volcanoes about it — two front, one behind',
+    fs.volcanoes && fs.volcanoes.length===3
+    && fs.volcanoes.filter(v=>v[1]>fs.y).length===2
+    && fs.volcanoes.filter(v=>v[1]<fs.y).length===1);
+  t('ITEM 2: volcanoes ring it, none on its centre',
+    fs.volcanoes.every(v=>Math.hypot((v[0]-fs.x)/fs.rx,(v[1]-fs.y)/fs.ry)>0.5));
+  t('ITEM 2: dread sentence appended, tag intact',
+    fs.info.includes('Mountains wall its shore; three volcanoes burn about it; the clouds above it are red, and fire falls where rain should.')
+    && fs.info.includes('[LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]'));
+  // grey water ~150 mi out from the rim, all around
+  {
+    const g150=new Uint8ClampedArray(4), far=new Uint8ClampedArray(4);
+    G.paintRegion(g150,1,1,fs.x-fs.rx-120,fs.y+120,fs.x-fs.rx-119,fs.y+121,{style:'satellite',season:1});
+    G.paintRegion(far,1,1,fs.x-1200,fs.y+1200,fs.x-1199,fs.y+1201,{style:'satellite',season:1});
+    t('ITEM 2: grey unreflecting water within ~150 mi of the shore',
+      Math.abs(g150[2]-g150[0]) < Math.abs(far[2]-far[0]), g150.join()+' vs '+far.join());
+  }
+  // the ice never touches the doors of the dead
+  {
+    const ld2=D.ISLANDS.find(i=>i.id==='lastdoor');
+    t('ITEM 2: no ice on the Far Shore rim in Deep',
+      G.seaIceAt(fs.x-fs.rx-40, fs.y, 3, 9999)===0 && G.seaIceAt(fs.x, fs.y+fs.ry+40, 3, 9999)===0);
+    t('ITEM 2: no ice at the Isle of the Last Door in Deep',
+      G.seaIceAt(ld2.x, ld2.y, 3, 9999)===0 && G.seaIceAt(ld2.x-90, ld2.y+60, 3, 9999)===0
+      && G.seaIceAt(ld2.x-100, ld2.y+80, 3, 9999)<=0.01);
+    t('ITEM 2: the sheet still exists at the same latitude elsewhere',
+      G.seaIceAt(6000, 350, 3, 9999)>0.9, String(G.seaIceAt(6000,350,3,9999)));
+  }
   t('its ellipse clips off the map edge on purpose', fs.x+fs.rx>D.WORLD.w,
     `runs ${(fs.x+fs.rx)-D.WORLD.w} mi past x=${D.WORLD.w}`);
   t('NOT nudged inland — centre stays at 8880', fs.x===8880);
@@ -554,6 +597,46 @@ console.log('— ITEM 6: The Floating Isles of the World Engine —');
   t('every floating isle sits over open water',
     f.isles.every(i=>!G.landAt(f.x+i[0], f.y+i[1])));
   t('__landCheck() exempts it as a sea wonder', !G.landCheck().some(b=>b.includes('floatingisles')));
+}
+
+console.log('— ITEM 3: island greening pass —');
+{
+  const K=id=>D.ISLANDS.find(i=>i.id===id).kind;
+  t('ITEM 3: jarl-isles are boreal (green-and-snow)',
+    ['ironisles','skarnholm','wolfteeth','hrafney'].every(id=>K(id)==='boreal'));
+  t('ITEM 3: justified isles stay rock',
+    ['shard_w','shard_nw','shard_e','shard_ne','griefrock','mournholm','ledgerrocks','zhardei','pyrrhos','cindershoal'].every(id=>K(id)==='rock'));
+  t('ITEM 3: hidden isles + pillars keep their canon kinds',
+    K('lostisle')==='rock' && K('lastdoor')==='rock'
+    && ['pillar1','pillar2','pillar3'].every(id=>K(id)==='pillar'));
+  t('ITEM 3: Frost Isles + Isbrand stay snow (name/canon)',
+    ['frost1','frost2','isbrand'].every(id=>K(id)==='snow'));
+  // a boreal isle shows green ground somewhere on it
+  const sk=D.ISLANDS.find(i=>i.id==='skarnholm');
+  let green=false;
+  for(const [dx,dy] of [[0,0],[15,8],[-14,-6],[20,-10],[-18,12]]){
+    const px=new Uint8ClampedArray(4);
+    G.paintRegion(px,1,1,sk.x+dx,sk.y+dy,sk.x+dx+1,sk.y+dy+1,{style:'satellite',season:1});
+    if(px[1]>px[0]&&px[1]>px[2]) green=true;
+  }
+  t('ITEM 3: boreal ground shows green in High', green);
+}
+
+console.log('— ITEM 5: logic audit —');
+{
+  // 5.1 the Iron Run clears the Last Fish ring by 300+
+  const run=D.ROUTES.find(r=>r.name.includes('Iron Run'));
+  let minSeam=1e9, minWhirl=1e9;
+  for(let i=0;i<run.path.length-1;i++){
+    const [ax,ay]=run.path[i],[bx,by]=run.path[i+1];
+    const L=Math.hypot(bx-ax,by-ay), steps=Math.ceil(L/10);
+    for(let k=0;k<=steps;k++){ const t=k/steps, x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+      for(const sm of D.SEAMOUNTS) minSeam=Math.min(minSeam,Math.hypot(x-sm.x,y-sm.y));
+      for(const id of ['m_fish_w','m_fish_e']){ const w=D.MAELSTROMS.find(m=>m.id===id);
+        minWhirl=Math.min(minWhirl,Math.hypot(x-w.x,y-w.y)); } }
+  }
+  t('5.1: Iron Run 300+ mi clear of the ring', minSeam>=300 && minWhirl>=300,
+    'seamounts '+minSeam.toFixed(0)+', gates '+minWhirl.toFixed(0));
 }
 
 console.log('— built file integrity —');

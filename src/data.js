@@ -534,7 +534,11 @@ const ROUTES = [
   { name:'Border link: Dunmoor\u2013Sundisk', path:[[3700,4200],[4000,4650],[4330,5320]], kind:'caravan' },
   { name:'The Charter Run (Albion island chain)', path:[[6350,5200],[6850,5500],[7150,5750],[7550,5580],[7820,5150],[7980,4720],[8180,4980]], kind:'sea' },
   { name:'The Silk Run: Crownsburg\u2013Dragon\u2019s Throat', path:[[6950,5450],[7500,4900],[7900,4300],[7940,3650]], kind:'sea' },
-  { name:'The Iron Run: Dragon\u2019s Throat\u2013Iron Islands', path:[[7940,3650],[8250,2500],[8000,1200],[7000,700],[5900,650],[5450,820]], kind:'sea' },
+  /* 5.1: rerouted westward \u2014 the old leg through (8250,2500) ran straight
+     through the Last Fish ring's guardian gates. The bow now hugs the corridor
+     between the Jade coast bulge and the ring, 300+ mi clear of every
+     seamount, gate whirlpool and isle. */
+  { name:'The Iron Run: Dragon\u2019s Throat\u2013Iron Islands', path:[[7940,3650],[8320,3300],[8100,2750],[7940,2350],[7830,1500],[7000,700],[5900,650],[5450,820]], kind:'sea' },
   { name:'Sea lane: Iron Islands\u2013Iron Mouth', path:[[5450,820],[4900,760],[4400,830]], kind:'sea' },
   { name:'Sea lane: northern isles\u2013Iron Mouth', path:[[3300,760],[4000,800],[4400,830]], kind:'sea' },
   { name:'Sea lane: Liu-Chai\u2013Dragon\u2019s Throat', path:[[8500,4300],[8200,3900],[7940,3650]], kind:'sea' },
@@ -596,7 +600,7 @@ function islandNoise(theta,seed){
 const ISLANDS = [
   { id:'lastlight', name:'Kaelen’s Sanctuary (Isle of Last Light)', x:8650, y:4550, rx:28, ry:18, seed:3.1, kind:'lush',
     info:'The eastern island Kaelen travels to and from across the Eastern Ocean \u2014 one town\u2019s footprint of land, alone in the deep water between the Albion and Jade arcs, some 770 miles off the nearest coast. Identified as his Sanctuary of Last Light: hundreds of near-extinct creatures \u2014 Nightfall the black pegasus, a raised dragon, one of the last unicorns \u2014 protected behind twelve thousand years of lethal privacy. \u201cI\u2019ve killed enough. Here, I save what I can.\u201d Known only to the Immortal Three and Nerathis; it appears on no in-world map. [Island position LOCKED per ruling \u2014 shrunk to a town\u2019s footprint and moved to the deep southeastern ocean, July 2026; sanctuary identification PROPOSED]' },
-  { id:'ironisles', name:'Iron Islands', x:5450, y:790, rx:120, ry:70, seed:1.2, kind:'snow',
+  { id:'ironisles', name:'Iron Islands', x:5450, y:790, rx:120, ry:70, seed:1.2, kind:'boreal',
     info:'Offshore vassal chain of the Northern Throne in the Northern Frozen Sea.' },
   { id:'frost1', name:'The Frost Isles', x:3600, y:640, rx:70, ry:48, seed:2.4, kind:'snow',
     info:'Elven watch-islands monitoring the Northern Frozen Sea; ancient towers warn of threats from beyond.' },
@@ -629,13 +633,13 @@ const ISLANDS = [
   { id:'pr_s3', name:'', x:1090, y:5260, rx:32, ry:22, seed:3.3, kind:'pirate', info:'Port Royale outwork: careening cove and lookout. [PROPOSED]' },
   { id:'pr_s4', name:'', x:1400, y:5240, rx:26, ry:18, seed:4.6, kind:'pirate', info:'Port Royale outwork: smugglers\u2019 cache islet. [PROPOSED]' },
   { id:'pr_s5', name:'', x:940, y:5090, rx:24, ry:16, seed:2.1, kind:'pirate', info:'Port Royale outwork: the western picket. [PROPOSED]' },
-  { id:'skarnholm', name:'Skarnholm', x:4750, y:650, rx:55, ry:38, seed:0.9, kind:'snow',
+  { id:'skarnholm', name:'Skarnholm', x:4750, y:650, rx:55, ry:38, seed:0.9, kind:'boreal',
     info:'Northern jarl-isle in the Frozen Sea; its longships raid and trade in equal measure, and its jarl bows to Ironhaven only in summer. [PROPOSED]' },
-  { id:'wolfteeth', name:'The Wolf Teeth', x:5150, y:580, rx:42, ry:30, seed:2.7, kind:'snow',
+  { id:'wolfteeth', name:'The Wolf Teeth', x:5150, y:580, rx:42, ry:30, seed:2.7, kind:'boreal',
     info:'Jagged isle chain guarding the eastern approach to the Iron Mouth; wreckers\u2019 fires burn on the skerries in the Gale-Dark. [PROPOSED]' },
   { id:'isbrand', name:'Isbrand', x:3300, y:760, rx:48, ry:34, seed:4.1, kind:'snow',
     info:'Ice-bound isle whose Berg-folk delvings run beneath the seabed; iron-tribute is paid in worked blades, never ore. [PROPOSED]' },
-  { id:'hrafney', name:'Hrafney', x:2700, y:650, rx:40, ry:28, seed:1.3, kind:'snow',
+  { id:'hrafney', name:'Hrafney', x:2700, y:650, rx:40, ry:28, seed:1.3, kind:'boreal',
     info:'The raven isle, westernmost of the Northern holdings; its skald-hall keeps the oldest verses of the Skald-Reckoners. [PROPOSED]' },
   { id:'pyrrhos', name:'Pyrrhos Isle', x:2100, y:1150, rx:48, ry:32, seed:3.5, kind:'rock',
     info:'Volcanic isle off Vaelthorne\u2019s coast; the Vulcan Smith-Colleges keep a forge here that never cools. [PROPOSED]' },
@@ -676,17 +680,20 @@ const ISLANDS = [
    (+2350,+1860) from its first placement beside the Northern Throne. The
    calibrated target was (8600,2100); nudged 90 mi south so every isle and
    whirlpool clears the Drowned Wheel by 450+.] ---- */
+/* [ITEM 1, this round: the isle turns GREEN. The dark treatment — volcanoes,
+   black ground, spark-fall, dark haze, grey water — moves to the Land of the
+   Dead; the Last Fish is a living isle. Ring arrangement, sea-rocks and the
+   two guardian whirlpool gates stay.] */
 ISLANDS.push(
-  { id:'lastfish', name:'The Isle of the Last Fish', x:8600, y:2190, rx:85, ry:55, seed:3.9, kind:'rock',
-    volcanoes:[[8562,2212],[8638,2208],[8602,2160]],   // two at the fore (south), one behind
-    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. It lies far out in the eastern ocean, ringed by sea-mountains at its front, sides, and back, and by whirlpools beyond them. The clouds above it are black; the ground is black; the water is grey; and sparks fall where rain should. Three volcanoes stand on it, two at the fore and one behind. [Event canon per author; name and placement PROPOSED, July 2026]' },
-  { id:'lastfish_n', name:'', x:8600, y:2040, rx:26, ry:18, seed:1.15, kind:'rock',
+  { id:'lastfish', name:'The Isle of the Last Fish', x:8600, y:2190, rx:110, ry:72, seed:3.9, kind:'lush',
+    info:'The island where Kaelen came to the dying King of Kings, and shared with him a fish and a fruit. A green and living isle far out in the eastern ocean, ringed by its own small islands, by sea-rocks, and by two guardian whirlpools at its western and eastern gates. [Event canon per author; name and placement PROPOSED]' },
+  { id:'lastfish_n', name:'', x:8600, y:2040, rx:38, ry:26, seed:1.15, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_e', name:'', x:8765, y:2190, rx:30, ry:20, seed:2.65, kind:'rock',
+  { id:'lastfish_e', name:'', x:8765, y:2190, rx:40, ry:27, seed:2.65, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_s', name:'', x:8600, y:2340, rx:32, ry:22, seed:4.05, kind:'rock',
+  { id:'lastfish_s', name:'', x:8600, y:2340, rx:44, ry:30, seed:4.05, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' },
-  { id:'lastfish_w', name:'', x:8435, y:2190, rx:24, ry:16, seed:5.35, kind:'rock',
+  { id:'lastfish_w', name:'', x:8435, y:2190, rx:34, ry:22, seed:5.35, kind:'lush',
     info:'Outer isle of the Last Fish ring. [PROPOSED]' }
 );
 
@@ -735,9 +742,14 @@ const SEAMOUNTS = (()=>{
    clipping is the point. Never nudge it inland. kind:'grey' paints ashen
    coast with no vegetation; special:'farshore' drives the mist, the spectral
    label, and the grey unreflecting water between it and the Last Door. ---- */
+/* [ITEM 2, this round: the full dread treatment. Bigger, walled by dark
+   mountains, three volcanoes burning about it, red clouds, fog banks,
+   ember-fall, grey water for ~150 mi and along the crossing. The sea never
+   freezes here or at the Isle of the Last Door.] */
 ISLANDS.push(
-  { id:'landofthedead', name:'The Far Shore — the Land of the Dead', x:8880, y:180, rx:220, ry:150, seed:0.0, kind:'grey', special:'farshore',
-    info:'The Underworld: the far shore of the dead, beyond the Isle of the Last Door, across water no chart measures. Only a hull of Wardwood timber reaches it, and the druids decide who receives one. The dead can be spoken to and cannot be returned. They do not want to come. [LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]' }
+  { id:'landofthedead', name:'The Far Shore — the Land of the Dead', x:8880, y:180, rx:300, ry:200, seed:0.0, kind:'grey', special:'farshore',
+    volcanoes:[[8680,345],[8950,400],[8705,40]],   // two flanking the front approach, one behind
+    info:'The Underworld: the far shore of the dead, beyond the Isle of the Last Door, across water no chart measures. Only a hull of Wardwood timber reaches it, and the druids decide who receives one. The dead can be spoken to and cannot be returned. They do not want to come. Mountains wall its shore; three volcanoes burn about it; the clouds above it are red, and fire falls where rain should. [LOCKED — The Unhealed, July 2026; placement on the map is symbolic: the far shore lies beyond the world’s edge]' }
 );
 
 /* ---- The Unhealed / The Angels Door: the two far-northern isles

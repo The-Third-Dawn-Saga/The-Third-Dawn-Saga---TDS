@@ -37,6 +37,13 @@ const LAYERS = {
    RASTER SERVICE — Worker with priority queue, main-thread fallback
    ============================================================ */
 const RW=1500, RH=1167;
+/* ITEM 4: the extended ocean — the same painter continued far past the world
+   bounds (deep-ocean shading, coastal banding falloff, the ice/cloud field at
+   the top) so the map never floats as a rectangle. Sized so that at the
+   minimum zoom (0.10), with the view centre clamped to the world, no screen
+   edge can outrun it even on tall portrait displays. */
+const EXTO={x0:-13000, y0:-13000, x1:22000, y1:20000, W:1750, H:1650};
+const oceanCache=new Map();    // 'style|season' -> ImageBitmap|Canvas
 const TILE_LEVELS=[{n:4,minZoom:0.28},{n:8,minZoom:0.75}]; // ≈3000- and 6000-px-equivalent pyramids
 const rasterCache=new Map();   // 'style|season' -> ImageBitmap|Canvas
 const tileCache=new Map();     // 'style|season|tx|ty' -> ImageBitmap (LRU)
@@ -56,6 +63,7 @@ function getWorker(){
     worker.onmessage=e=>{
       const m=e.data;
       if(m.type==='raster') rasterCache.set(rKey(m.style,m.season), m.bitmap);
+      else if(m.type==='ocean') oceanCache.set(rKey(m.style,m.season), m.bitmap);
       else if(m.type==='tile'){ tileCache.set(tKey(m.style,m.season,m.n,m.tx,m.ty), m.bitmap); trimTiles(); }
       const waiters=pendingJobs.get(m.id)||{resolve:[]};
       pendingJobs.delete(m.id);
@@ -94,6 +102,7 @@ function pump(){
       const m=next.job;
       const out=renderSync(m);
       if(m.type==='raster') rasterCache.set(rKey(m.style,m.season), out);
+      else if(m.type==='ocean') oceanCache.set(rKey(m.style,m.season), out);
       else if(m.type==='tile'){ tileCache.set(tKey(m.style,m.season,m.n,m.tx,m.ty), out); trimTiles(); }
       const waiters=pendingJobs.get(next.key)||{resolve:[]};
       pendingJobs.delete(next.key);
@@ -105,6 +114,7 @@ function pump(){
 function renderSync(m){
   let W,H,x0,y0,x1,y1,opts={style:m.style,season:m.season};
   if(m.type==='raster'){ W=RW;H=RH;x0=0;y0=0;x1=WORLD.w;y1=WORLD.h; }
+  else if(m.type==='ocean'){ W=m.W;H=m.H;x0=m.x0;y0=m.y0;x1=m.x1;y1=m.y1; }
   else if(m.type==='tile'){ const tw=WORLD.w/m.n, th=WORLD.h/m.n;
     W=750;H=584;x0=m.tx*tw;y0=m.ty*th;x1=x0+tw;y1=y0+th; }
   else { const pad=1.13; W=m.size||2048; H=Math.round(W*(WORLD.b/WORLD.a));
@@ -137,6 +147,11 @@ function requestRaster(style,season,prio){
   if(rasterCache.has(k)) return Promise.resolve(rasterCache.get(k));
   return submit('r:'+k, {type:'raster',style,season}, prio==null?1:prio);
 }
+function requestOcean(style,season,prio){
+  const k=rKey(style,season);
+  if(oceanCache.has(k)) return Promise.resolve(oceanCache.get(k));
+  return submit('o:'+k, {type:'ocean',style,season,...EXTO}, prio==null?3:prio);
+}
 function requestTile(style,season,n,tx,ty){
   const k=tKey(style,season,n,tx,ty);
   if(tileCache.has(k)) return Promise.resolve(tileCache.get(k));
@@ -145,6 +160,7 @@ function requestTile(style,season,n,tx,ty){
 /* eager background builds: other styles at this season, then the other seasons */
 function prebuild(){
   requestRaster(STYLE,SEASON,0).then(()=>{
+    requestOcean(STYLE,SEASON,3);
     for(const st of ['satellite','atlas','painted']) if(st!==STYLE) requestRaster(st,SEASON,5);
     for(let s=0;s<4;s++) if(s!==SEASON) requestRaster(STYLE,s,8);
   });
@@ -208,6 +224,13 @@ function drawBase(){
     if(!bm) bm=lowResPlaceholder(STYLE,SEASON);
   }
   bctx.imageSmoothingEnabled=true; bctx.imageSmoothingQuality='high';
+  // ITEM 4: the extended ocean first — the world raster lands on top of it,
+  // painted by the same functions, so no seam marks the world's bounds
+  const ob=oceanCache.get(rKey(STYLE,SEASON));
+  if(ob){
+    const [ex,ey]=w2s(EXTO.x0,EXTO.y0);
+    bctx.drawImage(ob, ex, ey, (EXTO.x1-EXTO.x0)*view.scale*DPR, (EXTO.y1-EXTO.y0)*view.scale*DPR);
+  } else requestOcean(STYLE,SEASON,1);
   const [ox,oy]=w2s(0,0);
   const ww=WORLD.w*view.scale*DPR, wh=WORLD.h*view.scale*DPR;
   if(bm) bctx.drawImage(bm, ox, oy, ww, wh);
@@ -367,11 +390,10 @@ function drawOverlay(now){
       }
     }
     drawSeamounts();
+    drawFarShoreMountains();
     drawIsleVolcanoes();
   }
 
-  // the Isle of the Last Fish: black cloud, sparks where rain should be
-  drawLastFishSky();
   // the Far Shore: pale mist along the beach at the edge of the world
   drawFarShoreMist();
   // Kaelen's Sanctuary: the warm glow of an Immortal's isle
@@ -398,6 +420,10 @@ function drawOverlay(now){
       ctx.setLineDash([]);
     });
   }
+
+  // 5.6: the Serpent's Spine runs partly under the sea — draw undersea-ridge
+  // ticks over the water crossings so its label never floats over nothing
+  if(LAYERS.mountains||LAYERS.labels) drawSerpentRidge();
 
   // seasonal ice-road dash across Deepmere in deep winter — along the lake's
   // long axis, so the haulers' route reads as crossing it end to end
@@ -472,6 +498,18 @@ function paintedTrees(){
         : fo.kind==='grey' ? 'grey'
         : (fo.y<2400 ? 'pine' : 'round');             // taiga = conical
       out.push([x,y,kind,0.75+G.hash2(i,3)*0.65]);
+    }
+  }
+  // green islands wear trees too (ITEM 1/3): lush + pirate get round
+  // canopies, boreal isles conical pines — hidden isles and grey ground none
+  for(const isl of ISLANDS){
+    if(isl.hidden||isl.special==='farshore') continue;
+    if(!['lush','pirate','boreal'].includes(isl.kind)) continue;
+    const count=Math.max(3, Math.min(46, Math.round(isl.rx*isl.ry/380)));
+    for(let i=0;i<count;i++){
+      const a=G.hash2(i*2.3,isl.x)*6.2832, rr=Math.sqrt(G.hash2(i*1.3,isl.y));
+      const x=isl.x+Math.cos(a)*isl.rx*rr*0.66, y=isl.y+Math.sin(a)*isl.ry*rr*0.66;
+      out.push([x,y, isl.kind==='boreal'?'pine':'round', 0.6+G.hash2(i,isl.seed)*0.5]);
     }
   }
   for(let i=0;i<620;i++){                              // the Ring: umbrella pines
@@ -766,29 +804,97 @@ function drawSeamounts(){
     ctx.strokeStyle=lip; ctx.lineWidth=Math.max(0.7,h*0.05); ctx.stroke();
   }
 }
-/* The three volcanoes on the Last Fish: two at the fore, one behind. */
+/* 5.6: undersea ridge ticks along the Serpent's Spine water crossings */
+let SERP_TICKS=null;
+function drawSerpentRidge(){
+  if(!SERP_TICKS){
+    SERP_TICKS=[];
+    const m=MOUNTAINS.find(x=>x.id==='serpent');
+    for(let i=0;i<m.path.length-1;i++){
+      const [ax,ay]=m.path[i],[bx,by]=m.path[i+1];
+      const L=Math.hypot(bx-ax,by-ay), n=Math.max(1,Math.round(L/80));
+      for(let k=0;k<=n;k++){
+        const t=k/n, x=ax+(bx-ax)*t, y=ay+(by-ay)*t;
+        if(!G.onContinent(x,y)) SERP_TICKS.push([x,y,0.7+G.hash2(i*7+k,3)*0.6]);
+      }
+    }
+  }
+  const dark= STYLE==='atlas' ? 'rgba(120,116,110,0.85)' : 'rgba(40,38,36,0.85)';
+  for(const [x,y,sc] of SERP_TICKS){
+    const p=w2s(x,y);
+    if(p[0]<-20||p[1]<-20||p[0]>canvas.width+20||p[1]>canvas.height+20) continue;
+    const h=Math.max(2.5*DPR, Math.min(10*DPR, 22*sc*view.scale*DPR));
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-h*0.55,p[1]+h*0.15);
+    ctx.lineTo(p[0]+h*0.55,p[1]+h*0.15);
+    ctx.closePath();
+    ctx.fillStyle=dark; ctx.fill();
+  }
+}
+/* Island volcanoes (ITEM 2: the three that burn about the Land of the Dead —
+   dull red glow, unlike the bright orange of the living volcanic chains). */
 function drawIsleVolcanoes(){
   const P=G.PALETTES[STYLE];
   for(const isl of ISLANDS){
     if(!isl.volcanoes) continue;
     if(isl.hidden && !LAYERS.hidden) continue;
+    const dull=isl.special==='farshore';
     for(const [vx,vy] of isl.volcanoes){
       const p=w2s(vx,vy);
-      const r=Math.max(2.4*DPR, Math.min(9*DPR, 26*view.scale*DPR));
+      const r=Math.max(2.4*DPR, Math.min(10*DPR, 28*view.scale*DPR));
       const gl=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],r*2.6);
-      gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)');
+      if(dull){ gl.addColorStop(0,'rgba(196,64,44,0.42)'); gl.addColorStop(1,'rgba(170,50,36,0)'); }
+      else    { gl.addColorStop(0,'rgba(255,140,60,0.55)'); gl.addColorStop(1,'rgba(255,120,50,0)'); }
       ctx.beginPath(); ctx.arc(p[0],p[1],r*2.6,0,7); ctx.fillStyle=gl; ctx.fill();
       ctx.beginPath();
       ctx.moveTo(p[0],p[1]-r*1.5); ctx.lineTo(p[0]-r,p[1]+r*0.5); ctx.lineTo(p[0]+r,p[1]+r*0.5);
       ctx.closePath();
-      ctx.fillStyle='#241d1a'; ctx.fill();
+      ctx.fillStyle= dull ? '#1c1614' : '#241d1a'; ctx.fill();
       ctx.beginPath(); ctx.arc(p[0],p[1]-r*1.2,r*0.42,0,7);
-      ctx.fillStyle=`rgb(${P.lavadot.join(',')})`; ctx.fill();
+      ctx.fillStyle= dull ? '#b8422e' : `rgb(${P.lavadot.join(',')})`; ctx.fill();
     }
   }
 }
-/* Black cloud over the isle, and sparks falling where rain should.
-   The Isle of the Last Door's sky is RED — the two must never read alike. */
+/* ITEM 2: the mountain wall of the Land of the Dead — jagged, snowless
+   black-rock peaks along the visible perimeter (the front and sides; the
+   far side lies beyond the map's edge). */
+let FS_WALL=null;
+function drawFarShoreMountains(){
+  const isl=ISLANDS.find(s=>s.special==='farshore');
+  if(!isl) return;
+  if(!FS_WALL){
+    FS_WALL=[];
+    for(let i=0;i<44;i++){
+      const th=i/44*Math.PI*2;
+      const R=islandNoise(th,isl.seed)*0.85*(0.90+G.hash2(i,3)*0.10);
+      const x=isl.x+Math.cos(th)*isl.rx*R, y=isl.y+Math.sin(th)*isl.ry*R;
+      if(x>WORLD.w-24||y<24) continue;                 // beyond the world's edge
+      FS_WALL.push([x,y,0.75+G.hash2(i,9)*0.6]);
+    }
+  }
+  const W=canvas.width,H=canvas.height;
+  for(const [x,y,s] of FS_WALL){
+    const p=w2s(x,y);
+    if(p[0]<-40||p[1]<-40||p[0]>W+40||p[1]>H+40) continue;
+    const h=Math.max(5*DPR, Math.min(30*DPR, 58*s*view.scale*DPR));
+    const w2=h*0.94;
+    ctx.beginPath();
+    ctx.moveTo(p[0],p[1]-h);
+    ctx.lineTo(p[0]-w2*0.34,p[1]-h*0.42);
+    ctx.lineTo(p[0]-w2*0.5,p[1]);
+    ctx.lineTo(p[0]+w2*0.18,p[1]-h*0.10);
+    ctx.lineTo(p[0]+w2*0.5,p[1]);
+    ctx.closePath();
+    ctx.fillStyle='#232122'; ctx.fill();               // black rock, snowless
+    ctx.strokeStyle='rgba(8,8,10,0.9)'; ctx.lineWidth=Math.max(0.8,h*0.06); ctx.stroke();
+    ctx.beginPath();                                    // a grey lit flank
+    ctx.moveTo(p[0],p[1]-h); ctx.lineTo(p[0]-w2*0.34,p[1]-h*0.42); ctx.lineTo(p[0]-w2*0.12,p[1]-h*0.30);
+    ctx.closePath(); ctx.fillStyle='rgba(120,118,120,0.5)'; ctx.fill();
+  }
+}
+/* spark/ember streak scatter — used by the Last Door (red sparks) and the
+   Land of the Dead (ember-fall). The Last Fish no longer uses it: green isle. */
 function isleSparks(isl,seedOff,reach){
   const out=[];
   for(let i=0;i<70;i++){
@@ -797,27 +903,6 @@ function isleSparks(isl,seedOff,reach){
               0.5+G.hash2(i,seedOff+3)*0.9]);
   }
   return out;
-}
-let LF_SPARKS=null;
-function drawLastFishSky(){
-  const isl=ISLANDS.find(s=>s.id==='lastfish');
-  if(!isl) return;
-  const p=w2s(isl.x,isl.y);
-  const R=250*view.scale*DPR;
-  if(p[0]<-R||p[1]<-R||p[0]>canvas.width+R||p[1]>canvas.height+R) return;
-  // black cloud deck (the raster already carries the haze; this is its core)
-  const cg=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],R);
-  cg.addColorStop(0,'rgba(6,6,9,0.42)'); cg.addColorStop(0.6,'rgba(10,10,14,0.20)');
-  cg.addColorStop(1,'rgba(10,10,14,0)');
-  ctx.beginPath(); ctx.ellipse(p[0],p[1],R,R*0.86,0,0,7); ctx.fillStyle=cg; ctx.fill();
-  if(!LF_SPARKS) LF_SPARKS=isleSparks(isl,0,230);
-  for(const [sx,sy,s] of LF_SPARKS){
-    const q=w2s(sx,sy);
-    const len=Math.max(1.2*DPR, 16*s*view.scale*DPR);
-    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.25,q[1]+len);
-    ctx.strokeStyle='rgba(255,196,120,0.85)';
-    ctx.lineWidth=Math.max(0.7,1.1*DPR*Math.min(1,view.scale*4)); ctx.stroke();
-  }
 }
 
 /* ITEM 6: the Floating Isles above the Veiled Vortex. Each isle is drawn
@@ -900,10 +985,11 @@ function drawSanctuaryGlow(){
   ctx.beginPath(); ctx.arc(p[0],p[1],R,0,7); ctx.fillStyle=g2; ctx.fill();
 }
 
-/* ITEM 5: faint pale mist lying along the Far Shore's beach. The isle itself
-   is painted by the raster (ashen, no vegetation); this is the shoreline
-   haze that marks it as the edge of the world. */
-let FS_MIST=null;
+/* ITEM 2: the Far Shore's atmosphere — layered fog banks along the coast,
+   RED clouds ringing the landmass (the Last Door's palette family: they are
+   neighbors on the road of the dead), and slow ember-fall in the air around
+   it, denser near the shore. */
+let FS_MIST=null, FS_EMBERS=null;
 function drawFarShoreMist(){
   const isl=ISLANDS.find(s=>s.special==='farshore');
   if(!isl) return;
@@ -912,24 +998,53 @@ function drawFarShoreMist(){
   if(p[0]<-rx*3||p[1]<-ry*3||p[0]>canvas.width+rx*3||p[1]>canvas.height+ry*3) return;
   if(!FS_MIST){
     FS_MIST=[];
-    for(let i=0;i<64;i++){
-      const th=i/64*Math.PI*2;
-      const R=islandNoise(th,isl.seed)*0.85*(0.94+G.hash2(i,7)*0.16);
-      FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
-                    0.5+G.hash2(i,11)*0.8]);
+    // three layered banks: the beach line, a standing bank offshore, a thin far veil
+    for(const [scale,alpha,n,seed] of [[0.97,0.30,64,7],[1.22,0.20,44,23],[1.45,0.12,30,41]]){
+      for(let i=0;i<n;i++){
+        const th=i/n*Math.PI*2;
+        const R=islandNoise(th,isl.seed)*0.85*scale*(0.96+G.hash2(i,seed)*0.10);
+        FS_MIST.push([isl.x+Math.cos(th)*isl.rx*R, isl.y+Math.sin(th)*isl.ry*R,
+                      0.5+G.hash2(i,seed+4)*0.8, alpha]);
+      }
     }
   }
+  // the red cloud ring (drawn under the fog banks)
   ctx.save();
+  const rr=Math.max(rx,ry);
+  const red=ctx.createRadialGradient(p[0],p[1],rr*0.72,p[0],p[1],rr*1.55);
+  red.addColorStop(0,'rgba(126,26,24,0)');
+  red.addColorStop(0.45,'rgba(140,32,26,0.30)');
+  red.addColorStop(0.8,'rgba(126,26,24,0.16)');
+  red.addColorStop(1,'rgba(126,26,24,0)');
+  ctx.beginPath(); ctx.ellipse(p[0],p[1],rx*1.6,ry*1.6,0,0,7); ctx.fillStyle=red; ctx.fill();
   ctx.globalCompositeOperation='lighter';
-  for(const [mx,my,s] of FS_MIST){
+  for(const [mx,my,s,alpha] of FS_MIST){
     const q=w2s(mx,my);
     const r=Math.max(3*DPR, 46*s*view.scale*DPR);
     const g2=ctx.createRadialGradient(q[0],q[1],0,q[0],q[1],r);
-    g2.addColorStop(0,'rgba(214,218,222,0.30)');
+    g2.addColorStop(0,`rgba(214,218,222,${alpha})`);
     g2.addColorStop(1,'rgba(214,218,222,0)');
     ctx.beginPath(); ctx.arc(q[0],q[1],r,0,7); ctx.fillStyle=g2; ctx.fill();
   }
   ctx.restore();
+  // ember-fall: fire where rain should be, denser near the shore
+  if(!FS_EMBERS){
+    FS_EMBERS=[];
+    for(const [reach,n,seed] of [[1.28,70,0],[1.8,34,50]]){
+      const set=isleSparks({x:isl.x,y:isl.y,rx:isl.rx*reach,ry:isl.ry*reach,seed:isl.seed},seed,isl.rx*reach);
+      for(let i=0;i<n&&i<set.length;i++) FS_EMBERS.push(set[i]);
+    }
+  }
+  for(const [sx,sy,s] of FS_EMBERS){
+    if(sx>WORLD.w-10||sy<10) continue;
+    const q=w2s(sx,sy);
+    const len=Math.max(1.2*DPR, 13*s*view.scale*DPR);
+    ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]-len*0.2,q[1]+len);
+    ctx.strokeStyle='rgba(255,116,58,0.85)';
+    ctx.lineWidth=Math.max(0.7,1.2*DPR*Math.min(1,view.scale*4)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(0.6,1.3*DPR*Math.min(1,view.scale*3)),0,7);
+    ctx.fillStyle='rgba(255,168,96,0.9)'; ctx.fill();
+  }
 }
 
 /* The hidden isles are absent from the raster by design (see geo.js
@@ -1077,7 +1192,9 @@ function drawMaelstroms(){
       ctx.beginPath(); ctx.ellipse(cx,cy,R0*1.68,R0*1.34,0,0,7); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if(LAYERS.labels && view.scale>0.07)
+    // 5.2: the two Guardian Whirlpool gate labels are placed by the
+    // declutterer at outward anchors instead (see drawLabels)
+    if(LAYERS.labels && view.scale>0.07 && ms.id!=='m_fish_w' && ms.id!=='m_fish_e')
       label(ms.name,p[0],p[1]+R0+12*DPR,10.5, col, true);
   }
 }
@@ -1213,9 +1330,18 @@ function drawLabels(){
   // priority 0: landmark sites (the Celestial Circle) — label sits BELOW the
   // glyph so it clears Pilgrim's Rest to the north-west
   {
+    // 5.3: the Floating Isles label sits seaward BELOW the cluster, clear of
+    // the coast labels to the north
     const fi=WONDERS.find(w=>w.id==='floatingisles');
-    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dy:-46, size:11.5, italic:true,
+    if(fi) cands.push({pri:0, text:fi.name, x:fi.x, y:fi.y, dyPx:(70*view.scale+16), size:11.5, italic:true,
       fill: painted?'#4a3520':(STYLE==='satellite'?'#e6ecf5':'#4a5560')});
+    // 5.2: gate labels at outward anchors, collision-tracked
+    if(view.scale>0.07){
+      const gcol= painted ? '#2f6f8c' : (STYLE==='satellite'?'#8fc4e8':'#3b7fae');
+      const gw=MAELSTROMS.find(m=>m.id==='m_fish_w'), ge=MAELSTROMS.find(m=>m.id==='m_fish_e');
+      if(gw) cands.push({pri:4, text:gw.name, x:gw.x-160, y:gw.y+80, dy:0, size:10.5, italic:true, fill:gcol});
+      if(ge) cands.push({pri:4, text:ge.name, x:ge.x, y:ge.y+110, dy:0, size:10.5, italic:true, fill:gcol});
+    }
   }
   if(view.scale>=0.08){
     const cc=WONDERS.find(w=>w.id==='celestialcircle');
@@ -1590,7 +1716,8 @@ canvas.addEventListener('pointermove',e=>{
   if(!dragging) return;
   const dx=e.clientX-lastP[0],dy=e.clientY-lastP[1];
   if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
-  view.x-=dx/view.scale; view.y-=dy/view.scale;
+  view.x=Math.min(WORLD.w,Math.max(0,view.x-dx/view.scale));
+  view.y=Math.min(WORLD.h,Math.max(0,view.y-dy/view.scale));
   lastP=[e.clientX,e.clientY]; dirty(true,true);
 });
 canvas.addEventListener('pointerup',e=>{
@@ -1610,7 +1737,7 @@ canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   const rect=canvas.getBoundingClientRect();
   const [wx,wy]=s2w(e.clientX-rect.left,e.clientY-rect.top);
-  view.scale=Math.min(2.2,Math.max(0.045,view.scale*Math.exp(-e.deltaY*0.0012)));
+  view.scale=Math.min(2.2,Math.max(0.10,view.scale*Math.exp(-e.deltaY*0.0012)));
   const [nwx,nwy]=s2w(e.clientX-rect.left,e.clientY-rect.top);
   view.x+=wx-nwx; view.y+=wy-nwy;
   dirty(true,true);
@@ -1651,7 +1778,7 @@ document.getElementById('btnMeasure').addEventListener('click',function(){
   dirty(false,true);
 });
 document.getElementById('btnZoomIn').addEventListener('click',()=>{view.scale=Math.min(2.2,view.scale*1.4);dirty(true,true);});
-document.getElementById('btnZoomOut').addEventListener('click',()=>{view.scale=Math.max(0.045,view.scale/1.4);dirty(true,true);});
+document.getElementById('btnZoomOut').addEventListener('click',()=>{view.scale=Math.max(0.10,view.scale/1.4);dirty(true,true);});
 document.getElementById('btnHome').addEventListener('click',()=>{view={x:WORLD.cx,y:WORLD.cy,scale:0.12};dirty(true,true);});
 document.querySelector('#infoPanel .ip-close').addEventListener('click',()=>showInfo(null));
 document.querySelectorAll('.quickJ').forEach(btn=>{
@@ -1692,8 +1819,9 @@ window.__tilesReady=function(){
   return Promise.all(wants).then(()=>{ dirty(true,true); return tileCache.size; });
 };
 window.__rasterStats=function(){
-  return { rasters:[...rasterCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
+  return { rasters:[...rasterCache.keys()], oceans:[...oceanCache.keys()], tiles:[...tileCache.keys()], queue:jobQueue.length, worker:!!worker };
 };
+window.__oceanReady=function(){ return requestOcean(STYLE,SEASON,0); };
 /* click-test hook: resolve a world point exactly as a canvas click would,
    open the info panel, and report what the reader ends up looking at. */
 window.__pick=function(wx,wy){
