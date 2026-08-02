@@ -459,7 +459,7 @@ function init(){
     for(const isl of ISLANDS){
       if(isl.hidden) continue;          // the hidden isles belong to the map's Hidden World layer
       const sx=wx2s(isl.x), sz=wy2s(isl.y);
-      const col={lush:0x2f7a44,snow:0xdfe8ee,sand:0xd6c491,rock:0x6b6660,pirate:0x3f7a4e,pillar:0x241f1c,grey:0x6a6d70}[isl.kind]||0x555;
+      const col={lush:0x2f7a44,snow:0xdfe8ee,boreal:0x557a52,sand:0xd6c491,rock:0x6b6660,pirate:0x2f8a4e,pillar:0x241f1c,grey:0x6a6d70}[isl.kind]||0x555;
       const m=new THREE.Mesh(new THREE.CylinderGeometry(isl.rx*KX,isl.rx*KX*1.12,isl.kind==='pillar'?26:10, 12),
         new THREE.MeshStandardMaterial({color:col,roughness:0.95}));
       m.scale.z=isl.ry/isl.rx;

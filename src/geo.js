@@ -338,7 +338,7 @@ function terrainAt(x,y){
   const land=landAt(x,y);
   if(!land) return 'water';
   if(land.type==='island'){
-    return {lush:'plains',snow:'snow',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain',grey:'waste'}[land.isl.kind]||'plains';
+    return {lush:'plains',snow:'snow',boreal:'plains',sand:'desert',rock:'mountain',pirate:'plains',pillar:'mountain',grey:'waste'}[land.isl.kind]||'plains';
   }
   if(lakeAt(x,y)) return 'water';
   if(forestAt(x,y)) return 'forest';
@@ -466,7 +466,7 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
         alpha=waterAlpha;
       } else {
         let terr;
-        if(isl) terr={lush:'plains',snow:'snow',sand:'desert',rock:'ridge',pirate:'plains',pillar:'pillar',grey:'farshore'}[isl.kind];
+        if(isl) terr={lush:'plains',snow:'snow',boreal:'boreal',sand:'desert',rock:'ridge',pirate:'heart',pillar:'pillar',grey:'farshore'}[isl.kind];
         else {
           if(Math.hypot(x-sw.x,y-sw.y)<=sw.r) terr='swamp';
           else if(Math.hypot(x-gl.x,y-gl.y)<=95) terr='glass';
@@ -577,6 +577,12 @@ function paintRegion(buf, W, H, x0, y0, x1, y1, opts){
               if(mist>0.56) col=lerpC(col,P.greyMist,Math.min(0.5,(mist-0.56)*1.5));
             }
           }
+        }
+        else if(terr==='boreal'){
+          // ITEM 3: the jarl-isles — hardy green under broken snow
+          col=lerpC(P.ring,P.plains[0],n*0.55);
+          const sp=fbm(x*0.02+13,y*0.02+7);
+          if(sp>0.55) col=lerpC(col,P.snow[1],Math.min(1,(sp-0.55)*2.4));
         }
         else if(terr==='farshore'){
           // ashen ground, no vegetation anywhere on it, and a pale bleached

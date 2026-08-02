@@ -581,6 +581,29 @@ console.log('— ITEM 6: The Floating Isles of the World Engine —');
   t('__landCheck() exempts it as a sea wonder', !G.landCheck().some(b=>b.includes('floatingisles')));
 }
 
+console.log('— ITEM 3: island greening pass —');
+{
+  const K=id=>D.ISLANDS.find(i=>i.id===id).kind;
+  t('ITEM 3: jarl-isles are boreal (green-and-snow)',
+    ['ironisles','skarnholm','wolfteeth','hrafney'].every(id=>K(id)==='boreal'));
+  t('ITEM 3: justified isles stay rock',
+    ['shard_w','shard_nw','shard_e','shard_ne','griefrock','mournholm','ledgerrocks','zhardei','pyrrhos','cindershoal'].every(id=>K(id)==='rock'));
+  t('ITEM 3: hidden isles + pillars keep their canon kinds',
+    K('lostisle')==='rock' && K('lastdoor')==='rock'
+    && ['pillar1','pillar2','pillar3'].every(id=>K(id)==='pillar'));
+  t('ITEM 3: Frost Isles + Isbrand stay snow (name/canon)',
+    ['frost1','frost2','isbrand'].every(id=>K(id)==='snow'));
+  // a boreal isle shows green ground somewhere on it
+  const sk=D.ISLANDS.find(i=>i.id==='skarnholm');
+  let green=false;
+  for(const [dx,dy] of [[0,0],[15,8],[-14,-6],[20,-10],[-18,12]]){
+    const px=new Uint8ClampedArray(4);
+    G.paintRegion(px,1,1,sk.x+dx,sk.y+dy,sk.x+dx+1,sk.y+dy+1,{style:'satellite',season:1});
+    if(px[1]>px[0]&&px[1]>px[2]) green=true;
+  }
+  t('ITEM 3: boreal ground shows green in High', green);
+}
+
 console.log('— built file integrity —');
 {
   const built='Third_Dawn_Definitive_Atlas.html';
