@@ -101,6 +101,16 @@ canvas{display:block;}
 #infoFly{margin-top:8px;display:none;}
 #infoFly.vis{display:inline-block;}
 
+#minimap{position:absolute;right:10px;bottom:150px;border:1px solid var(--line);
+  border-radius:7px;background:rgba(11,26,38,.9);display:none;}
+#minimap.vis{display:block;}
+#mapOverlay{position:fixed;inset:0;background:rgba(8,5,2,.94);z-index:40;
+  display:none;align-items:center;justify-content:center;}
+#mapOverlay.vis{display:flex;}
+#fullmap{max-width:94vw;max-height:88vh;border:1px solid var(--line);border-radius:8px;}
+#mapClose{position:absolute;top:14px;right:20px;color:var(--gl);cursor:pointer;
+  font-size:.8rem;letter-spacing:1px;}
+
 #dev{position:absolute;right:10px;bottom:12px;background:var(--panel);border:1px solid var(--line);
   border-radius:7px;padding:7px 9px;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:.62rem;color:var(--mu);line-height:1.5;display:none;white-space:pre;}
@@ -154,6 +164,36 @@ canvas{display:block;}
       <button class="btn" data-s="dust">The Long Dust</button>
     </div>
 
+    <h3>Layers</h3>
+    <div class="grid" id="layerBtns">
+      <button class="btn on" data-l="labels">Place labels</button>
+      <button class="btn on" data-l="canals">Canal network</button>
+      <button class="btn" data-l="roads">Caravan roads</button>
+      <button class="btn" data-l="rivers">Underground rivers</button>
+      <button class="btn" data-l="farms">Farm corridors</button>
+      <button class="btn" data-l="solanu">Solanu provinces</button>
+      <button class="btn" data-l="vassals">Vassal kingdoms</button>
+      <button class="btn" data-l="outposts">Military outposts</button>
+      <button class="btn" data-l="migration">Migration</button>
+    </div>
+
+    <h3>Sequences</h3>
+    <div class="grid">
+      <button class="btn" id="btnGate">Activate Golden Gate</button>
+      <button class="btn" id="btnPyr">Activate pyramids</button>
+    </div>
+
+    <h3>Explore</h3>
+    <div class="grid">
+      <button class="btn" id="btnExplore">Enter explore mode</button>
+      <button class="btn" id="btnMap">Map (M)</button>
+    </div>
+    <div class="hint" id="exploreHint" style="display:none">
+      WASD or arrows to move &middot; mouse to look<br>
+      Shift to run &middot; space to jump &middot; V first or third person<br>
+      G cycles the travel accelerator &middot; Esc to leave
+    </div>
+
     <h3>Go to</h3>
     <div class="grid" id="gotoBtns"></div>
 
@@ -183,6 +223,28 @@ canvas{display:block;}
       <span>Across view <b id="roSpan">&mdash;</b></span>
     </div>
     <div id="travel"></div>
+  </div>
+
+  <div class="panel" id="explorePanel" style="display:none;right:10px;bottom:150px;width:250px;">
+    <h3>On foot</h3>
+    <div class="row"><label>Speed</label>
+      <div class="grid" id="speedBtns" style="flex:1">
+        <button class="btn on" data-s="0">1x</button>
+        <button class="btn" data-s="1">4x</button>
+        <button class="btn" data-s="2">20x</button>
+        <button class="btn" data-s="3">100x</button>
+      </div>
+    </div>
+    <div id="exploreRead" class="hint"></div>
+    <h3>Fast travel</h3>
+    <div class="grid" id="travelBtns"></div>
+  </div>
+
+  <canvas id="minimap" width="190" height="190"></canvas>
+
+  <div id="mapOverlay">
+    <canvas id="fullmap"></canvas>
+    <div id="mapClose">close</div>
   </div>
 
   <div id="dev"></div>

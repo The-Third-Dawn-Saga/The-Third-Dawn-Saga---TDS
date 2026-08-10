@@ -108,7 +108,76 @@ for (const [name, x, z, alt] of TIER_VIEWS) {
   }
 }
 
-console.log('\nE. the floating origin actually engages');
+console.log('\nE. explore mode walks at true scale');
+await page.evaluate(() => window.__flyTo(0, 0, 900));
+await settle(page);
+/* Spawn on open ground outside the wall, not inside somebody's house. */
+await page.evaluate(() => window.__enterExplore(0, 10400));
+await page.waitForTimeout(400);
+{
+  /* Frame rate under a software rasteriser is around one per second with the
+     full city resident, so wall-clock is useless here. What matters is that
+     the speed is right per second of movement, which is frame-rate
+     independent by construction. */
+  await page.evaluate(() => window.__explore.keys.add('KeyW'));
+  await page.waitForFunction(() => window.__explore.movingSeconds > 1.2, null, { timeout: 60000 }).catch(() => {});
+  await page.evaluate(() => window.__explore.keys.delete('KeyW'));
+  const walk = await page.evaluate(() => ({ ...window.__explore.readout(), y: window.__explore.abs.y, moving: window.__explore.movingSeconds }));
+  ok(Math.abs(walk.metresPerSecond - 1.4) < 0.05, 'a walker walks at 1.4 m/s, not at a game speed',
+     `${walk.metresPerSecond.toFixed(3)} m/s over ${walk.moving.toFixed(1)} s of movement`);
+  ok(isFinite(walk.y), 'the walker stays on the ground', `y ${walk.y.toFixed(2)}`);
+
+  await page.evaluate(() => { window.__explore.keys.add('ShiftLeft'); window.__explore.keys.add('KeyW'); });
+  const before = await page.evaluate(() => ({ d: window.__explore.distanceWalked, s: window.__explore.movingSeconds }));
+  await page.waitForFunction((b) => window.__explore.movingSeconds > b + 1.0, null, { timeout: 60000 }, before.s).catch(() => {});
+  const run = await page.evaluate((b) => {
+    const e = window.__explore;
+    return { mps: (e.distanceWalked - b.d) / (e.movingSeconds - b.s) };
+  }, before);
+  await page.evaluate(() => { window.__explore.keys.delete('ShiftLeft'); window.__explore.keys.delete('KeyW'); });
+  ok(Math.abs(run.mps - 4.5) < 0.15, 'running is 4.5 m/s', `${run.mps.toFixed(3)} m/s`);
+
+  /* At 100x the accelerator has to be labelled as one, not as a running
+     speed, and the world must go on measuring the real walk underneath it. */
+  const b2 = await page.evaluate(() => ({
+    d: window.__explore.distanceWalked, a: window.__explore.acceleratedDistance,
+    s: window.__explore.movingSeconds,
+  }));
+  await page.evaluate(() => { window.__explore.setSpeed(3); window.__explore.keys.add('KeyW'); });
+  await page.waitForFunction((b) => window.__explore.movingSeconds > b + 1.0, null, { timeout: 60000 }, b2.s).catch(() => {});
+  await page.evaluate(() => window.__explore.keys.delete('KeyW'));
+  const fast = await page.evaluate((b) => {
+    const e = window.__explore;
+    const dt = e.movingSeconds - b.s;
+    return {
+      ...e.readout(),
+      onFootMps: (e.distanceWalked - b.d) / dt,
+      screenMps: (e.acceleratedDistance - b.a) / dt,
+    };
+  }, b2);
+  ok(fast.accelerated && fast.multiplier === 100
+     && Math.abs(fast.onFootMps - 1.4) < 0.05
+     && Math.abs(fast.screenMps / fast.onFootMps - 100) < 1,
+     'the travel accelerator is honest: the world still measures the walk',
+     `${fast.screenMps.toFixed(0)} m/s on screen, ${fast.onFootMps.toFixed(2)} m/s of real walking counted`);
+}
+await page.evaluate(() => window.__leaveExplore());
+await page.waitForTimeout(300);
+
+console.log('\nF. layer toggles build on demand');
+for (const l of ['roads', 'rivers', 'farms', 'solanu', 'vassals', 'outposts', 'migration']) {
+  await page.evaluate(k => window.__setLayer(k, true), l);
+}
+await page.waitForTimeout(900);
+{
+  const s = await page.evaluate(() => window.__stats());
+  ok(s.draws < 900, 'every reference layer on at once stays inside the budget', `${s.draws} draw calls`);
+}
+for (const l of ['roads', 'rivers', 'farms', 'solanu', 'vassals', 'outposts', 'migration']) {
+  await page.evaluate(k => window.__setLayer(k, false), l);
+}
+
+console.log('\nG. the floating origin actually engages');
 await page.evaluate(() => window.__flyTo(530e3, -70e3, 30e3));
 await page.waitForTimeout(2500);
 const s1 = await page.evaluate(() => window.__stats());
@@ -117,7 +186,7 @@ ok(Math.hypot(s1.offset.x, s1.offset.z) > 100000, 'world offset moved with the c
 ok(Math.abs(s1.altitude) < 200000, 'camera stays near the scene origin in Y-free terms',
    `camera scene position y ${(s1.altitude / 1000).toFixed(1)} km`);
 
-console.log('\nF. errors across the whole run');
+console.log('\nH. errors across the whole run');
 ok(errors.length === 0, 'no console or page errors', errors.slice(0, 5).join(' | '));
 
 await browser.close();

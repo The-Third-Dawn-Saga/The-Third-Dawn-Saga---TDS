@@ -28,11 +28,17 @@ import { Ocean } from './water/ocean.js';
 import { ShimmerShader } from './shaders/shimmer.js';
 import { Hud } from './ui/hud.js';
 import { Labels } from './ui/labels.js';
+import { Overlays } from './ui/overlays.js';
 import { RegionManager } from './world.js';
 import { loadCanon, registerRegions } from './regions/index.js';
 import { createSunklayMaterial, updateSunklayUniforms } from './city/materials.js';
 import { updateVeil } from './city/veil.js';
 import { updatePyramids, updateShapes } from './regions/landmarks.js';
+import {
+  ExploreController, GridCollision, Footprints, FootstepAudio,
+} from './explore/controller.js';
+import { MapView } from './ui/map.js';
+import { TRAVEL } from './units.js';
 
 const DEV = new URLSearchParams(location.search).has('dev');
 
@@ -172,6 +178,11 @@ controls.update();
 const sunklay = createSunklayMaterial();
 const regions = new RegionManager(regionRoot);
 const regionCtx = { sunklay, env };
+const overlayRoot = new THREE.Group();
+overlayRoot.name = 'overlays';
+scene.add(overlayRoot);
+registerRoot(overlayRoot, 0, 0);
+let overlays = null;
 let canon = null;
 let labels = null;
 let placesById = new Map();
@@ -185,6 +196,10 @@ loadCanon().then(c => {
   canon = c;
   placesById = registerRegions(regions, c);
   labels = new Labels(document.getElementById('labels'), c.places, showPlace);
+  mapView = new MapView(document.getElementById('minimap'),
+                        document.getElementById('fullmap'), c.places);
+  overlays = new Overlays(overlayRoot, c);
+  overlays.setLayers(layers);
   buildGotoButtons(c);
   window.__canon = c;
 }).catch(err => {
@@ -265,6 +280,126 @@ function flyTo(ax, az, altitude, headingDeg) {
   controls.update();
 }
 
+/* ---- explore mode ---------------------------------------------------------
+   First and third person, pointer lock, real human speeds, and a travel
+   accelerator that is presented as one rather than pretending to be a running
+   speed. Part 6. */
+const explore = new ExploreController(camera, renderer.domElement);
+const footprints = new Footprints(scene, 512);
+const footAudio = new FootstepAudio();
+explore.onFootstep = (x, z, running) => {
+  /* Cosmetics must never be able to stop the render loop. An audio context
+     that will not start, or a decal buffer that will not grow, is a footstep
+     nobody hears, not a frozen world. */
+  try {
+    footprints.place(x, z, explore.yaw, (ax, ay, az, out) => absToScene(ax, ay, az, out));
+    footAudio.step(running);
+  } catch (err) {
+    if (!explore._footWarned) { console.warn('footstep effects disabled:', err.message); explore._footWarned = true; }
+    explore.onFootstep = null;
+  }
+};
+
+let mapView = null;
+let mapOpen = false;
+let fastTravelMode = null;
+const gateState = { active: false, t: 0 };
+
+function enterExplore(ax, az) {
+  const o = getWorldOffset();
+  if (ax === undefined) { ax = camera.position.x + o.x; az = camera.position.z + o.z; }
+  controls.enabled = false;
+  explore.enter(ax, az, 0);
+  document.getElementById('explorePanel').style.display = 'block';
+  document.getElementById('minimap').classList.add('vis');
+  document.getElementById('exploreHint').style.display = 'block';
+  const b = document.getElementById('btnExplore');
+  b.textContent = 'Leave explore mode'; b.classList.add('on');
+}
+function leaveExplore() {
+  explore.exit();
+  controls.enabled = true;
+  controls.target.copy(camera.position).add(new THREE.Vector3(0, -300, -300));
+  document.getElementById('explorePanel').style.display = 'none';
+  document.getElementById('minimap').classList.remove('vis');
+  document.getElementById('exploreHint').style.display = 'none';
+  const b = document.getElementById('btnExplore');
+  b.textContent = 'Enter explore mode'; b.classList.remove('on');
+}
+document.getElementById('btnExplore').addEventListener('click', () => {
+  explore.enabled ? leaveExplore() : enterExplore();
+});
+document.getElementById('speedBtns').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  explore.setSpeed(parseInt(b.dataset.s, 10));
+  [...e.currentTarget.children].forEach(c => c.classList.toggle('on', c === b));
+});
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && explore.enabled) leaveExplore();
+  if (e.code === 'KeyM') toggleMap();
+});
+
+/* Fast travel: the same journey at four canon speeds, so the player can feel
+   the distance at four different rates rather than being teleported. */
+{
+  const wrap = document.getElementById('travelBtns');
+  wrap.innerHTML = TRAVEL.map((m, i) =>
+    `<button class="btn" data-t="${i}">${m.name}<br>${m.kmh} km/h</button>`).join('');
+  wrap.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const mode = TRAVEL[parseInt(b.dataset.t, 10)];
+    fastTravelMode = mode;
+    /* A mode is a speed. Sun Eater at 115 km/h is 32 m/s, which against a
+       1.4 m/s walk is a 23x accelerator, and the readout says so. */
+    explore.travelMode = mode;
+    explore.modeSpeed = mode.kmh * 1000 / 3600;
+    [...e.currentTarget.children].forEach(c => c.classList.toggle('on', c === b));
+  });
+}
+
+function toggleMap() {
+  mapOpen = !mapOpen;
+  document.getElementById('mapOverlay').classList.toggle('vis', mapOpen);
+  if (mapOpen) drawFullMap();
+}
+document.getElementById('btnMap').addEventListener('click', toggleMap);
+document.getElementById('mapClose').addEventListener('click', toggleMap);
+
+function drawFullMap() {
+  if (!mapView) return;
+  const c = document.getElementById('fullmap');
+  c.width = Math.min(1500, Math.floor(innerWidth * 0.9));
+  c.height = Math.floor(c.width * 0.62);
+  const o = getWorldOffset();
+  const px = explore.enabled ? explore.abs.x : camera.position.x + o.x;
+  const pz = explore.enabled ? explore.abs.z : camera.position.z + o.z;
+  mapView.draw(c, { cx: -300 * KM, cz: -100 * KM, span: 4400 * KM },
+    { x: px, z: pz, heading: explore.enabled ? -explore.yaw : 0 }, true);
+}
+
+/* ---- layer toggles --------------------------------------------------------- */
+const layers = {
+  labels: true, canals: true, roads: false, rivers: false, farms: false,
+  solanu: false, vassals: false, outposts: false, migration: false,
+};
+document.getElementById('layerBtns').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  layers[b.dataset.l] = !layers[b.dataset.l];
+  b.classList.toggle('on', layers[b.dataset.l]);
+  if (overlays) overlays.setLayers(layers);
+});
+
+document.getElementById('btnPyr').addEventListener('click', () => {
+  pyramidState.active = true; pyramidState.phase = 0; pyramidState.timer = 0;
+  const p = placesById.get('solkhari');
+  if (p) { flyTo(p.x, p.z, 1400); showPlace(placesById.get('pyramids') || p); }
+});
+document.getElementById('btnGate').addEventListener('click', () => {
+  gateState.active = true; gateState.t = 0;
+  const p = placesById.get('gate');
+  if (p) { flyTo(p.x, p.z, 800); showPlace(p); }
+});
+
 /* ---- resize --------------------------------------------------------------- */
 
 const viewport = { w: innerWidth, h: innerHeight };
@@ -294,14 +429,37 @@ function tick() {
   const off = getWorldOffset();
   const tx = controls.target.x + off.x, tz = controls.target.z + off.z;
   const groundY = walkableHeight(tx, tz);
-  controls.target.y += (groundY - controls.target.y) * Math.min(1, dt * 6);
+  if (!explore.enabled) {
+    controls.target.y += (groundY - controls.target.y) * Math.min(1, dt * 6);
+  }
 
-  controls.update();
+  if (explore.enabled) {
+    explore.update(dt);
+    /* Collision against the city, once its full build exists. */
+    const city = regions.get('sundisk');
+    const lvl0 = city && city.levels[0];
+    if (lvl0 && lvl0.userData.collisionRects) {
+      if (!explore.collision || explore.collision.__src !== lvl0) {
+        const gc = new GridCollision(lvl0.userData.collisionRects, city.x, city.z);
+        gc.__src = lvl0;
+        explore.setCollision(gc);
+      }
+    } else if (explore.collision) {
+      explore.setCollision(null);
+    }
+    explore.applyToCamera((ax, ay, az, out) => absToScene(ax, ay, az, out));
+  } else {
+    controls.update();
+  }
 
   /* Floating origin. Anything tracked in scene space and not registered as a
      root has to move with it, and the orbit target is exactly that. */
   const shift = rebase(camera.position);
-  if (shift.x !== 0 || shift.z !== 0) controls.target.sub(shift);
+  if (shift.x !== 0 || shift.z !== 0) {
+    controls.target.sub(shift);
+    footprints.update(0, shift.x, shift.z);
+  }
+  footprints.update(dt, 0, 0);
 
   /* Altitude drives the tier, the tier drives the frustum. */
   const camAbsX = camera.position.x + off.x, camAbsZ = camera.position.z + off.z;
@@ -386,8 +544,46 @@ function tick() {
   const focusDist = camera.position.distanceTo(controls.target);
   hud.update(altitude, focusDist, camera, viewport);
   if (labels) {
-    labels.update(camera, off, viewport, tierForAltitude(altitude),
-      (x, z) => walkableHeight(x, z));
+    if (layers.labels) {
+      labels.update(camera, off, viewport, tierForAltitude(altitude),
+        (x, z) => walkableHeight(x, z));
+    } else {
+      for (const it of labels.items) labels.hide(it);
+    }
+  }
+  if (overlays) overlays.update(env, altitude);
+
+  if (explore.enabled) {
+    const r = explore.readout();
+    document.getElementById('exploreRead').innerHTML =
+      `Travelled <b style="color:var(--gl)">${r.travelled}</b><br>` +
+      `Real distance on foot <b style="color:var(--gl)">${r.onFoot}</b><br>` +
+      `Which would take <b style="color:var(--gl)">${r.wouldTake}</b> at walking pace` +
+      (r.accelerated ? `<br><span style="color:var(--gold)">Travel accelerator ${r.multiplier}x, not a running speed</span>` : '');
+    if (mapView && frames % 6 === 0) {
+      mapView.draw(document.getElementById('minimap'),
+        { cx: explore.abs.x, cz: explore.abs.z, span: 3 * KM },
+        { x: explore.abs.x, z: explore.abs.z, heading: -explore.yaw }, false);
+    }
+  }
+
+  /* The Golden Gate activation sequence, carried over from v5. */
+  if (gateState.active) {
+    gateState.t += dt;
+    const gr = regions.get('gate');
+    if (gr) {
+      for (const lvl of gr.levels) {
+        if (!lvl || !lvl.visible) continue;
+        lvl.traverse(o => {
+          if (!o.userData.gate) return;
+          const p = Math.min(1, gateState.t / 9);
+          o.userData.gate.portal.scale.setScalar(0.2 + p * 0.8);
+          o.userData.gate.portal.material.opacity = 0.4 + Math.sin(gateState.t * 4) * 0.2 + p * 0.4;
+          o.userData.gate.portal.rotation.z += dt * (0.4 + p * 2.4);
+        });
+      }
+    }
+    if (gateState.t > 14) gateState.active = false;
   }
 
   frames++; fpsAccum += dt;
@@ -454,6 +650,13 @@ window.__flyTo = flyTo;
 window.__regions = () => ({ ...regions.stats });
 window.__showPlace = (id) => { const p = placesById.get(id); if (p) { showPlace(p); flyTo(p.x, p.z, PRESET_ALT[id] || 4 * KM); } return !!p; };
 window.__activatePyramids = () => { pyramidState.active = true; pyramidState.phase = 0; pyramidState.timer = 0; };
+window.__explore = explore;
+window.__frames = () => frames;
+window.__loopAlive = () => ({ frames, t: performance.now() });
+window.__enterExplore = (x, z) => enterExplore(x, z);
+window.__leaveExplore = () => leaveExplore();
+window.__layers = () => ({ ...layers });
+window.__setLayer = (k, v) => { layers[k] = v; if (overlays) overlays.setLayers(layers); };
 window.__canonPlaces = () => (canon ? canon.places.map(p => ({ id: p.id, name: p.name, x: p.x, z: p.z, tags: p.tags })) : []);
 window.__env = env;
 window.__camera = camera;

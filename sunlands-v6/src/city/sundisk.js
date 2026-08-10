@@ -574,6 +574,12 @@ export function buildSundiskFull(ctx) {
   if (ctx.buildWater) grp.add(ctx.buildWater(ctx));
 
   grp.userData.instanceCount = city.userData.instanceCount;
+  /* The generator's own building list, handed to the character controller so
+     collision is a 2D box test against a grid rather than a raycast against
+     thirty-four thousand instances. */
+  grp.userData.collisionRects = data.houses.map(h => ({
+    x: h.x, z: h.z, w: h.w, d: h.d, h: h.h, rot: h.rot, baseY: G,
+  }));
   return grp;
 }
 
