@@ -162,8 +162,10 @@ the way a city puts a dome of light over itself. So that is what it is: a glow
 banked on the eastern horizon, computed from the camera's real bearing to the
 Glass Desert, swinging round the sky as you travel and gone when you are
 standing on the glass. Measured from the top of the Great Wall at midnight the
-eastern sky reads 1.66 times the western, and west and north agree with each
-other to within a tenth of a percent.
+eastern sky reads **1.63 times** the western, and west and north measure the
+same as each other, which is how you know it is a direction and not simply a
+brighter night. Over the sheet itself the glass reads 1.84 times the sand sea
+it is much the darker material than.
 
 ## Weather that has a position
 
@@ -188,9 +190,11 @@ reason a wadi is dangerous.
 
 ## Verification
 
+Last full run: **30 terrain checks and 39 browser checks, all passing.**
+
 ```
 node sunlands-v6/tools/verify_terrain.mjs    # 30 headless checks on the height field
-node sunlands-v6/tools/probe.mjs             # drives the real page in a real browser
+node sunlands-v6/tools/probe.mjs             # 39 checks against the real page
 node sunlands-v6/tools/probe.mjs --shots     # the same, plus tier screenshots
 node sunlands-v6/tools/shots.mjs             # the review screenshot set
 node sunlands-v6/tools/budget.mjs            # the Part 2 budget check, fast
