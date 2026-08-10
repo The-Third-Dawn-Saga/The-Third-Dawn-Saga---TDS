@@ -28,6 +28,9 @@ export class Hud {
       todVal: $('todVal'),
     };
     $('infoClose').addEventListener('click', () => this.hideInfo());
+    this.el.fly = $('infoFly');
+    this._flyAction = null;
+    if (this.el.fly) this.el.fly.addEventListener('click', () => { if (this._flyAction) this._flyAction(); });
     this._lastStep = -1;
     this._lastTier = '';
   }
@@ -82,6 +85,11 @@ export class Hud {
   }
 
   hideInfo() { this.el.info.classList.remove('vis'); }
+
+  setInfoAction(fn) {
+    this._flyAction = fn;
+    if (this.el.fly) this.el.fly.classList.toggle('vis', !!fn);
+  }
 
   setTimeLabel(hours) {
     const h = Math.floor(hours) % 24;

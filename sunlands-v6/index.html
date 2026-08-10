@@ -88,6 +88,19 @@ canvas{display:block;}
 .tag.RECONCILE{color:#D97070;border-color:rgba(217,112,112,.55);}
 .tag.OPEN{color:#7FA8D0;border-color:rgba(127,168,208,.55);}
 
+#labels{position:fixed;inset:0;pointer-events:none;z-index:15;}
+.place-label{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;
+  background:rgba(15,10,4,.62);border:1px solid rgba(212,160,18,.34);border-radius:4px;
+  color:var(--gl);font-family:Georgia,serif;font-size:.66rem;letter-spacing:.6px;
+  padding:2px 7px;white-space:nowrap;transition:background .12s,border-color .12s;}
+.place-label:hover{background:rgba(30,20,6,.92);border-color:var(--gl);color:#fff;}
+.place-label.tag-PROPOSED{border-color:rgba(224,168,92,.5);color:#E0A85C;}
+.place-label.tag-RECONCILE{border-color:rgba(217,112,112,.5);color:#D97070;}
+.place-label.tag-OPEN{border-color:rgba(127,168,208,.5);color:#7FA8D0;}
+
+#infoFly{margin-top:8px;display:none;}
+#infoFly.vis{display:inline-block;}
+
 #dev{position:absolute;right:10px;bottom:12px;background:var(--panel);border:1px solid var(--line);
   border-radius:7px;padding:7px 9px;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:.62rem;color:var(--mu);line-height:1.5;display:none;white-space:pre;}
@@ -108,6 +121,7 @@ canvas{display:block;}
   <div class="sub" id="bootmsg">starting</div>
 </div>
 
+<div id="labels"></div>
 <div id="hud">
   <div class="topbar">
     <h1>THE SOUTHERN SUNLANDS</h1>
@@ -155,6 +169,7 @@ canvas{display:block;}
     <div class="kind" id="infoKind"></div>
     <div id="infoTags"></div>
     <p id="infoText"></p>
+    <button class="btn" id="infoFly">Fly there</button>
   </div>
 
   <div id="scaleWrap">

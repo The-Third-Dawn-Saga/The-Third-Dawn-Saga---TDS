@@ -27,6 +27,12 @@ import { Sky } from './sky.js';
 import { Ocean } from './water/ocean.js';
 import { ShimmerShader } from './shaders/shimmer.js';
 import { Hud } from './ui/hud.js';
+import { Labels } from './ui/labels.js';
+import { RegionManager } from './world.js';
+import { loadCanon, registerRegions } from './regions/index.js';
+import { createSunklayMaterial, updateSunklayUniforms } from './city/materials.js';
+import { updateVeil } from './city/veil.js';
+import { updatePyramids, updateShapes } from './regions/landmarks.js';
 
 const DEV = new URLSearchParams(location.search).has('dev');
 
@@ -159,6 +165,43 @@ controls.target.copy(absToScene(0, SEA_LEVEL, 120 * KM));
 camera.position.copy(absToScene(0, openAltitude, 900 * KM));
 controls.update();
 
+/* ---- regions --------------------------------------------------------------
+   Nothing is in the scene at load. canon.json is fetched, every place is
+   registered with the streaming manager, and content is generated the first
+   time the camera comes close enough for it to be worth drawing. */
+const sunklay = createSunklayMaterial();
+const regions = new RegionManager(regionRoot);
+const regionCtx = { sunklay, env };
+let canon = null;
+let labels = null;
+let placesById = new Map();
+
+const pyramidState = { active: false, phase: 0, timer: 0, done: false };
+const shapeRng = { t: 20240710 };
+const _regionFrustum = new THREE.Frustum();
+const _regionPV = new THREE.Matrix4();
+
+loadCanon().then(c => {
+  canon = c;
+  placesById = registerRegions(regions, c);
+  labels = new Labels(document.getElementById('labels'), c.places, showPlace);
+  buildGotoButtons(c);
+  window.__canon = c;
+}).catch(err => {
+  console.error('canon.json failed to load:', err);
+  hud.boot(1, 'canon data unavailable');
+});
+
+function showPlace(p) {
+  hud.showInfo({
+    name: p.name,
+    kind: `${p.kind || ''}${p.population ? '  ' + String.fromCharCode(183) + '  Pop ' + p.population : ''}`,
+    tags: p.tags || [],
+    info: p.info || '',
+  });
+  hud.setInfoAction(() => flyTo(p.x, p.z, p.extent ? Math.max(4000, p.extent * 0.9) : 3500));
+}
+
 /* ---- HUD ------------------------------------------------------------------ */
 
 const hud = new Hud();
@@ -179,25 +222,27 @@ document.getElementById('seasonBtns').addEventListener('click', (e) => {
   [...e.currentTarget.children].forEach(c => c.classList.toggle('on', c === b));
 });
 
-/* Fly-to presets. Region modules extend this list in a later step; for now it
-   proves the coordinate system against the placement table. */
-const PLACES = [
-  { id: 'territory', name: 'Whole territory', x: 0, z: 120 * KM, alt: 1450 * KM },
-  { id: 'sundisk', name: 'Sundisk City', x: 0, z: 0, alt: 14 * KM },
-  { id: 'glass', name: 'Glass Desert', x: 530 * KM, z: -70 * KM, alt: 120 * KM },
-  { id: 'salt', name: 'Great Salt Flats', x: -520 * KM, z: 40 * KM, alt: 110 * KM },
-  { id: 'ashteeth', name: 'The Ashteeth', x: 100 * KM, z: -900 * KM, alt: 70 * KM },
-  { id: 'cliffs', name: 'Wailing Cliffs', x: 60 * KM, z: 112 * KM, alt: 4 * KM },
-  { id: 'ashlands', name: 'Western Ashlands', x: -1900 * KM, z: -100 * KM, alt: 260 * KM },
-];
-{
+/* Fly-to presets, drawn from canon so there is one list of places, not two. */
+const PRESET_IDS = ['territory', 'sundisk', 'gate', 'arena', 'glass', 'saltflats',
+                    'solkhari', 'goldencoast', 'fishing', 'drumharbor', 'kosei',
+                    'ashteeth', 'mournscar'];
+const PRESET_ALT = {
+  territory: 1450 * KM, sundisk: 14 * KM, gate: 1.4 * KM, arena: 900,
+  glass: 120 * KM, saltflats: 110 * KM, solkhari: 4 * KM, goldencoast: 6 * KM,
+  fishing: 700, drumharbor: 6 * KM, kosei: 8 * KM, ashteeth: 70 * KM,
+  mournscar: 12 * KM,
+};
+
+function buildGotoButtons(c) {
   const wrap = document.getElementById('gotoBtns');
-  wrap.innerHTML = PLACES.map(p => `<button class="btn" data-p="${p.id}">${p.name}</button>`).join('');
-  wrap.addEventListener('click', (e) => {
+  const list = PRESET_IDS.map(id => c.places.find(p => p.id === id)).filter(Boolean);
+  wrap.innerHTML = list.map(p => `<button class="btn" data-p="${p.id}">${p.name}</button>`).join('');
+  wrap.onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    const p = PLACES.find(q => q.id === b.dataset.p); if (!p) return;
-    flyTo(p.x, p.z, p.alt);
-  });
+    const p = list.find(q => q.id === b.dataset.p); if (!p) return;
+    flyTo(p.x, p.z, PRESET_ALT[p.id] || 5 * KM);
+    showPlace(p);
+  };
 }
 
 /**
@@ -278,6 +323,11 @@ function tick() {
   terrain.update(camera, viewport.h);
   updateTerrainUniforms(terrainMaterial, env, off, projK);
   sky.update(camera, env, camera.position.y - SEA_LEVEL);
+  updateSunklayUniforms(sunklay, env);
+
+  /* Region content: distance and tier driven, one build per frame. */
+  const camAbs = { x: camAbsX, z: camAbsZ };
+  regions.update(camAbs, altitude, regionCtx);
 
   /* The prepass is only worth its terrain pass when the sea is close enough
      for depth to matter. Out in the deep desert the water is not on screen at
@@ -305,9 +355,40 @@ function tick() {
     renderer.render(scene, camera);
   }
 
+  /* Region animation that needs the frustum, above all the Shapes, which may
+     only move while no part of them is on screen. */
+  _regionPV.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  _regionFrustum.setFromProjectionMatrix(_regionPV);
+  const glassRegion = regions.get('glass');
+  if (glassRegion && glassRegion.group && glassRegion.group.visible) {
+    for (const lvl of glassRegion.levels) {
+      if (lvl && lvl.visible) updateShapes(lvl, _regionFrustum, shapeRng);
+    }
+  }
+  const khariRegion = regions.get('solkhari');
+  if (khariRegion && khariRegion.group && khariRegion.group.visible) {
+    for (const lvl of khariRegion.levels) {
+      if (!lvl || !lvl.visible) continue;
+      lvl.traverse(o => { if (o.userData.pyramids) updatePyramids(o, pyramidState, dt, env); });
+    }
+  }
+  const cityRegion = regions.get('sundisk');
+  if (cityRegion && cityRegion.group && cityRegion.group.visible) {
+    for (const lvl of cityRegion.levels) {
+      if (!lvl || !lvl.visible) continue;
+      lvl.traverse(o => {
+        if (o.userData.veil) updateVeil(o, env, wantDepth ? depthRT.texture : null);
+      });
+    }
+  }
+
   /* HUD */
   const focusDist = camera.position.distanceTo(controls.target);
   hud.update(altitude, focusDist, camera, viewport);
+  if (labels) {
+    labels.update(camera, off, viewport, tierForAltitude(altitude),
+      (x, z) => walkableHeight(x, z));
+  }
 
   frames++; fpsAccum += dt;
   if (fpsAccum > 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
@@ -326,6 +407,7 @@ function tick() {
       `<b>fps</b> ${fps.toFixed(0)}   <b>draws</b> ${info.calls}   <b>tris</b> ${(info.triangles / 1000).toFixed(0)}k\n` +
       `<b>chunks</b> vis ${t.visible} res ${t.resident} q ${t.queued} depth ${t.deepest}\n` +
       `<b>alt</b> ${altitude.toFixed(0)} m  <b>near/far</b> ${nf.near.toFixed(1)} / ${(nf.far / 1000).toFixed(0)}k\n` +
+      `<b>regions</b> active ${regions.stats.active} built ${regions.stats.built}\n` +
       `<b>origin</b> ${(off.x / 1000).toFixed(1)}, ${(off.z / 1000).toFixed(1)} km`);
     if (info.calls > 900) console.warn(`draw call budget exceeded: ${info.calls}`);
   }
@@ -369,6 +451,10 @@ window.__stats = () => ({
 });
 
 window.__flyTo = flyTo;
+window.__regions = () => ({ ...regions.stats });
+window.__showPlace = (id) => { const p = placesById.get(id); if (p) { showPlace(p); flyTo(p.x, p.z, PRESET_ALT[id] || 4 * KM); } return !!p; };
+window.__activatePyramids = () => { pyramidState.active = true; pyramidState.phase = 0; pyramidState.timer = 0; };
+window.__canonPlaces = () => (canon ? canon.places.map(p => ({ id: p.id, name: p.name, x: p.x, z: p.z, tags: p.tags })) : []);
 window.__env = env;
 window.__camera = camera;
 window.__terrainHeight = terrainHeight;
