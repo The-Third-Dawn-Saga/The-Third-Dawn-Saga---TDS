@@ -553,9 +553,34 @@ export function terrainHeight(x, z, ctx) {
   /* Surface ripples, the finest term in the field. */
   const ripple = Math.sin((x * WX + z * WZ) * 0.8) * 0.15;
 
+  /* THE DUNE HIERARCHY, an extension to the composition above.
+
+     The terms the brief specifies run at sixteen to fifty kilometre
+     wavelengths, which is the size of a dune FIELD, not of a dune. On their
+     own they make a smooth plain, and the empty desert at true scale has to
+     be worth looking at. So the sand sea also carries the two scales a Sahara
+     erg actually has, both anisotropic in the wind frame because linear dunes
+     run ALONG the wind and repeat ACROSS it:
+
+       draa   mega-dunes, 2.6 km apart across the wind, running 26 km along it
+       dunes  secondary crests, 420 m apart, riding on the draa
+
+     Between the draa are the interdune corridors the sand sailers use as
+     shipping lanes, which is why the corridor width is authored and not left
+     to the noise. */
+  const draaDensity = smoothstep(-0.25, 0.35, fbm(u * 0.5, v * 0.5, 3, 1 / 90000, 0.5));
+  const draaRidge = Math.pow(1 - Math.abs(simplex2(u / 26000, v / 2600)), 1.7);
+  const draa = draaRidge * 62 * draaDensity;
+  const duneRidge = Math.pow(1 - Math.abs(simplex2(u / 2600, v / 420)), 1.9);
+  const dune2 = duneRidge * 13 * draaDensity * (0.35 + 0.65 * draaRidge);
+
+  /* The reg is not featureless either: shallow wadis drain it, and they are
+     what floods in the brief violent rain. */
+  const wadi = -Math.pow(1 - Math.abs(simplex2(x * 0.000021, z * 0.000021)), 6.0) * 26;
+
   let h = 210 + base
-        + sand * (dunes + ridges * 0.85)
-        + (1 - sand) * (reg + dunes * 0.08)
+        + sand * (dunes + ridges * 0.85 + draa + dune2)
+        + (1 - sand) * (reg + dunes * 0.08 + wadi)
         + ripple;
 
   /* --- star dunes -------------------------------------------------------- */

@@ -10,6 +10,9 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 import {
   KM, WORLD, TIERS, tierForAltitude, nearFarForAltitude,
@@ -19,7 +22,10 @@ import {
 import { env } from './env.js';
 import { TerrainStreamer } from './terrain/chunker.js';
 import { createTerrainMaterial, updateTerrainUniforms } from './terrain/sand.js';
-import { terrainHeight, walkableHeight, SEA_LEVEL, STAR_DUNES } from './terrain/height.js';
+import { terrainHeight, walkableHeight, coastDistance, SEA_LEVEL, STAR_DUNES } from './terrain/height.js';
+import { Sky } from './sky.js';
+import { Ocean } from './water/ocean.js';
+import { ShimmerShader } from './shaders/shimmer.js';
 import { Hud } from './ui/hud.js';
 
 const DEV = new URLSearchParams(location.search).has('dev');
@@ -35,8 +41,16 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+/* Khronos PBR Neutral rather than ACES. This build is a canon reference: when
+   the palette says the sand is #C2A24D, the sand on screen has to read as
+   #C2A24D. ACES pushes already-saturated golds hard toward orange and clips
+   the red channel long before the image is bright; the neutral map holds hue
+   and desaturates only where it must. */
+renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.0;
+/* Draw calls have to be counted across every pass, not just the last one, or
+   the post-processing path reports two triangles and a clean bill of health. */
+renderer.info.autoReset = false;
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -61,10 +75,65 @@ registerRoot(regionRoot, 0, 0);
 const terrainMaterial = createTerrainMaterial();
 const terrain = new TerrainStreamer(terrainRoot, terrainMaterial);
 
-/* ---- sky ------------------------------------------------------------------
-   A flat backdrop for now. Step two replaces it with Rayleigh and Mie
-   scattering driven by the same sun this file already uses. */
-scene.background = new THREE.Color(0x8fb4d8);
+/* ---- sky and post ---------------------------------------------------------
+   Rayleigh and Mie scattering on a screen-filling quad, and a heat shimmer
+   pass that only runs when the air is actually hot enough to refract, so the
+   full-screen copy is not paid for at dawn. */
+const sky = new Sky(scene);
+const ocean = new Ocean(scene);
+
+/* ---- the depth prepass ----------------------------------------------------
+   The water needs to know how deep it is at every pixel, and the honest way
+   to get that is to ask the terrain. Half resolution, terrain only, colour
+   and depth: the colour attachment doubles as the refraction source, so the
+   shallows show the seabed through the surface for free. */
+const depthRT = new THREE.WebGLRenderTarget(1, 1, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  depthBuffer: true,
+});
+depthRT.depthTexture = new THREE.DepthTexture(1, 1);
+depthRT.depthTexture.type = THREE.UnsignedIntType;
+depthRT.texture.colorSpace = THREE.SRGBColorSpace;
+const _invViewProj = new THREE.Matrix4();
+
+function renderDepthPass() {
+  sky.mesh.visible = false;
+  ocean.mesh.visible = false;
+  regionRoot.visible = false;
+  const prev = renderer.getRenderTarget();
+  renderer.setRenderTarget(depthRT);
+  renderer.setClearColor(0x000000, 0);
+  renderer.clear(true, true, false);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(prev);
+  sky.mesh.visible = true;
+  ocean.mesh.visible = true;
+  regionRoot.visible = true;
+}
+
+const composer = new EffectComposer(renderer);
+/* The materials do their own tone mapping and sRGB encode, and Three.js picks
+   the encode from the CURRENT render target's colour space. Telling the
+   composer's targets they hold sRGB keeps the composited path identical to
+   the direct one instead of quietly skipping the encode. */
+composer.renderTarget1.texture.colorSpace = THREE.SRGBColorSpace;
+composer.renderTarget2.texture.colorSpace = THREE.SRGBColorSpace;
+composer.addPass(new RenderPass(scene, camera));
+const shimmerPass = new ShaderPass(ShimmerShader);
+composer.addPass(shimmerPass);
+
+const _fwd = new THREE.Vector3();
+const _horizonProbe = new THREE.Vector3();
+function horizonNdcY() {
+  camera.getWorldDirection(_fwd);
+  _fwd.y = 0;
+  if (_fwd.lengthSq() < 1e-9) return -2;      // looking straight down
+  _fwd.normalize();
+  _horizonProbe.copy(camera.position).addScaledVector(_fwd, 1e7);
+  _horizonProbe.project(camera);
+  return _horizonProbe.y;
+}
 
 /* ---- the fly-over rig ----------------------------------------------------- */
 
@@ -131,12 +200,23 @@ const PLACES = [
   });
 }
 
-/** Put the camera over an absolute ground point at a given altitude. */
-function flyTo(ax, az, altitude) {
+/**
+ * Put the camera over an absolute ground point at a given altitude.
+ * @param {number} headingDeg optional compass bearing to look along, 0 north
+ */
+function flyTo(ax, az, altitude, headingDeg) {
   const groundY = walkableHeight(ax, az);
   controls.target.copy(absToScene(ax, groundY, az));
   const back = altitude * 0.55;
-  camera.position.copy(absToScene(ax, groundY + altitude, az + back));
+  if (headingDeg === null || headingDeg === undefined) {
+    camera.position.copy(absToScene(ax, groundY + altitude, az + back));
+  } else {
+    /* Compass bearing: 0 north, 90 east. North is -Z here, so the camera sits
+       opposite the bearing and looks along it. */
+    const r = headingDeg * Math.PI / 180;
+    const dx = Math.sin(r), dz = -Math.cos(r);
+    camera.position.copy(absToScene(ax - dx * back, groundY + altitude, az - dz * back));
+  }
   controls.update();
 }
 
@@ -148,13 +228,17 @@ addEventListener('resize', () => {
   camera.aspect = viewport.w / viewport.h;
   camera.updateProjectionMatrix();
   renderer.setSize(viewport.w, viewport.h);
+  composer.setSize(viewport.w, viewport.h);
+  depthRT.setSize(Math.max(2, viewport.w >> 1), Math.max(2, viewport.h >> 1));
 });
+depthRT.setSize(Math.max(2, viewport.w >> 1), Math.max(2, viewport.h >> 1));
 
 /* ---- the loop ------------------------------------------------------------- */
 
 const clock = new THREE.Clock();
 let frames = 0, fpsAccum = 0, fps = 0;
 let booted = false;
+let lastWantDepth = false;
 
 function tick() {
   requestAnimationFrame(tick);
@@ -190,12 +274,36 @@ function tick() {
   /* Terrain: pixels of screen error per metre at one metre, which is the only
      number the selector and the geomorph shader need to agree on. */
   const projK = viewport.h / (2 * Math.tan(camera.fov * Math.PI / 360));
+  renderer.info.reset();
   terrain.update(camera, viewport.h);
   updateTerrainUniforms(terrainMaterial, env, off, projK);
+  sky.update(camera, env, camera.position.y - SEA_LEVEL);
 
-  scene.background = env.fogColor;
+  /* The prepass is only worth its terrain pass when the sea is close enough
+     for depth to matter. Out in the deep desert the water is not on screen at
+     all, and past Regional tier the shoreline is thinner than a pixel. */
+  const camCoast = coastDistance(camAbsX, camAbsZ);
+  const wantDepth = altitude < 26 * KM && camCoast < 120 * KM;
+  lastWantDepth = wantDepth;
+  if (wantDepth) renderDepthPass();
+  _invViewProj.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+  ocean.update(camera, env, altitude,
+    wantDepth ? { depth: depthRT.depthTexture, color: depthRT.texture } : null,
+    _invViewProj);
 
-  renderer.render(scene, camera);
+  /* Heat shimmer is worth a full-screen copy only while it is visible. */
+  const glassNear = Math.max(0, 1 - Math.hypot(camAbsX - 530 * KM, camAbsZ + 70 * KM) / (400 * KM));
+  const shimmerAmount = env.shimmer * (1 - Math.min(1, altitude / 40000));
+  shimmerPass.uniforms.uAmount.value = shimmerAmount;
+  shimmerPass.uniforms.uTime.value = env.time;
+  shimmerPass.uniforms.uAspect.value = camera.aspect;
+  shimmerPass.uniforms.uGlass.value = glassNear;
+  if (shimmerAmount > 0.004) {
+    shimmerPass.uniforms.uHorizonY.value = horizonNdcY();
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 
   /* HUD */
   const focusDist = camera.position.distanceTo(controls.target);
@@ -253,6 +361,7 @@ window.__scaleTestLive = () => {
 window.__stats = () => ({
   fps,
   draws: renderer.info.render.calls,
+  depthPass: lastWantDepth,
   triangles: renderer.info.render.triangles,
   terrain: { ...terrain.stats },
   altitude: camera.position.y,
@@ -267,3 +376,86 @@ window.__starDunes = () => STAR_DUNES.map(d => ({ x: d.x, z: d.z, h: d.height })
 window.__tiers = TIERS;
 window.__ready = () => booted;
 window.__terrainSettled = () => terrain.isSettled();
+
+/* Read back real pixels so shading can be calibrated against numbers rather
+   than against an impression of a screenshot. Renders first, because the
+   drawing buffer is not preserved between tasks. */
+window.__setDebug = (n) => { terrainMaterial.uniforms.uDebug.value = n | 0; };
+window.__oceanDebug = (n) => { ocean.uniforms.uDebugFlat.value = n | 0; };
+window.__testPlane = () => {
+  const g = new THREE.PlaneGeometry(40000, 40000);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+  m.position.set(camera.position.x, SEA_LEVEL, camera.position.z);
+  scene.add(m);
+  return 'added';
+};
+window.__oceanFlag = (k, v) => { ocean.material[k] = v; ocean.material.needsUpdate = true; };
+window.__probeAt = (px, py) => {
+  /* What is actually at this pixel: raycast the terrain chunks and report the
+     hit height, so the depth question can be settled with a number. */
+  const ndc = new THREE.Vector2((px / viewport.w) * 2 - 1, -(py / viewport.h) * 2 + 1);
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(ndc, camera);
+  rc.far = camera.far;
+  const hits = rc.intersectObject(terrainRoot, true);
+  return hits.length ? { y: hits[0].point.y, dist: hits[0].distance } : null;
+};
+window.__oceanOnly = () => {
+  terrainRoot.visible = false;
+  renderer.info.reset();
+  renderer.render(scene, camera);
+  const calls = renderer.info.render.calls, tris = renderer.info.render.triangles;
+  const gl = renderer.getContext();
+  const dpr = renderer.getPixelRatio();
+  const buf = new Uint8Array(4);
+  gl.readPixels(Math.round(viewport.w / 2 * dpr), Math.round(viewport.h / 2 * dpr), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  terrainRoot.visible = true;
+  const props = renderer.properties.get(ocean.material);
+  return { calls, tris, pixel: [buf[0], buf[1], buf[2]],
+           program: !!(props && props.currentProgram),
+           diagnostics: props && props.currentProgram ? props.currentProgram.diagnostics || null : null };
+};
+window.__oceanBasic = (on) => {
+  if (on) {
+    ocean.mesh.userData.realMat = ocean.mesh.material;
+    ocean.mesh.material = new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide });
+  } else if (ocean.mesh.userData.realMat) {
+    ocean.mesh.material = ocean.mesh.userData.realMat;
+  }
+};
+window.__oceanSrc = () => ocean.material.vertexShader;
+window.__oceanVerts = () => {
+  const a = ocean.mesh.geometry.getAttribute('position');
+  const idx = ocean.mesh.geometry.getIndex();
+  return {
+    count: a.count, itemSize: a.itemSize,
+    first: Array.from(a.array.slice(0, 12)),
+    mid: Array.from(a.array.slice(3 * 60 * 129, 3 * 60 * 129 + 12)),
+    indexCount: idx ? idx.count : 0,
+    indexType: idx ? idx.array.constructor.name : 'none',
+    maxIndex: idx ? Math.max(...Array.from(idx.array.slice(-30))) : -1,
+    drawRange: ocean.mesh.geometry.drawRange.count,
+  };
+};
+window.__oceanInfo = () => ({
+  visible: ocean.mesh.visible,
+  hasDepth: ocean.uniforms.uHasDepth.value,
+  radius: ocean.uniforms.uRadius.value,
+  waveScale: ocean.uniforms.uWaveScale.value,
+  centre: ocean.uniforms.uCentre.value.toArray(),
+  seaLevel: ocean.uniforms.uSeaLevel.value,
+  camY: camera.position.y,
+  programOk: !!ocean.material.program,
+});
+window.__samplePixels = (points) => {
+  renderer.render(scene, camera);
+  const gl = renderer.getContext();
+  const dpr = renderer.getPixelRatio();
+  const buf = new Uint8Array(4);
+  return points.map(([px, py]) => {
+    gl.readPixels(Math.round(px * dpr), Math.round((viewport.h - py) * dpr), 1, 1,
+                  gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return [buf[0], buf[1], buf[2]];
+  });
+};

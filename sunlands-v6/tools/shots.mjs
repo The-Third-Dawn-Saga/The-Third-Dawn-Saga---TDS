@@ -22,19 +22,24 @@ const KM = 1000;
 export const VIEWS = [
   ['territory',     0, 120, 1450 * KM, 10, 'clear', 'greening'],
   ['sunlands_wide', 0, 40, 420 * KM, 9, 'clear', 'greening'],
-  ['dunes',         -300, -240, 9 * KM, 8, 'clear', 'greening'],
-  ['dunes_low',     -300, -240, 900, 7.5, 'clear', 'greening'],
+  ['erg',           -72, -96, 8 * KM, 8, 'clear', 'greening'],
+  ['erg_low',       -72, -96, 260, 7.5, 'clear', 'greening'],
+  ['erg_horizon',   -72, -96, 90, 9, 'clear', 'greening', 90],
+  ['reg',           -300, -240, 2 * KM, 10, 'clear', 'greening'],
   ['ashteeth',      120, -880, 26 * KM, 9, 'clear', 'greening'],
   ['cliffs',        62, 110, 3 * KM, 8, 'clear', 'greening'],
-  ['coast',         40, 100, 14 * KM, 16, 'clear', 'greening'],
+  ['coast',         40, 100, 14 * KM, 16, 'clear', 'greening', 150],
+  ['shore',         66, 118, 260, 9, 'clear', 'greening', 150],
+  ['sea',           40, 260, 3 * KM, 10, 'clear', 'greening', 340],
   ['glass',         530, -70, 60 * KM, 12, 'clear', 'greening'],
   ['saltflats',     -520, 40, 45 * KM, 11, 'clear', 'dust'],
   ['sundisk',       0, 0, 11 * KM, 8, 'clear', 'greening'],
   ['sundisk_low',   0, -3.2, 700, 7, 'clear', 'greening'],
   ['ashlands',      -1900, -100, 90 * KM, 11, 'clear', 'greening'],
   ['harmattan',     -200, -100, 4 * KM, 11, 'harmattan', 'dust'],
-  ['dusk',          -300, -240, 3 * KM, 18.3, 'clear', 'dust'],
-  ['night',         0, 0, 6 * KM, 23, 'clear', 'greening'],
+  ['dusk',          -72, -96, 400, 18.3, 'clear', 'dust', 180],
+  ['night',         -72, -96, 300, 23, 'clear', 'greening'],
+  ['noon_shimmer',  -72, -96, 120, 13, 'clear', 'dust'],
 ];
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -65,12 +70,12 @@ await page.goto(`${base}/index.html?dev=1`, { waitUntil: 'load' });
 await page.waitForFunction(() => typeof window.__flyTo === 'function', null, { timeout: 30000 });
 
 const want = process.argv.slice(2);
-for (const [name, xk, zk, alt, tod, weather, season] of VIEWS) {
+for (const [name, xk, zk, alt, tod, weather, season, heading] of VIEWS) {
   if (want.length && !want.includes(name)) continue;
-  await page.evaluate(([x, z, a, t, w, s]) => {
+  await page.evaluate(([x, z, a, t, w, s, h]) => {
     window.__env.setTime(t); window.__env.setWeather(w); window.__env.setSeason(s);
-    window.__flyTo(x, z, a);
-  }, [xk * KM, zk * KM, alt, tod, weather, season]);
+    window.__flyTo(x, z, a, h);
+  }, [xk * KM, zk * KM, alt, tod, weather, season, heading === undefined ? null : heading]);
   await page.waitForFunction(() => window.__terrainSettled(), null, { timeout: 120000 }).catch(() => {});
   await page.waitForTimeout(700);
   await page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)) });

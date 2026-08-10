@@ -43,6 +43,46 @@ import { WIND } from '../units.js';
 export const HIFREQ_WRAP = 8192.0;
 export const LOFREQ_SCALE = 1e-4;
 
+
+/* ---------------------------------------------------------------------------
+   THE PALETTE
+
+   Canon quotes these as hex, which means sRGB. The shader works in linear
+   light, and using an sRGB value as a linear albedo makes sand come out pale
+   and yellow instead of golden: #C2A24D is 0.76 red in sRGB but 0.54 in
+   linear, and the green and blue channels move by different amounts, so the
+   hue shifts as well as the brightness. Converted once here, in JS, and
+   injected as literals so the shader pays nothing for it.
+   ------------------------------------------------------------------------ */
+
+const PALETTE = {
+  /* Sahara golden, per Part 5.1 */
+  SAND_BASE:   '#C2A24D',
+  SAND_SHADOW: '#7B6250',
+  SAND_HIGH:   '#E4BD8F',
+  /* Salt flats, per Part 5.1 */
+  SALT_BASE:   '#E8E4D8',
+  SALT_HIGH:   '#F5F3EE',
+  /* Hard reg pavement, the 70 percent of the Sunlands that is not sand sea */
+  REG_BASE:    '#9F8560',
+  /* The Glass Desert sheet, and the Ashlands basalt and rust */
+  GLASS_BASE:  '#5A6A76',
+  ASH_BASE:    '#3E3A36',
+  RUST_BASE:   '#5F3E2B',
+  ROCK_BASE:   '#665D53',
+  /* Oasis and canal-corridor greenery */
+  GREEN_BASE:  '#375028',
+};
+
+/* THREE.Color's hex constructor already converts sRGB to working (linear)
+   space when colour management is on, which it is by default. Calling
+   convertSRGBToLinear on top of that applies the transfer function twice and
+   turns golden sand into dark rust. */
+const PALETTE_GLSL = Object.entries(PALETTE).map(([name, hex]) => {
+  const c = new THREE.Color(hex);
+  return `const vec3 ${name} = vec3(${c.r.toFixed(5)}, ${c.g.toFixed(5)}, ${c.b.toFixed(5)});  // ${hex}`;
+}).join('\n');
+
 const VERT = /* glsl */`
 precision highp float;
 
@@ -115,7 +155,9 @@ ${GLSL_FOG}
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform float uSunIntensity;
-uniform vec3 uAmbient;
+uniform float uAmbientScale;
+uniform vec3 uNightAmbient;
+uniform float uNightBlend;
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 uniform vec2 uWindDir;
@@ -125,6 +167,7 @@ uniform float uVerdant;    // season, the Greening against the Long Dust
 uniform float uDust;       // Harmattan
 uniform float uSeaLevel;
 uniform float uTide;
+uniform int uDebug;   // dev only: 1 albedo, 2 material weights, 3 light, 4 normal
 
 varying vec3 vWorld;
 varying vec3 vNormal;
@@ -135,18 +178,7 @@ varying vec2 vHiUV;
 varying vec2 vLoUV;
 varying float vChunkSize;
 
-/* Sahara golden. */
-const vec3 SAND_BASE   = vec3(0.760, 0.635, 0.302);   // #C2A24D
-const vec3 SAND_SHADOW = vec3(0.482, 0.384, 0.314);   // #7B6250
-const vec3 SAND_HIGH   = vec3(0.894, 0.741, 0.561);   // #E4BD8F
-const vec3 SALT_BASE   = vec3(0.910, 0.894, 0.847);   // #E8E4D8
-const vec3 SALT_HIGH   = vec3(0.961, 0.953, 0.933);   // #F5F3EE
-const vec3 REG_BASE    = vec3(0.545, 0.451, 0.322);
-const vec3 GLASS_BASE  = vec3(0.352, 0.416, 0.463);
-const vec3 ASH_BASE    = vec3(0.243, 0.227, 0.212);
-const vec3 RUST_BASE   = vec3(0.372, 0.243, 0.169);
-const vec3 ROCK_BASE   = vec3(0.400, 0.365, 0.325);
-const vec3 GREEN_BASE  = vec3(0.216, 0.310, 0.153);
+${PALETTE_GLSL}
 
 /* Ripple height field, oriented by the prevailing wind. Analytic, so the
    normal comes out of the same expression rather than out of a texture. */
@@ -171,8 +203,8 @@ void main(){
      metres, so it is faded rather than aliased. The fades also keep the
      float32 world coordinate honest at continental range, where wrapping the
      high frequency coordinate would otherwise show. */
-  float fGrain  = 1.0 - smoothstep(20.0, 160.0, vDist);
-  float fGlint  = 1.0 - smoothstep(60.0, 900.0, vDist);
+  float fGrain  = 1.0 - smoothstep(2.5, 30.0, vDist);
+  float fGlint  = 1.0 - smoothstep(600.0, 4000.0, vDist);
   float fRipple = 1.0 - smoothstep(400.0, 3500.0, vDist);
 
   /* ---- layer 5: triplanar ripple normals ------------------------------ */
@@ -216,12 +248,12 @@ void main(){
   sandCol = mix(sandCol, SAND_SHADOW, clamp(-variation * 2.6, 0.0, 0.55));
 
   /* Reg pavement: darker, stonier, and cracked into polygons. */
-  float regCrack = smoothstep(0.05, 0.0, worley21(vHiUV * 0.05));
+  float regCrack = smoothstep(0.05, 0.0, worley21(vHiUV * 0.42));
   vec3 regCol = mix(REG_BASE, REG_BASE * 0.62, regCrack * fRipple);
   regCol = mix(regCol, regCol * (0.85 + variation), 0.6);
 
   /* Salt crust: the crack network is the whole look, threshold 0.05. */
-  float saltCrack = smoothstep(0.05, 0.0, worley21(vHiUV * 0.09));
+  float saltCrack = smoothstep(0.05, 0.0, worley21(vHiUV * 0.85));
   vec3 saltCol = mix(SALT_BASE, SALT_HIGH, clamp(0.5 + variation * 3.0, 0.0, 1.0));
   saltCol = mix(saltCol, vec3(0.62, 0.58, 0.52), saltCrack * 0.8 * fRipple);
 
@@ -259,7 +291,12 @@ void main(){
   rough = mix(rough, 0.22, wet);
   rough = mix(rough, 0.85, ash);
   float f0 = mix(0.028, 0.16, glass) * mix(1.0, 2.2, wet);
-  float spec = ggx(Nd, V, L, rough) * fresnelSchlick(f0, max(dot(Nd, V), 0.0));
+  /* The specular BRDF still owes the rendering equation its cosine term, and
+     Fresnel is a function of the half vector, not of the surface normal.
+     Without both, sand fires a white highlight at every grazing angle. */
+  vec3 Hv = normalize(L + V);
+  float specNdL = max(dot(Nd, L), 0.0);
+  float spec = ggx(Nd, V, L, rough) * fresnelSchlick(f0, max(dot(V, Hv), 0.0)) * specNdL;
 
   /* ---- layer 3: per-grain glitter -------------------------------------
      Individual grains catching the sun. Only a small fraction of grains are
@@ -267,12 +304,18 @@ void main(){
      highlight. Killed entirely on ash: the Ashlands do not sparkle. */
   float glint = 0.0;
   if (fGlint > 0.001) {
-    vec2 cell = floor(vHiUV * 42.0);
+    /* Grains are a fraction of a millimetre and will always be sub-pixel, so
+       a fixed grain size aliases into television snow the moment the camera
+       backs off. The cell is sized in SCREEN space instead: the sparkle keeps
+       a constant density on screen at every distance, which is what the eye
+       actually reads from a sunlit dune. */
+    float cellSize = max(0.03, vDist * 0.0045);
+    vec2 cell = floor(vHiUV / cellSize);
     vec2 r = hash22(cell);
-    if (r.x > 0.86) {
+    if (r.x > 0.938) {
       vec3 gn = normalize(Nd + vec3(r.x * 2.0 - 1.0, 0.55, r.y * 2.0 - 1.0) * 0.9);
       vec3 H = normalize(L + V);
-      glint = pow(max(dot(gn, H), 0.0), 620.0) * 12.0 * fGlint;
+      glint = pow(max(dot(gn, H), 0.0), 620.0) * 3.0 * fGlint * max(dot(Nd, L), 0.0);
       glint *= (sand * 0.9 + salt * 0.7 + glass * 1.4);
       glint *= (1.0 - ash);
     }
@@ -280,8 +323,12 @@ void main(){
 
   /* ---- assemble -------------------------------------------------------- */
   vec3 sun = uSunColor * uSunIntensity;
+  /* Hemispheric ambient: sky above, bounce below, weighted by how much of
+     each the surface can see. Multiplying the ambient COLOUR by the sky
+     colour would square the blue and turn every shadow cyan, which is a
+     mistake worth naming because it looks almost right until it does not. */
   float sky = 0.5 + 0.5 * Nd.y;
-  vec3 ambient = mix(uGroundColor, uSkyColor, sky) * uAmbient * 2.0;
+  vec3 ambient = mix(uGroundColor, uSkyColor, sky) * uAmbientScale + uNightAmbient;
 
   vec3 color = albedo * (ambient + sun * diffuse)
              + sun * spec * mix(1.0, 3.0, glass)
@@ -295,7 +342,43 @@ void main(){
   }
 
   color = applyFog(color, vDist, cameraPosition.y, vWorld.y);
-  gl_FragColor = vec4(color, 1.0);
+
+  /* THE PURKINJE SHIFT. At starlight levels the eye switches to rod vision,
+     which peaks further into the blue and has no colour discrimination at
+     all. That is why night reads as blue-grey rather than as a dim version of
+     day, and it is a real property of the observer rather than a film
+     convention, so it belongs in the render. */
+  if (uNightBlend > 0.001) {
+    float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float scotopic = 1.0 - smoothstep(0.0015, 0.045, lum);
+    color = mix(color, vec3(0.62, 0.80, 1.30) * lum, scotopic * 0.80 * uNightBlend);
+  }
+
+  vec3 outColor = color;
+
+  /* Dev only. Three.js injects tone mapping and the sRGB encode through the
+     two chunks at the bottom, and a preprocessor include has to start its own
+     line to be substituted, so the debug views pick their colour and then
+     fall through the same pipeline as everything else. */
+  if (uDebug == 1) outColor = albedo;
+  else if (uDebug == 2) outColor = vec3(reg, sand, salt + glass * 0.5);
+  else if (uDebug == 3) outColor = ambient + sun * diffuse;
+  else if (uDebug == 4) outColor = Nd * 0.5 + 0.5;
+  else if (uDebug == 5) outColor = SAND_BASE;
+  else if (uDebug == 6) outColor = SAND_HIGH;
+  else if (uDebug == 7) outColor = vec3(0.5 + variation * 2.2);
+
+  gl_FragColor = vec4(outColor, 1.0);
+
+  /* A raw ShaderMaterial gets none of the output pipeline for free: Three.js
+     injects tone mapping and the linear to sRGB encode into its own materials
+     through these two chunks, and a custom shader that writes gl_FragColor
+     without them ships raw linear values straight to the screen. That is not
+     a subtle error. Mid tones come out roughly half as bright as they should
+     be and saturated colours darker still, which reads as "the lighting is
+     wrong" and sends you tuning light levels that were correct all along. */
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `;
 
@@ -309,7 +392,9 @@ export function createTerrainMaterial() {
     uSunDir: { value: new THREE.Vector3(0, 1, 0) },
     uSunColor: { value: new THREE.Color(1, 1, 1) },
     uSunIntensity: { value: 2.2 },
-    uAmbient: { value: new THREE.Color(0.3, 0.3, 0.3) },
+    uAmbientScale: { value: 0.38 },
+    uNightAmbient: { value: new THREE.Color(0, 0, 0) },
+    uNightBlend: { value: 0 },
     uSkyColor: { value: new THREE.Color(0.4, 0.55, 0.8) },
     uGroundColor: { value: new THREE.Color(0.3, 0.24, 0.16) },
     uFogColor: { value: new THREE.Color(0.8, 0.8, 0.8) },
@@ -324,6 +409,7 @@ export function createTerrainMaterial() {
     uDust: { value: 0 },
     uSeaLevel: { value: SEA_LEVEL },
     uTide: { value: 0 },
+    uDebug: { value: 0 },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -349,8 +435,10 @@ export function updateTerrainUniforms(material, env, worldOffset, projK) {
   u.uSunDir.value.copy(env.sunDir);
   u.uSunColor.value.copy(env.sunColor);
   u.uSunIntensity.value = env.sunIntensity;
-  u.uAmbient.value.copy(env.ambient);
-  u.uSkyColor.value.copy(env.skyColor);
+  u.uAmbientScale.value = env.ambientScale;
+  u.uNightAmbient.value.copy(env.nightAmbient);
+  u.uNightBlend.value = env.nightFactor;
+  u.uSkyColor.value.copy(env.ambientSky);
   u.uGroundColor.value.copy(env.groundColor);
   u.uFogColor.value.copy(env.fogColor);
   u.uFogDensity.value = env.fogDensity;
