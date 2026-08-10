@@ -56,7 +56,7 @@ page.on('console', m => {
 /* The terrain builds at most three chunks a frame by design, so convergence
    is a function of frame rate, not of wall clock. Wait for the queue rather
    than guessing at a delay: under a software rasteriser that matters. */
-async function settle(page, timeout = 90000) {
+async function settle(page, timeout = 300000) {
   await page.waitForFunction(() => window.__terrainSettled(), null, { timeout }).catch(() => {});
   await page.waitForTimeout(400);
 }
@@ -177,7 +177,41 @@ for (const l of ['roads', 'rivers', 'farms', 'solanu', 'vassals', 'outposts', 'm
   await page.evaluate(k => window.__setLayer(k, false), l);
 }
 
-console.log('\nG. the floating origin actually engages');
+console.log('\nG. the Ashlands colour grade');
+{
+  await page.evaluate(() => window.__flyTo(-900e3, 200e3, 40e3));
+  await page.waitForTimeout(900);
+  const inSun = await page.evaluate(() => window.__ashBlend());
+  await page.evaluate(() => window.__flyTo(-1900e3, -100e3, 40e3));
+  await page.waitForTimeout(900);
+  const inAsh = await page.evaluate(() => window.__ashBlend());
+  ok(inSun < 0.02 && inAsh > 0.95, 'crossing the frontier is a colour grade change',
+     `Sol Taresh side ${inSun.toFixed(2)}, Mournscar side ${inAsh.toFixed(2)}`);
+  const s = await page.evaluate(() => window.__stats());
+  ok(s.draws < 900, 'the Ashlands stay inside the draw budget', `${s.draws} calls`);
+}
+
+console.log('\nG2. Sundisk carries a city, not a diorama');
+{
+  await page.evaluate(() => window.__flyTo(0, 0, 1200));
+  await settle(page, 180000);
+  const c = await page.evaluate(() => {
+    const r = window.__regions;
+    let n = 0, crowd = 0;
+    const walk = (o) => {
+      if (o.isInstancedMesh) { n += o.count; if (o.userData.crowd) crowd += o.count; }
+      o.children.forEach(walk);
+    };
+    walk(window.__scene);
+    return { instances: n, crowd };
+  });
+  ok(c.instances > 30000, 'at least thirty thousand building instances, Part 4.4',
+     `${c.instances.toLocaleString()} instances resident, ${c.crowd.toLocaleString()} of them people`);
+  const s = await page.evaluate(() => window.__stats());
+  ok(s.draws < 900, 'the full city stays inside the draw budget', `${s.draws} calls, ${(s.triangles / 1e6).toFixed(1)}M tris`);
+}
+
+console.log('\nH. the floating origin actually engages');
 await page.evaluate(() => window.__flyTo(530e3, -70e3, 30e3));
 await page.waitForTimeout(2500);
 const s1 = await page.evaluate(() => window.__stats());
@@ -186,7 +220,7 @@ ok(Math.hypot(s1.offset.x, s1.offset.z) > 100000, 'world offset moved with the c
 ok(Math.abs(s1.altitude) < 200000, 'camera stays near the scene origin in Y-free terms',
    `camera scene position y ${(s1.altitude / 1000).toFixed(1)} km`);
 
-console.log('\nH. errors across the whole run');
+console.log('\nI. errors across the whole run');
 ok(errors.length === 0, 'no console or page errors', errors.slice(0, 5).join(' | '));
 
 await browser.close();

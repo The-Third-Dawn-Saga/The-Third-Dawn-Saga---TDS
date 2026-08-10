@@ -212,9 +212,12 @@ export class Overlays {
   update(env, altitude) {
     const mig = this.groups.migration;
     if (mig && mig.visible) {
+      /* Herds run south at the onset of the Long Dust and north at the first
+         rain, so the season moves them rather than only fading them. The
+         flows are drawn on the full range and shifted along it. */
       const south = env.season === 'dust';
-      mig.rotation.y = 0;
-      for (const c of mig.children) c.material.opacity = south ? 0.55 : 0.32;
+      mig.position.z = south ? 180 * KM : -180 * KM;
+      for (const c of mig.children) c.material.opacity = south ? 0.55 : 0.34;
     }
     const farms = this.groups.farms;
     if (farms && farms.visible) {

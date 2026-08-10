@@ -572,6 +572,7 @@ export function buildSundiskFull(ctx) {
   if (ctx.buildWall) grp.add(ctx.buildWall(ctx));
   if (ctx.buildVeil) grp.add(ctx.buildVeil(ctx));
   if (ctx.buildWater) grp.add(ctx.buildWater(ctx));
+  if (ctx.buildCrowd) grp.add(ctx.buildCrowd(CITY));
 
   grp.userData.instanceCount = city.userData.instanceCount;
   /* The generator's own building list, handed to the character controller so

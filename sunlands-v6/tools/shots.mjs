@@ -76,9 +76,9 @@ for (const [name, xk, zk, alt, tod, weather, season, heading] of VIEWS) {
     window.__env.setTime(t); window.__env.setWeather(w); window.__env.setSeason(s);
     window.__flyTo(x, z, a, h);
   }, [xk * KM, zk * KM, alt, tod, weather, season, heading === undefined ? null : heading]);
-  await page.waitForFunction(() => window.__terrainSettled(), null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(() => window.__terrainSettled(), null, { timeout: 300000 }).catch(() => {});
   await page.waitForTimeout(700);
-  await page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, OUT)) });
+  await page.screenshot({ timeout: 180000, path: fileURLToPath(new URL(`${name}.png`, OUT)) });
   const s = await page.evaluate(() => window.__stats());
   console.log(`${name.padEnd(15)} draws ${String(s.draws).padStart(4)}  tris ${String(Math.round(s.triangles / 1000)).padStart(5)}k  chunks ${s.terrain.visible}`);
 }

@@ -16,6 +16,8 @@ import {
 import { buildSundiskFull, buildSundiskBlocks, buildSundiskImposter, CITY } from '../city/sundisk.js';
 import { buildWall, buildCityWater } from '../city/wall.js';
 import { buildVeil } from '../city/veil.js';
+import { buildCrowd } from './life.js';
+import { buildBrightSpot, BRIGHT_SPOTS, buildSeasonalLake } from './ashlands.js';
 import { KM } from '../units.js';
 
 export async function loadCanon(url = './data/canon.json') {
@@ -44,6 +46,7 @@ export function registerRegions(manager, canon) {
         imposterRange: 700 * KM,
         buildFull: (ctx) => buildSundiskFull({
           ...ctx, buildWall, buildVeil, buildWater: buildCityWater,
+          buildCrowd: (rings) => buildCrowd(rings, 9000),
         }),
         buildBlocks: (ctx) => buildSundiskBlocks({ ...ctx, buildWall, buildVeil }),
         buildImposter: buildSundiskImposter,
@@ -107,6 +110,32 @@ export function registerRegions(manager, canon) {
         fullRange: 30 * KM, blockRange: 60 * KM, imposterRange: 0,
         buildFull: (ctx) => buildShapes(p, ctx),
         buildBlocks: (ctx) => buildShapes(p, ctx),
+      });
+      continue;
+    }
+
+    if (p.id === 'faros') {
+      manager.add({
+        id: p.id, place: p, x: p.x, z: p.z, radius: 46 * KM,
+        fullRange: 60 * KM, blockRange: 140 * KM, imposterRange: 400 * KM,
+        buildFull: (ctx) => buildSeasonalLake(p, ctx, 46 * KM),
+        buildBlocks: (ctx) => buildSeasonalLake(p, ctx, 46 * KM),
+        buildImposter: (ctx) => buildSeasonalLake(p, ctx, 46 * KM),
+      });
+      continue;
+    }
+
+    if (BRIGHT_SPOTS[p.id]) {
+      /* The only saturated colour left in the Ashlands, which is exactly the
+         wrong place for anything to be lovely. */
+      const spec = BRIGHT_SPOTS[p.id];
+      manager.add({
+        id: p.id, place: p, x: p.x, z: p.z, radius: spec.radius,
+        fullRange: spec.radius * 3, blockRange: spec.radius * 6,
+        imposterRange: spec.radius * 30,
+        buildFull: (ctx) => buildBrightSpot(p, ctx, spec),
+        buildBlocks: (ctx) => buildBrightSpot(p, ctx, spec),
+        buildImposter: (ctx) => buildBrightSpot(p, ctx, spec),
       });
       continue;
     }

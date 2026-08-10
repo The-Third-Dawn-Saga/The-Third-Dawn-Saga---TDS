@@ -20,6 +20,7 @@
 
 import * as THREE from 'three';
 import { GLSL_NOISE, GLSL_LIGHTING, GLSL_FOG } from '../shaders/common.js';
+import { GLSL_SHADOW, shadowUniforms } from '../shadows.js';
 
 const VERT = /* glsl */`
 precision highp float;
@@ -66,6 +67,7 @@ precision highp float;
 ${GLSL_NOISE}
 ${GLSL_LIGHTING}
 ${GLSL_FOG}
+${GLSL_SHADOW}
 
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -128,7 +130,8 @@ void main(){
   vec3 diffCol = mix(albedo, vec3(0.0), metal);
   vec3 specCol = mix(vec3(1.0), GOLD_BRIGHT, metal);
 
-  vec3 color = diffCol * (ambient + sun * diffuse) + specCol * sun * spec;
+  float shade = sunShadow(vWorld, NdL);
+  vec3 color = diffCol * (ambient + sun * diffuse * shade) + specCol * sun * spec * shade;
 
   /* THE GRAZING RIM. Gold plaster on a curved parapet catches the light at
      the edge, which is what makes the inner ring hard to look at at golden
@@ -190,6 +193,7 @@ export function createSunklayMaterial() {
     uFogDensity: { value: 1 / 250000 },
     uFogHeightFalloff: { value: 1 / 8000 },
     uFogSeaLevel: { value: -241 },
+    ...shadowUniforms(),
   };
 
   const m = new THREE.ShaderMaterial({

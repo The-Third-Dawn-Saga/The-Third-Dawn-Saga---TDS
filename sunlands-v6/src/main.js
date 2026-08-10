@@ -24,6 +24,7 @@ import { TerrainStreamer } from './terrain/chunker.js';
 import { createTerrainMaterial, updateTerrainUniforms } from './terrain/sand.js';
 import { terrainHeight, walkableHeight, coastDistance, SEA_LEVEL, STAR_DUNES } from './terrain/height.js';
 import { Sky } from './sky.js';
+import { SunShadows } from './shadows.js';
 import { Ocean } from './water/ocean.js';
 import { ShimmerShader } from './shaders/shimmer.js';
 import { Hud } from './ui/hud.js';
@@ -34,6 +35,8 @@ import { loadCanon, registerRegions } from './regions/index.js';
 import { createSunklayMaterial, updateSunklayUniforms } from './city/materials.js';
 import { updateVeil } from './city/veil.js';
 import { updatePyramids, updateShapes } from './regions/landmarks.js';
+import { updateCrowd, buildTraffic, updateTraffic } from './regions/life.js';
+import { applyAshGrade, buildAshVeil, updateSeasonalLake } from './regions/ashlands.js';
 import {
   ExploreController, GridCollision, Footprints, FootstepAudio,
 } from './explore/controller.js';
@@ -93,6 +96,8 @@ const terrain = new TerrainStreamer(terrainRoot, terrainMaterial);
    full-screen copy is not paid for at dawn. */
 const sky = new Sky(scene);
 const ocean = new Ocean(scene);
+const shadows = new SunShadows(renderer);
+const shadowExcluded = [];
 
 /* ---- the depth prepass ----------------------------------------------------
    The water needs to know how deep it is at every pixel, and the honest way
@@ -183,6 +188,12 @@ overlayRoot.name = 'overlays';
 scene.add(overlayRoot);
 registerRoot(overlayRoot, 0, 0);
 let overlays = null;
+let traffic = null;
+
+/* The Ashlands ash veil: one particle layer over the whole region, faded in
+   by the same grade factor that desaturates the sky. */
+const ashVeil = buildAshVeil({ x: -1950 * KM, y: SEA_LEVEL + 200, z: 0 }, 1300 * KM, 9000);
+overlayRoot.add(ashVeil);
 let canon = null;
 let labels = null;
 let placesById = new Map();
@@ -480,8 +491,27 @@ function tick() {
   renderer.info.reset();
   terrain.update(camera, viewport.h);
   updateTerrainUniforms(terrainMaterial, env, off, projK);
+  /* THE COLOUR GRADE. Crossing the frontier from Sol Taresh should feel like
+     one, so it is one: a single blend applied to the sky, the haze, the sun
+     and the ambient together, driven by how far west the camera is. */
+  const ash = applyAshGrade(env, camAbsX);
+  ashVeil.material.uniforms.uTime.value = env.time;
+  ashVeil.material.uniforms.uAmount.value = ash;
+  ashVeil.visible = ash > 0.02;
+
   sky.update(camera, env, camera.position.y - SEA_LEVEL);
+  sky.uniforms.uCloud.value = Math.max(sky.uniforms.uCloud.value, ash * 0.8);
   updateSunklayUniforms(sunklay, env);
+
+  if (!traffic && canon) {
+    traffic = buildTraffic(regionCtx, canon.places);
+    overlayRoot.add(traffic);
+  }
+  if (traffic) {
+    updateTraffic(traffic, env);
+    /* Traffic is only worth drawing where it can be seen as traffic. */
+    traffic.visible = altitude < 90 * KM;
+  }
 
   /* Region content: distance and tier driven, one build per frame. */
   const camAbs = { x: camAbsX, z: camAbsZ };
@@ -498,6 +528,16 @@ function tick() {
   ocean.update(camera, env, altitude,
     wantDepth ? { depth: depthRT.depthTexture, color: depthRT.texture } : null,
     _invViewProj);
+
+  /* Sun shadows. Two cascades, off at Continental tier and fading out through
+     Kingdom, because a nine metre wall casts a sub-pixel shadow from forty
+     kilometres up and the pass would be pure cost. */
+  /* The crowd does not cast: nine thousand people casting nine thousand
+     ankle-height shadows costs a great deal and shows almost nothing. */
+  shadows.render(scene, camera, env.sunDir, altitude, env,
+    [sky.mesh, ocean.mesh, overlayRoot, footprints.root, ...shadowExcluded]);
+  shadows.apply(terrainMaterial);
+  shadows.apply(sunklay);
 
   /* Heat shimmer is worth a full-screen copy only while it is visible. */
   const glassNear = Math.max(0, 1 - Math.hypot(camAbsX - 530 * KM, camAbsZ + 70 * KM) / (400 * KM));
@@ -530,12 +570,22 @@ function tick() {
       lvl.traverse(o => { if (o.userData.pyramids) updatePyramids(o, pyramidState, dt, env); });
     }
   }
+  /* Faro's Mirror fills in the Greening and vanishes in the Long Dust. */
+  const faros = regions.get('faros');
+  if (faros && faros.group && faros.group.visible) {
+    for (const lvl of faros.levels) if (lvl && lvl.visible) updateSeasonalLake(lvl, env);
+  }
+
   const cityRegion = regions.get('sundisk');
   if (cityRegion && cityRegion.group && cityRegion.group.visible) {
     for (const lvl of cityRegion.levels) {
       if (!lvl || !lvl.visible) continue;
       lvl.traverse(o => {
         if (o.userData.veil) updateVeil(o, env, wantDepth ? depthRT.texture : null);
+        if (o.userData.crowd) {
+          updateCrowd(o, env);
+          if (!shadowExcluded.includes(o)) shadowExcluded.push(o);
+        }
       });
     }
   }
@@ -603,7 +653,7 @@ function tick() {
       `<b>fps</b> ${fps.toFixed(0)}   <b>draws</b> ${info.calls}   <b>tris</b> ${(info.triangles / 1000).toFixed(0)}k\n` +
       `<b>chunks</b> vis ${t.visible} res ${t.resident} q ${t.queued} depth ${t.deepest}\n` +
       `<b>alt</b> ${altitude.toFixed(0)} m  <b>near/far</b> ${nf.near.toFixed(1)} / ${(nf.far / 1000).toFixed(0)}k\n` +
-      `<b>regions</b> active ${regions.stats.active} built ${regions.stats.built}\n` +
+      `<b>regions</b> active ${regions.stats.active} built ${regions.stats.built}  <b>ash</b> ${ash.toFixed(2)}\n` +
       `<b>origin</b> ${(off.x / 1000).toFixed(1)}, ${(off.z / 1000).toFixed(1)} km`);
     if (info.calls > 900) console.warn(`draw call budget exceeded: ${info.calls}`);
   }
@@ -656,6 +706,9 @@ window.__loopAlive = () => ({ frames, t: performance.now() });
 window.__enterExplore = (x, z) => enterExplore(x, z);
 window.__leaveExplore = () => leaveExplore();
 window.__layers = () => ({ ...layers });
+window.__ashBlend = () => env.ashBlend || 0;
+window.__scene = scene;
+window.__shadowStrength = () => shadows.strength;
 window.__setLayer = (k, v) => { layers[k] = v; if (overlays) overlays.setLayers(layers); };
 window.__canonPlaces = () => (canon ? canon.places.map(p => ({ id: p.id, name: p.name, x: p.x, z: p.z, tags: p.tags })) : []);
 window.__env = env;

@@ -33,6 +33,7 @@
 
 import * as THREE from 'three';
 import { GLSL_NOISE, GLSL_LIGHTING, GLSL_FOG } from '../shaders/common.js';
+import { GLSL_SHADOW, shadowUniforms } from '../shadows.js';
 import { TAU_PIXELS, ERROR_PER_SPACING } from './chunker.js';
 import { SEA_LEVEL } from './height.js';
 import { WIND } from '../units.js';
@@ -151,6 +152,7 @@ precision highp float;
 ${GLSL_NOISE}
 ${GLSL_LIGHTING}
 ${GLSL_FOG}
+${GLSL_SHADOW}
 
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -330,9 +332,10 @@ void main(){
   float sky = 0.5 + 0.5 * Nd.y;
   vec3 ambient = mix(uGroundColor, uSkyColor, sky) * uAmbientScale + uNightAmbient;
 
-  vec3 color = albedo * (ambient + sun * diffuse)
-             + sun * spec * mix(1.0, 3.0, glass)
-             + sun * glint;
+  float shade = sunShadow(vWorld, NdL);
+  vec3 color = albedo * (ambient + sun * diffuse * shade)
+             + sun * spec * shade * mix(1.0, 3.0, glass)
+             + sun * glint * shade;
 
   /* The Ashlands lose their colour, hard. Beautiful at distance, wrong on
      approach, and the desaturation is the first half of that. */
@@ -410,6 +413,7 @@ export function createTerrainMaterial() {
     uSeaLevel: { value: SEA_LEVEL },
     uTide: { value: 0 },
     uDebug: { value: 0 },
+    ...shadowUniforms(),
   };
 
   const material = new THREE.ShaderMaterial({
