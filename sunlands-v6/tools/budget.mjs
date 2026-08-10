@@ -35,7 +35,14 @@ for(const [n,x,z,a] of views){
   await page.waitForTimeout(9000);
   const s=await page.evaluate(()=>({...window.__stats(), shadow: window.__shadowStrength(), ash: window.__ashBlend()}));
   console.log(n.padEnd(12),'draws',String(s.draws).padStart(4),'tris',String(Math.round(s.triangles/1000)).padStart(6)+'k',
-    'shadow',s.shadow.toFixed(2),'ash',s.ash.toFixed(2), s.draws<900?'OK':'OVER BUDGET');
+    'of which shadow',String(Math.round(s.shadowTris/1000)).padStart(6)+'k',
+    'strength',s.shadow.toFixed(2),'ash',s.ash.toFixed(2), s.draws<900?'OK':'OVER BUDGET');
+  /* Where they went, so the next time this number moves the answer is here
+     rather than in an afternoon of bisecting. */
+  if (process.argv.includes('--where')) {
+    const b=await page.evaluate(()=>window.__triBreakdown());
+    for(const [k,v] of Object.entries(b).slice(0,5)) console.log('               ',k.padEnd(26),Math.round(v/1000)+'k');
+  }
 }
 console.log('errors:',errs.length?errs.slice(0,4).join(' | '):'none');
 if (errs.length) process.exitCode = 1;

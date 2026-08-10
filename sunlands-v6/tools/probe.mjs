@@ -187,6 +187,23 @@ console.log('\nG. the Ashlands colour grade');
   const inAsh = await page.evaluate(() => window.__ashBlend());
   ok(inSun < 0.02 && inAsh > 0.95, 'crossing the frontier is a colour grade change',
      `Sol Taresh side ${inSun.toFixed(2)}, Mournscar side ${inAsh.toFixed(2)}`);
+
+  /* THE GRADE IS APPLIED ONCE, NOT ONCE A FRAME.
+
+     The ash grade and the weather both modify the environment in place and
+     multiplicatively. Standing still in the Ashlands is therefore the test
+     that the baseline is being recomputed: before this was asserted, eight
+     seconds parked over Mournscar ended at a fog density of twenty-eight per
+     metre and a sun four orders of magnitude too dim, and it read as
+     atmosphere rather than as a bug. */
+  const g0 = await page.evaluate(() => ({ s: window.__env.sunIntensity, f: window.__env.fogDensity, a: window.__env.ambientScale }));
+  await page.waitForTimeout(5000);
+  const g1 = await page.evaluate(() => ({ s: window.__env.sunIntensity, f: window.__env.fogDensity, a: window.__env.ambientScale }));
+  ok(g0.s === g1.s && g0.f === g1.f && g0.a === g1.a,
+     'the colour grade does not compound while you stand still',
+     `sun ${g0.s.toFixed(4)} to ${g1.s.toFixed(4)}, fog ${g0.f.toExponential(2)} to ${g1.f.toExponential(2)}`);
+  ok(g1.s > 0.3 && g1.f < 1e-3, 'and the Ashlands are still somewhere you can see',
+     `sun ${g1.s.toFixed(3)}, visibility ${(2.2 / g1.f / 1000).toFixed(0)} km`);
   const s = await page.evaluate(() => window.__stats());
   ok(s.draws < 900, 'the Ashlands stay inside the draw budget', `${s.draws} calls`);
 }
@@ -209,6 +226,86 @@ console.log('\nG2. Sundisk carries a city, not a diorama');
      `${c.instances.toLocaleString()} instances resident, ${c.crowd.toLocaleString()} of them people`);
   const s = await page.evaluate(() => window.__stats());
   ok(s.draws < 900, 'the full city stays inside the draw budget', `${s.draws} calls, ${(s.triangles / 1e6).toFixed(1)}M tris`);
+}
+
+console.log('\nG3. the Harmattan is a place, not a tint');
+{
+  const KMm = 1000;
+  await page.evaluate(() => window.__flyTo(0, 0, 1200));
+  await page.evaluate(() => window.__env.setWeather('harmattan'));
+  await page.waitForTimeout(900);
+
+  /* THE FRONT ADVANCES AT 80 KM/H, measured against SIMULATED time.
+     A software rasteriser runs at about one frame a second and the loop
+     clamps dt to 0.1 s, so wall-clock here would measure the rasteriser, not
+     the storm. env.time accumulates the same clamped dt the front does, so
+     dividing one by the other is frame-rate independent by construction. */
+  await page.evaluate(k => window.__setFront(k), 0);
+  const a = await page.evaluate(() => ({ f: window.__weather().front, t: window.__env.time }));
+  await page.waitForTimeout(4000);
+  const b = await page.evaluate(() => ({ f: window.__weather().front, t: window.__env.time }));
+  const mps = (a.f - b.f) / (b.t - a.t);
+  ok(Math.abs(mps - 80000 / 3600) < 0.2, 'the dust wall advances at 80 km/h',
+     `${(mps * 3.6).toFixed(2)} km/h over ${(b.t - a.t).toFixed(1)} s of simulated time`);
+
+  /* Ahead of the front the air is clear, behind it is not. Points are placed
+     by their distance ALONG the wind axis, which is what the front is a
+     surface of constant value of. */
+  const d = await page.evaluate((km) => {
+    window.__setFront(0);
+    const w = window.__WIND;
+    const at = (L) => window.__dustAt(w.x * L, w.z * L);
+    return { ahead: at(50 * km), justBehind: at(-100 * km), tail: at(-300 * km) };
+  }, KMm);
+  ok(d.ahead === 0, 'ahead of the front the air is clear', `dust ${d.ahead.toFixed(3)} at 50 km ahead`);
+  ok(d.justBehind > 0.9, 'just behind the leading edge it is a wall',
+     `dust ${d.justBehind.toFixed(3)} at 100 km behind`);
+  ok(d.tail < d.justBehind * 0.6, 'the storm thins out into its tail',
+     `dust ${d.tail.toFixed(3)} at 300 km behind`);
+
+  /* Standing on one side of it is a different experience: that is the whole
+     political point of the Veil, so it is asserted rather than assumed. */
+  await page.evaluate(km => window.__setFront(-60 * km), KMm);
+  await page.waitForTimeout(600);
+  const clearSide = await page.evaluate(() => ({ ...window.__weather(), fog: window.__env.fogDensity }));
+  await page.evaluate(km => window.__setFront(30 * km), KMm);
+  await page.waitForTimeout(600);
+  const dustSide = await page.evaluate(() => ({ ...window.__weather(), fog: window.__env.fogDensity }));
+  ok(clearSide.dust < 0.01 && dustSide.dust > 0.9,
+     'standing on either side of the front is a different place',
+     `dust ${clearSide.dust.toFixed(2)} ahead, ${dustSide.dust.toFixed(2)} behind`);
+  ok(dustSide.fog / clearSide.fog > 20, 'inside the wall you cannot see out of the district',
+     `visibility ${(2.2 / dustSide.fog).toFixed(0)} m inside, ${(2.2 / clearSide.fog / 1000).toFixed(0)} km outside`);
+  ok(clearSide.wallVisible, 'the wall is drawn while it is still coming', '');
+
+  /* Coastal fog penetrates 80 km inland. Eighty kilometres inland from WHAT,
+     so the test is the relationship to the coast, not a pair of coordinates
+     that would have to be invented. */
+  await page.evaluate(() => window.__env.setWeather('fog'));
+  await page.waitForTimeout(400);
+  const f = await page.evaluate((km) => {
+    let wrong = 0, wettest = 0, deepest = 0;
+    for (let x = -1200; x <= 1200; x += 37) {
+      for (let z = -900; z <= 750; z += 41) {
+        const cd = window.__coastDistance(x * km, z * km);
+        const fg = window.__fogAt(x * km, z * km);
+        if (cd > 80 * km && fg > 0) wrong++;
+        if (cd > 0 && cd < 80 * km) { wettest = Math.max(wettest, fg); deepest = Math.max(deepest, cd); }
+      }
+    }
+    return { wrong, wettest, deepest };
+  }, KMm);
+  ok(f.wrong === 0, 'coastal fog stops 80 km inland, everywhere',
+     `${f.wrong} sample points inland of 80 km still had fog`);
+  ok(f.wettest > 0.9 && f.deepest > 70000, 'and it does reach that far in',
+     `thickest ${f.wettest.toFixed(2)}, deepest sample ${(f.deepest / 1000).toFixed(0)} km inland`);
+  /* Tied to canon geography rather than to a coordinate picked to pass:
+     Mensah's Landing is a port, so the port is in the fog. */
+  const port = await page.evaluate(km => window.__fogAt(40 * km, 110 * km), KMm);
+  ok(port > 0.5, "Mensah's Landing is in it, being a port", `fog ${port.toFixed(2)} at the Landing`);
+
+  await page.evaluate(() => window.__env.setWeather('clear'));
+  await page.waitForTimeout(300);
 }
 
 console.log('\nH. the floating origin actually engages');

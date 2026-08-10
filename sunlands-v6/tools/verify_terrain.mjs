@@ -145,15 +145,26 @@ ok(Math.abs(terrainHeight(0, 0) - CITY_GROUND_Y) < 0.01, 'city plateau flat at t
 
 console.log('\n8. classification weights stay in range');
 {
-  const w = new Float32Array(6);
+  const w = new Float32Array(7);
   let bad = 0;
   for (let i = 0; i < 3000; i++) {
     const x = -2600 * KM + 3850 * KM * ((i * 7919) % 1000) / 1000;
     const z = -1000 * KM + 1800 * KM * ((i * 6271) % 1000) / 1000;
     classify(x, z, terrainHeight(x, z), w);
-    for (let k = 0; k < 6; k++) if (!(w[k] >= 0 && w[k] <= 1.0001)) bad++;
+    for (let k = 0; k < 7; k++) if (!(w[k] >= 0 && w[k] <= 1.0001)) bad++;
   }
   ok(bad === 0, 'all material weights in 0..1', `${bad} out of range`);
+  let wadiSum = 0, wadiN = 0;
+  for (let i = 0; i < 2000; i++) {
+    const x = -900 * KM + 1800 * KM * ((i * 7919) % 997) / 997;
+    const z = -700 * KM + 1200 * KM * ((i * 6271) % 991) / 991;
+    if (coastDistance(x, z) < 0) continue;
+    classify(x, z, terrainHeight(x, z), w);
+    wadiSum += w[6]; wadiN++;
+  }
+  ok(wadiSum / wadiN > 0.002 && wadiSum / wadiN < 0.25,
+     'the wadi channel is a channel, not a flood plain',
+     `${(100 * wadiSum / wadiN).toFixed(1)} percent of the land reads as watercourse`);
 }
 
 console.log('\n9. determinism');

@@ -111,6 +111,27 @@ The depth pass uses one override material for everything, and re-renders on
 alternate frames unless the sun has moved. The crowd does not cast: nine
 thousand ankle-height shadows cost a great deal and show almost nothing.
 
+## Weather that has a position
+
+Two of the four Part 5.5 states are not global tints, so they are not
+implemented as ones.
+
+The **Harmattan** has a front. It advances along the wind axis at 80 km/h and
+the dust in the air is a function of how far behind that line you are: nothing
+ahead of it, a wall within six kilometres of the leading edge, thinning out
+over the two hundred kilometres behind. Inside it visibility is about four
+hundred metres against two hundred and fifty kilometres outside. That is what
+makes the Sunward Veil mean anything, and it is why the wall is a real front
+rather than a fog slider.
+
+**Coastal fog** is a function of distance to the coast, because "penetrates
+80 km inland" is a statement about the coast rather than about a number.
+
+**Rain** floods the wadis. The terrain classification already carries a
+watercourse channel, so the water appears exactly where the ground drains.
+It fills in about four seconds and drains over twenty, which is the whole
+reason a wadi is dangerous.
+
 ## Verification
 
 ```
@@ -119,6 +140,7 @@ node sunlands-v6/tools/probe.mjs             # drives the real page in a real br
 node sunlands-v6/tools/probe.mjs --shots     # the same, plus tier screenshots
 node sunlands-v6/tools/shots.mjs             # the review screenshot set
 node sunlands-v6/tools/budget.mjs            # the Part 2 budget check, fast
+node sunlands-v6/tools/budget.mjs --where    # the same, plus where the triangles are
 ```
 
 `probe.mjs` waits for the terrain queue to drain at 1920x1080, which under a
@@ -126,15 +148,29 @@ software rasteriser takes a long time. `budget.mjs` is the same draw-call and
 triangle check at a smaller viewport with a fixed settle, for when the
 question is only whether a change blew the budget.
 
+Both report the **worst frame of the last eight**, not the frame the tool
+happened to land on. The shadow cascades re-render on alternate frames, so a
+single reading alternates between two very different answers and the low one
+is a lie: the frames that stall are the expensive ones.
+
 Last budget run:
 
 ```
-continental  draws   42 tris    275k shadow 0.00 ash 0.00 OK
-kingdom      draws   56 tris    277k shadow 0.00 ash 0.00 OK
-regional     draws   94 tris   1280k shadow 0.17 ash 0.00 OK
-street       draws   61 tris   5761k shadow 0.69 ash 0.00 OK
-ashlands     draws   34 tris     96k shadow 0.00 ash 1.00 OK
+continental  draws   42 tris    275k of which shadow      0k  OK
+kingdom      draws   56 tris    277k of which shadow      0k  OK
+regional     draws  118 tris   1277k of which shadow      0k  OK
+street       draws  152 tris   4212k of which shadow   1035k  OK
+ashlands     draws   38 tris    131k of which shadow      0k  OK
 ```
+
+Street tier used to carry 16.9M triangles, 11.1M of them in the shadow pass.
+The cause was the shape of the city's instance buckets: they were split into
+twelve angular sectors, and a sector runs from the palace to the edge of the
+Commons, nine kilometres. An InstancedMesh is culled whole or not at all, so
+any wedge the camera could see a corner of was drawn along its whole length,
+and then twice more for the cascades. Cutting radially as well, at the canon
+ring boundaries, turns each bucket into a segment the frustum can reject. Four
+times fewer triangles for thirty more draw calls.
 
 `verify_terrain.mjs` runs under plain Node because the height field is pure
 and free of Three.js on purpose. Among other things it asserts that every
@@ -147,8 +183,15 @@ sampler returns bit-identical results to the unfiltered reference.
 four tiers, that a walker walks at 1.4 m/s and runs at 4.5 m/s measured per
 second of movement rather than per second of wall clock, that the travel
 accelerator keeps counting the real walk underneath it, that crossing the
-Ashlands frontier is a colour grade change, and that the city carries at least
-thirty thousand instances inside the budget.
+Ashlands frontier is a colour grade change, that the city carries at least
+thirty thousand instances inside the budget, and that the Harmattan front
+advances at 80 km/h with clear air ahead of it and four hundred metre
+visibility behind.
+
+Both speed checks, the walker's and the storm's, are measured per second of
+**simulated** time rather than per second of wall clock. Under a software
+rasteriser the page runs at about one frame a second, so wall clock would be
+measuring the rasteriser.
 
 ---
 

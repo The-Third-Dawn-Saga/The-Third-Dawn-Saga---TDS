@@ -105,7 +105,7 @@ export function buildChunk(cx, cz, size) {
   const classify = sampler.classify;
 
   const heights = new Float64Array(VERTS * VERTS);
-  const w = new Float32Array(6);
+  const w = new Float32Array(7);
 
   let minY = Infinity, maxY = -Infinity;
 
@@ -162,7 +162,7 @@ export function buildChunk(cx, cz, size) {
       mat[k * 4] = w[0] * 255; mat[k * 4 + 1] = w[1] * 255;
       mat[k * 4 + 2] = w[2] * 255; mat[k * 4 + 3] = w[3] * 255;
       mat2[k * 4] = w[4] * 255; mat2[k * 4 + 1] = w[5] * 255;
-      mat2[k * 4 + 2] = sizeExp; mat2[k * 4 + 3] = 0;
+      mat2[k * 4 + 2] = sizeExp; mat2[k * 4 + 3] = w[6] * 255;
     }
   }
 

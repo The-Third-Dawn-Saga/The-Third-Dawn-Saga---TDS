@@ -33,6 +33,12 @@ export const SEASONS = {
 const NOON_ELEVATION = 84 * Math.PI / 180;
 const NORTH_TILT = 7 * Math.PI / 180;
 
+/* Authored in sRGB because that is how a person reads colour, converted once
+   here rather than once a frame. */
+const SUNSET_COL = new THREE.Color(0.98, 0.52, 0.24).convertSRGBToLinear();
+const DUST_COL = new THREE.Color(0.66, 0.50, 0.31).convertSRGBToLinear();
+const FOG_COL = new THREE.Color(0.74, 0.77, 0.79).convertSRGBToLinear();
+
 class Environment {
   constructor() {
     this.timeOfDay = 10;          // hours, 0 to 24
@@ -52,6 +58,9 @@ class Environment {
     this.fogDensity = 0;
     this.fogScaleHeight = 8000;
     this.shimmer = 0;
+    this.flood = 0;
+    this.localDust = 0;
+    this.localFog = 0;
     this.shadowStrength = 1;
     this.airmass = 1;
     this.above = 1;
@@ -75,6 +84,16 @@ class Environment {
     return Math.sin(t * Math.PI) * NOON_ELEVATION;
   }
 
+  /* THIS RUNS EVERY FRAME, AND IT HAS TO.
+
+     Everything downstream of it, the weather at a position and the Ashlands
+     colour grade, modifies these fields in place and multiplicatively: less
+     direct sun, more scattered, denser haze. Those are grades applied to a
+     baseline, not state, so the baseline has to be re-established first. Left
+     to accumulate they compound frame over frame, and eight seconds inside
+     the Ashlands ends with a fog density of twenty-eight per metre and a sun
+     four orders of magnitude too dim. Ask for it once at the top of the frame
+     and the grades below are exactly what they say they are. */
   update() {
     const t = (this.timeOfDay - 6) / 12;
     const el = this.elevation();
@@ -144,7 +163,7 @@ class Environment {
 
     const warm = Math.pow(1 - hue, 1.3);
     this.horizonColor.setRGB(0.80, 0.84, 0.88).convertSRGBToLinear()
-      .lerp(new THREE.Color(0.98, 0.52, 0.24).convertSRGBToLinear(), warm)
+      .lerp(SUNSET_COL, warm)
       .multiplyScalar((0.05 + 0.95 * lit) * (0.40 + 0.60 * hue) * 1.2);
 
     /* What the ground actually sees: mostly the zenith at noon, mostly the
@@ -157,13 +176,11 @@ class Environment {
        rather than a fudge spread through the shaders. */
     this.nightAmbient.setRGB(0.022, 0.027, 0.046).multiplyScalar(night);
 
-    const dustCol = new THREE.Color(0.66, 0.50, 0.31).convertSRGBToLinear();
-    const fogCol = new THREE.Color(0.74, 0.77, 0.79).convertSRGBToLinear();
     this.fogColor.copy(this.horizonColor);
-    if (w.dust > 0) this.fogColor.lerp(dustCol, 0.75 * w.dust * (0.20 + 0.80 * lit));
-    if (this.weather === 'fog') this.fogColor.lerp(fogCol, 0.72 * (0.18 + 0.82 * lit));
+    if (w.dust > 0) this.fogColor.lerp(DUST_COL, 0.75 * w.dust * (0.20 + 0.80 * lit));
+    if (this.weather === 'fog') this.fogColor.lerp(FOG_COL, 0.72 * (0.18 + 0.82 * lit));
     if (this.weather === 'rain') this.fogColor.multiplyScalar(0.58);
-    this.fogColor.lerp(dustCol, seas.haze * 0.20 * lit);
+    this.fogColor.lerp(DUST_COL, seas.haze * 0.20 * lit);
     this.fogColor.add(this.nightAmbient);
 
     /* Haze so the horizon dissolves around 250 km at Kingdom tier on a clear
@@ -202,7 +219,14 @@ class Environment {
   }
 
   /** Advance animation clocks. Does not move the sun: the slider owns that. */
-  tick(dt) { this.time += dt; }
+  tick(dt) {
+    this.time += dt;
+    /* A flash flood fills fast and drains slowly, which is the whole reason
+       it is dangerous: the wadi is still running long after the rain stops. */
+    const target = this.weather === 'rain' ? 1 : 0;
+    const rate = target > this.flood ? 0.28 : 0.055;
+    this.flood += Math.max(-rate * dt, Math.min(rate * dt, target - this.flood));
+  }
 }
 
 export const env = new Environment();

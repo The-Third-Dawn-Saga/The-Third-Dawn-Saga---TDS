@@ -263,40 +263,62 @@ export function generateCity(opts = {}) {
    BUILD
    ------------------------------------------------------------------------ */
 
+/* THE BUCKETS ARE WEDGE SEGMENTS, NOT WEDGES.
+
+   Splitting the city into twelve angular sectors alone is not enough, and it
+   is worth writing down why, because it cost a measurement to find. A wedge
+   runs from the palace out to the edge of the Commons, nine kilometres. An
+   InstancedMesh is culled whole or not at all, so any wedge the camera can
+   see a corner of is drawn along its entire nine kilometre length. Standing
+   in the Grand Market that means the whole city, every frame, and twice more
+   for the shadow cascades.
+
+   Cutting radially as well at the ring boundaries turns each bucket into a
+   segment a couple of kilometres across, which the frustum can actually
+   reject. The boundaries are the canon ones, so the cut lines fall on the
+   walls and the ring roads rather than across them. */
+const RING_EDGES = [1200, 3000, 5500, 9000, 1e9];
+
 /**
- * Turn generated data into instanced meshes, split into angular sectors so
+ * Turn generated data into instanced meshes, split into wedge segments so
  * frustum culling can drop most of the city on any given frame. The wall
  * rings and the sector wedges are the natural portals Part 2 asks for.
  */
 function buildInstances(data, material, sectors = 12) {
   const geo = geometryKit();
   const group = new THREE.Group();
-  const sectorOf = (x, z) => {
+  const rings = RING_EDGES.length;
+  const bucketOf = (x, z) => {
     const a = Math.atan2(z, x);
-    return Math.floor(((a + Math.PI) / (Math.PI * 2)) * sectors) % sectors;
+    const s = Math.floor(((a + Math.PI) / (Math.PI * 2)) * sectors) % sectors;
+    const r = Math.hypot(x, z);
+    let ring = 0;
+    while (ring < rings - 1 && r > RING_EDGES[ring]) ring++;
+    return s * rings + ring;
   };
+  const nameOf = (kind, b) => `sundisk-${kind}-${Math.floor(b / rings)}-${b % rings}`;
 
   const houseSets = [], siloSets = [], tentSets = [];
-  for (let i = 0; i < sectors; i++) {
-    houseSets.push(new InstanceSet(geo.house, material, 2048));
-    siloSets.push(new InstanceSet(geo.silo, material, 64));
-    tentSets.push(new InstanceSet(geo.cone, material, 256));
+  for (let i = 0; i < sectors * rings; i++) {
+    houseSets.push(new InstanceSet(geo.house, material, 512));
+    siloSets.push(new InstanceSet(geo.silo, material, 32));
+    tentSets.push(new InstanceSet(geo.cone, material, 64));
   }
 
   for (const h of data.houses) {
-    houseSets[sectorOf(h.x, h.z)].add(h.x, G, h.z, h.w, h.h, h.d, h.rot, h.gold, h.tone, h.wear);
+    houseSets[bucketOf(h.x, h.z)].add(h.x, G, h.z, h.w, h.h, h.d, h.rot, h.gold, h.tone, h.wear);
   }
   for (const s of data.silos) {
-    siloSets[sectorOf(s.x, s.z)].add(s.x, G, s.z, s.r * 2, s.h, s.r * 2, 0, 0, s.tone, s.wear);
+    siloSets[bucketOf(s.x, s.z)].add(s.x, G, s.z, s.r * 2, s.h, s.r * 2, 0, 0, s.tone, s.wear);
   }
   for (const t of data.tents) {
-    tentSets[sectorOf(t.x, t.z)].add(t.x, G, t.z, t.s, t.s * 0.75, t.s, t.rot, 0, 0.85, t.wear);
+    tentSets[bucketOf(t.x, t.z)].add(t.x, G, t.z, t.s, t.s * 0.75, t.s, t.rot, 0, 0.85, t.wear);
   }
 
   let count = 0;
-  for (let i = 0; i < sectors; i++) {
-    for (const [set, name] of [[houseSets[i], 'houses'], [siloSets[i], 'kilns'], [tentSets[i], 'tents']]) {
-      const m = set.build(`sundisk-${name}-${i}`);
+  for (let i = 0; i < sectors * rings; i++) {
+    for (const [set, kind] of [[houseSets[i], 'houses'], [siloSets[i], 'kilns'], [tentSets[i], 'tents']]) {
+      const m = set.build(nameOf(kind, i));
       if (m) { group.add(m); count += set.n; }
     }
   }

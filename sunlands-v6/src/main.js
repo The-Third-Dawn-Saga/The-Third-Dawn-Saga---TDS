@@ -25,6 +25,7 @@ import { createTerrainMaterial, updateTerrainUniforms } from './terrain/sand.js'
 import { terrainHeight, walkableHeight, coastDistance, SEA_LEVEL, STAR_DUNES } from './terrain/height.js';
 import { Sky } from './sky.js';
 import { SunShadows } from './shadows.js';
+import { Weather, buildDustWall, updateDustWall, buildRain, updateRain } from './weather.js';
 import { Ocean } from './water/ocean.js';
 import { ShimmerShader } from './shaders/shimmer.js';
 import { Hud } from './ui/hud.js';
@@ -41,7 +42,7 @@ import {
   ExploreController, GridCollision, Footprints, FootstepAudio,
 } from './explore/controller.js';
 import { MapView } from './ui/map.js';
-import { TRAVEL } from './units.js';
+import { TRAVEL, WIND } from './units.js';
 
 const DEV = new URLSearchParams(location.search).has('dev');
 
@@ -98,6 +99,14 @@ const sky = new Sky(scene);
 const ocean = new Ocean(scene);
 const shadows = new SunShadows(renderer);
 const shadowExcluded = [];
+
+/* Weather with a position. The Harmattan front advances at 80 km/h and the
+   coastal fog is a function of coast distance, so both are sampled where the
+   camera is standing rather than read off a slider. */
+const weather = new Weather();
+const dustWall = buildDustWall();
+const rainMesh = buildRain(4000);
+scene.add(dustWall, rainMesh);
 
 /* ---- the depth prepass ----------------------------------------------------
    The water needs to know how deep it is at every pixel, and the honest way
@@ -431,6 +440,21 @@ let frames = 0, fpsAccum = 0, fps = 0;
 let booted = false;
 let lastWantDepth = false;
 
+/* BUDGET SAMPLING, AND WHY IT IS A PEAK RATHER THAN A READING.
+
+   The shadow cascades re-render on alternate frames, so the cost of a frame
+   alternates between "scene" and "scene plus two depth passes". Sampling
+   renderer.info on whichever frame the test happened to land on gives one of
+   two very different answers, and the low one is a lie: the frames that stall
+   are the expensive ones. So the counters are kept over a short ring and read
+   as a maximum, which is the number a budget is actually about. */
+const PEAK_FRAMES = 8;
+const peakDraws = new Int32Array(PEAK_FRAMES);
+const peakTris = new Float64Array(PEAK_FRAMES);
+let peakSlot = 0;
+let shadowDraws = 0, shadowTris = 0;
+const peakOf = (a) => { let m = 0; for (const v of a) if (v > m) m = v; return m; };
+
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.1);
@@ -490,11 +514,25 @@ function tick() {
   const projK = viewport.h / (2 * Math.tan(camera.fov * Math.PI / 360));
   renderer.info.reset();
   terrain.update(camera, viewport.h);
-  updateTerrainUniforms(terrainMaterial, env, off, projK);
-  /* THE COLOUR GRADE. Crossing the frontier from Sol Taresh should feel like
-     one, so it is one: a single blend applied to the sky, the haze, the sun
-     and the ambient together, driven by how far west the camera is. */
+
+  /* THE GRADE CHAIN, IN ORDER, ONCE A FRAME.
+
+     Everything below update() modifies the environment in place and
+     multiplicatively, so the baseline has to be re-established first or the
+     grades compound frame over frame. Weather goes before the ash because it
+     sets the fog numbers the ash then thickens, and both go before anything
+     that reads the environment into a uniform. */
+  env.update();
+  weather.tick(dt, env);
+  const local = weather.applyAt(env, camAbsX, camAbsZ);
+  /* Crossing the frontier from Sol Taresh should feel like a colour grade, so
+     it is one: a single blend applied to the sky, the haze, the sun and the
+     ambient together, driven by how far west the camera is. */
   const ash = applyAshGrade(env, camAbsX);
+
+  updateTerrainUniforms(terrainMaterial, env, off, projK);
+  updateDustWall(dustWall, weather, env, camera.position, off, altitude);
+  updateRain(rainMesh, env, camera.position, altitude);
   ashVeil.material.uniforms.uTime.value = env.time;
   ashVeil.material.uniforms.uAmount.value = ash;
   ashVeil.visible = ash > 0.02;
@@ -534,8 +572,11 @@ function tick() {
      kilometres up and the pass would be pure cost. */
   /* The crowd does not cast: nine thousand people casting nine thousand
      ankle-height shadows costs a great deal and shows almost nothing. */
+  const beforeShadow = renderer.info.render.calls, beforeShadowTris = renderer.info.render.triangles;
   shadows.render(scene, camera, env.sunDir, altitude, env,
-    [sky.mesh, ocean.mesh, overlayRoot, footprints.root, ...shadowExcluded]);
+    [sky.mesh, ocean.mesh, overlayRoot, footprints.root, dustWall, rainMesh, ...shadowExcluded]);
+  shadowDraws = renderer.info.render.calls - beforeShadow;
+  shadowTris = renderer.info.render.triangles - beforeShadowTris;
   shadows.apply(terrainMaterial);
   shadows.apply(sunklay);
 
@@ -636,6 +677,10 @@ function tick() {
     if (gateState.t > 14) gateState.active = false;
   }
 
+  peakDraws[peakSlot] = renderer.info.render.calls;
+  peakTris[peakSlot] = renderer.info.render.triangles;
+  peakSlot = (peakSlot + 1) % PEAK_FRAMES;
+
   frames++; fpsAccum += dt;
   if (fpsAccum > 0.5) { fps = frames / fpsAccum; frames = 0; fpsAccum = 0; }
 
@@ -649,13 +694,16 @@ function tick() {
   if (DEV) {
     const t = terrain.stats;
     const info = renderer.info.render;
+    const pk = peakOf(peakDraws);
     hud.dev(
-      `<b>fps</b> ${fps.toFixed(0)}   <b>draws</b> ${info.calls}   <b>tris</b> ${(info.triangles / 1000).toFixed(0)}k\n` +
+      `<b>fps</b> ${fps.toFixed(0)}   <b>draws</b> ${info.calls} peak ${pk}   <b>tris</b> ${(peakOf(peakTris) / 1000).toFixed(0)}k\n` +
+      `<b>shadow pass</b> ${shadowDraws} draws ${(shadowTris / 1000).toFixed(0)}k tris\n` +
       `<b>chunks</b> vis ${t.visible} res ${t.resident} q ${t.queued} depth ${t.deepest}\n` +
       `<b>alt</b> ${altitude.toFixed(0)} m  <b>near/far</b> ${nf.near.toFixed(1)} / ${(nf.far / 1000).toFixed(0)}k\n` +
       `<b>regions</b> active ${regions.stats.active} built ${regions.stats.built}  <b>ash</b> ${ash.toFixed(2)}\n` +
+      `<b>dust</b> ${local.dust.toFixed(2)}  <b>fog</b> ${local.fog.toFixed(2)}  <b>flood</b> ${env.flood.toFixed(2)}  <b>front</b> ${(weather.frontOffset(camAbsX, camAbsZ) / 1000).toFixed(0)} km\n` +
       `<b>origin</b> ${(off.x / 1000).toFixed(1)}, ${(off.z / 1000).toFixed(1)} km`);
-    if (info.calls > 900) console.warn(`draw call budget exceeded: ${info.calls}`);
+    if (pk > 900) console.warn(`draw call budget exceeded: ${pk}`);
   }
 }
 tick();
@@ -688,13 +736,35 @@ window.__scaleTestLive = () => {
 
 window.__stats = () => ({
   fps,
-  draws: renderer.info.render.calls,
+  /* The worst frame of the last eight, not whichever one the caller landed
+     on. See the note at PEAK_FRAMES. */
+  draws: peakOf(peakDraws),
+  triangles: peakOf(peakTris),
+  frameDraws: renderer.info.render.calls,
+  shadowDraws,
+  shadowTris,
   depthPass: lastWantDepth,
-  triangles: renderer.info.render.triangles,
   terrain: { ...terrain.stats },
   altitude: camera.position.y,
   offset: { ...getWorldOffset() },
 });
+
+/* Where the triangles actually are, grouped by the nearest named ancestor.
+   Counting what a pass draws is the only way to tell a terrain problem from a
+   city problem, and the two want opposite fixes. */
+window.__triBreakdown = () => {
+  const out = {};
+  scene.traverseVisible(o => {
+    if (!o.isMesh || !o.geometry) return;
+    const g = o.geometry;
+    const per = (g.index ? g.index.count : (g.attributes.position ? g.attributes.position.count : 0)) / 3;
+    const n = o.isInstancedMesh ? o.count : (g.isInstancedBufferGeometry ? g.instanceCount : 1);
+    let a = o, name = o.name;
+    while (a && !name) { a = a.parent; name = a ? a.name : ''; }
+    out[name || 'unnamed'] = (out[name || 'unnamed'] || 0) + per * n;
+  });
+  return Object.fromEntries(Object.entries(out).sort((p, q) => q[1] - p[1]).slice(0, 12));
+};
 
 window.__flyTo = flyTo;
 window.__regions = () => ({ ...regions.stats });
@@ -709,6 +779,20 @@ window.__layers = () => ({ ...layers });
 window.__ashBlend = () => env.ashBlend || 0;
 window.__scene = scene;
 window.__shadowStrength = () => shadows.strength;
+window.__weather = () => ({
+  front: weather.frontDistance,
+  offsetHere: weather.frontOffset(camera.position.x + getWorldOffset().x,
+                                  camera.position.z + getWorldOffset().z),
+  dust: env.localDust, fog: env.localFog, flood: env.flood,
+  wallVisible: dustWall.visible,
+});
+window.__setFront = (m) => { weather.frontDistance = m; };
+window.__dustAt = (x, z) => weather.dustAt(x, z);
+window.__fogAt = (x, z) => weather.fogAt(x, z);
+window.__coastDistance = (x, z) => coastDistance(x, z);
+/* The axis the front is a surface of constant value of, so a test can place a
+   point a known distance ahead of or behind the storm. */
+window.__WIND = { x: WIND.dir.x, z: WIND.dir.z };
 window.__setLayer = (k, v) => { layers[k] = v; if (overlays) overlays.setLayers(layers); };
 window.__canonPlaces = () => (canon ? canon.places.map(p => ({ id: p.id, name: p.name, x: p.x, z: p.z, tags: p.tags })) : []);
 window.__env = env;

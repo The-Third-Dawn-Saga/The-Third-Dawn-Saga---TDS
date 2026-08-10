@@ -35,17 +35,26 @@ export function ashBlendAt(x) {
  * Apply the grade to the environment. Called every frame with the camera's
  * absolute X, so a flight west desaturates continuously rather than snapping.
  */
+/* Converted once rather than once a frame. This runs in the render loop. */
+const ASH_GREY = new THREE.Color(0.42, 0.43, 0.44).convertSRGBToLinear();
+const ASH_GREY_LIT = ASH_GREY.clone().multiplyScalar(1.15);
+const ASH_HAZE = new THREE.Color(0.46, 0.45, 0.43).convertSRGBToLinear();
+
+/**
+ * A GRADE, NOT STATE. It modifies env in place and multiplicatively, so it is
+ * only correct on a freshly computed baseline: env.update() has to have run
+ * this frame. See the note above Environment.update.
+ */
 export function applyAshGrade(env, camX) {
   const a = ashBlendAt(camX);
   env.ashBlend = a;
   if (a <= 0.001) return a;
 
   /* Permanent grey overcast, and haze that never lifts. */
-  const grey = new THREE.Color(0.42, 0.43, 0.44).convertSRGBToLinear();
-  env.skyColor.lerp(grey, a * 0.80);
-  env.horizonColor.lerp(grey.clone().multiplyScalar(1.15), a * 0.78);
-  env.ambientSky.lerp(grey, a * 0.75);
-  env.fogColor.lerp(new THREE.Color(0.46, 0.45, 0.43).convertSRGBToLinear(), a * 0.82);
+  env.skyColor.lerp(ASH_GREY, a * 0.80);
+  env.horizonColor.lerp(ASH_GREY_LIT, a * 0.78);
+  env.ambientSky.lerp(ASH_GREY, a * 0.75);
+  env.fogColor.lerp(ASH_HAZE, a * 0.82);
   env.fogDensity *= (1 + a * 1.9);
   /* The ash sits low, so there is a top to it you can see over from height. */
   env.fogScaleHeight = env.fogScaleHeight * (1 - a) + 2600 * a;

@@ -99,7 +99,7 @@ uniform vec2 uOffsetSmall;  // floating origin, scaled for large fields
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying vec4 vMat;
-varying vec2 vMat2;
+varying vec3 vMat2;
 varying float vDist;
 varying vec2 vHiUV;
 varying vec2 vLoUV;
@@ -135,7 +135,7 @@ void main(){
   vWorld = wpm.xyz;
   vNormal = normalize(mat3(modelMatrix) * normal);
   vMat = aMat;
-  vMat2 = aMat2.xy;
+  vMat2 = vec3(aMat2.xy, aMat2.w);
   vDist = distance(wpm.xyz, cameraPosition);
   vChunkSize = chunkSize;
 
@@ -165,6 +165,7 @@ uniform vec3 uGroundColor;
 uniform vec2 uWindDir;
 uniform float uTime;
 uniform float uWet;        // rain
+uniform float uFlood;      // flash flooding in the wadis
 uniform float uVerdant;    // season, the Greening against the Long Dust
 uniform float uDust;       // Harmattan
 uniform float uSeaLevel;
@@ -174,7 +175,7 @@ uniform int uDebug;   // dev only: 1 albedo, 2 material weights, 3 light, 4 norm
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying vec4 vMat;
-varying vec2 vMat2;
+varying vec3 vMat2;
 varying float vDist;
 varying vec2 vHiUV;
 varying vec2 vLoUV;
@@ -197,7 +198,7 @@ void main(){
   vec3 L = normalize(uSunDir);
 
   float reg = vMat.x, salt = vMat.y, glass = vMat.z, ash = vMat.w;
-  float verdant = vMat2.x * uVerdant, rock = vMat2.y;
+  float verdant = vMat2.x * uVerdant, rock = vMat2.y, wadi = vMat2.z;
   float sand = clamp(1.0 - reg - salt - glass - ash, 0.0, 1.0);
 
   /* ---- detail fades ---------------------------------------------------
@@ -273,6 +274,15 @@ void main(){
   albedo = mix(albedo, ROCK_BASE * (0.8 + variation), rock * (1.0 - glass));
   albedo = mix(albedo, GREEN_BASE * (0.75 + variation * 1.5), verdant * 0.80);
 
+  /* FLASH FLOOD. The reg does not absorb, so the brief violent rain of
+     Part 5.5 runs straight off it and fills the wadis the height field
+     already drains it with. Same channel, so the water appears exactly where
+     the ground is low and nowhere else. */
+  float flood = uFlood * smoothstep(0.28, 0.85, wadi);
+  if (flood > 0.002) {
+    albedo = mix(albedo, vec3(0.055, 0.075, 0.070), flood * 0.85);
+  }
+
   /* Wet sand darkens, and so does everything in the rain. */
   float shoreWet = smoothstep(1.6, -0.4, vWorld.y - uSeaLevel - uTide) *
                    step(uSeaLevel - 6.0, vWorld.y);
@@ -291,8 +301,10 @@ void main(){
   float rough = mix(0.62, 0.34, clamp(N.y, 0.0, 1.0));
   rough = mix(rough, 0.12, glass);
   rough = mix(rough, 0.22, wet);
+  rough = mix(rough, 0.05, flood);
   rough = mix(rough, 0.85, ash);
   float f0 = mix(0.028, 0.16, glass) * mix(1.0, 2.2, wet);
+  f0 = mix(f0, 0.02, flood);
   /* The specular BRDF still owes the rendering equation its cosine term, and
      Fresnel is a function of the half vector, not of the surface normal.
      Without both, sand fires a white highlight at every grazing angle. */
@@ -333,6 +345,13 @@ void main(){
   vec3 ambient = mix(uGroundColor, uSkyColor, sky) * uAmbientScale + uNightAmbient;
 
   float shade = sunShadow(vWorld, NdL);
+  /* Standing water reflects the sky, which is most of what makes a flooded
+     wadi read as water rather than as dark ground. */
+  if (flood > 0.002) {
+    float fres = 0.02 + 0.98 * pow(clamp(1.0 - max(dot(Nd, V), 0.0), 0.0, 1.0), 5.0);
+    ambient = mix(ambient, uSkyColor * 2.2, flood * fres * 0.9 + flood * 0.12);
+  }
+
   vec3 color = albedo * (ambient + sun * diffuse * shade)
              + sun * spec * shade * mix(1.0, 3.0, glass)
              + sun * glint * shade;
@@ -408,6 +427,7 @@ export function createTerrainMaterial() {
     uWindDir: { value: new THREE.Vector2(WIND.dir.x, WIND.dir.z) },
     uTime: { value: 0 },
     uWet: { value: 0 },
+    uFlood: { value: 0 },
     uVerdant: { value: 1 },
     uDust: { value: 0 },
     uSeaLevel: { value: SEA_LEVEL },
@@ -449,6 +469,7 @@ export function updateTerrainUniforms(material, env, worldOffset, projK) {
   u.uFogHeightFalloff.value = 1 / env.fogScaleHeight;
   u.uTime.value = env.time;
   u.uWet.value = env.weatherDef.wet;
+  u.uFlood.value = env.flood || 0;
   u.uVerdant.value = env.seasonDef.verdant;
   u.uDust.value = env.weatherDef.dust;
   u.uTide.value = Math.sin(env.time * 0.02) * 0.6;

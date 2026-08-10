@@ -738,6 +738,8 @@ export function terrainHeight(x, z, ctx) {
      out[3] ash      the Western Ashlands
      out[4] verdant  oasis and canal-corridor greenery
      out[5] rock     the Ashteeth and the cliff faces
+     out[6] wadi     how deep into a dry watercourse this post sits, which is
+                     what floods in the brief violent rain of Part 5.5
 
    Sand is whatever is left over: 1 minus the sum, clamped.
    ------------------------------------------------------------------------ */
@@ -748,7 +750,7 @@ export function classify(x, z, h, out, ctx, cdIn) {
   const sand = sandSeaMask(x, z);
 
   out[0] = (1 - sand) * 0.92;
-  out[1] = 0; out[2] = 0; out[3] = 0; out[4] = 0; out[5] = 0;
+  out[1] = 0; out[2] = 0; out[3] = 0; out[4] = 0; out[5] = 0; out[6] = 0;
 
   const SF = STAMPS.saltFlats;
   {
@@ -794,6 +796,10 @@ export function classify(x, z, h, out, ctx, cdIn) {
       smoothstep(CL.minX - 10 * KM, CL.minX + 5 * KM, x) *
       smoothstep(CL.maxX + 10 * KM, CL.maxX - 5 * KM, x));
   }
+
+  /* The wadis. Same expression the height field drains the reg with, so the
+     water that appears in the rain appears exactly where the ground is low. */
+  out[6] = Math.pow(1 - Math.abs(simplex2(x * 0.000021, z * 0.000021)), 6.0) * (1 - sand);
 
   /* Salt, glass and ash win over reg where they overlap. */
   const taken = Math.min(1, out[1] + out[2] + out[3]);
