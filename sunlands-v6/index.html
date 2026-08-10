@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='%23f4d35e'/%3E%3C/svg%3E">
+<title>The Southern Sunlands v6 &middot; true-scale world</title>
+<style>
+:root{
+  --gold:#d4a012; --gl:#f4d35e; --sand:#d9c4a0; --night:#0f0a04;
+  --tx:#f5e6c8; --mu:#a89060; --line:rgba(212,160,18,0.28);
+  --panel:rgba(15,10,4,0.88);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{font-family:Georgia,'Times New Roman',serif;background:#000;color:var(--tx);overflow:hidden;}
+canvas{display:block;}
+#stage{position:fixed;inset:0;}
+
+#boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;background:var(--night);z-index:60;transition:opacity .6s;}
+#boot h1{color:var(--gl);letter-spacing:5px;font-size:1.15rem;font-weight:normal;}
+#boot .sub{color:var(--mu);font-size:.78rem;letter-spacing:1px;}
+#boot .bar{width:260px;height:2px;background:rgba(212,160,18,.2);overflow:hidden;}
+#boot .bar i{display:block;height:100%;width:0;background:var(--gl);transition:width .3s;}
+#boot.gone{opacity:0;pointer-events:none;}
+
+#hud{position:fixed;inset:0;pointer-events:none;z-index:20;}
+#hud>*{pointer-events:auto;}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:7px 14px;background:var(--panel);border-bottom:1px solid var(--line);}
+.topbar h1{font-size:.92rem;color:var(--gl);letter-spacing:2.5px;font-weight:normal;white-space:nowrap;}
+.topbar .st{display:flex;gap:14px;font-size:.68rem;color:var(--mu);flex-wrap:wrap;}
+.topbar .st strong{color:var(--gl);font-weight:normal;}
+
+.panel{position:absolute;background:var(--panel);border:1px solid var(--line);
+  border-radius:7px;padding:9px 10px;font-size:.74rem;}
+.panel h3{font-size:.7rem;color:var(--gl);letter-spacing:1.4px;margin-bottom:6px;
+  padding-bottom:4px;border-bottom:1px solid rgba(212,160,18,.18);font-weight:normal;
+  text-transform:uppercase;}
+.panel h3:not(:first-child){margin-top:9px;}
+
+#left{left:10px;top:48px;width:212px;max-height:calc(100vh - 150px);overflow-y:auto;}
+#left::-webkit-scrollbar{width:5px;}
+#left::-webkit-scrollbar-thumb{background:rgba(212,160,18,.3);border-radius:3px;}
+
+.row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.row label{color:var(--mu);font-size:.68rem;min-width:34px;}
+.row input[type=range]{flex:1;accent-color:var(--gold);height:3px;}
+.row .val{color:var(--gl);font-size:.68rem;min-width:56px;text-align:right;}
+
+.btn{padding:3px 7px;font-size:.65rem;color:var(--mu);background:transparent;
+  border:1px solid rgba(212,160,18,.3);border-radius:4px;cursor:pointer;
+  font-family:inherit;transition:all .14s;}
+.btn:hover{color:var(--gl);border-color:var(--gold);background:rgba(212,160,18,.08);}
+.btn.on{color:#fff;background:rgba(212,160,18,.24);border-color:var(--gl);}
+.grid{display:flex;gap:3px;flex-wrap:wrap;}
+.grid .btn{flex:1 1 44%;text-align:center;padding:4px 2px;}
+
+/* scale bar, bottom centre, always visible */
+#scaleWrap{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--line);border-radius:7px;
+  padding:8px 14px;display:flex;align-items:center;gap:16px;font-size:.72rem;
+  max-width:min(940px,94vw);}
+#scaleBar{display:flex;flex-direction:column;gap:3px;align-items:flex-start;}
+#scaleRule{position:relative;height:12px;border-left:1px solid var(--gl);
+  border-right:1px solid var(--gl);border-bottom:1px solid var(--gl);min-width:40px;}
+#scaleRule i{position:absolute;left:50%;top:4px;bottom:0;width:1px;background:rgba(244,211,94,.55);}
+#scaleLabel{color:var(--gl);letter-spacing:1px;font-size:.7rem;}
+#readout{display:flex;gap:14px;color:var(--mu);flex-wrap:wrap;font-size:.68rem;}
+#readout b{color:var(--gl);font-weight:normal;}
+#travel{color:var(--mu);font-size:.66rem;border-left:1px solid var(--line);padding-left:14px;
+  display:flex;gap:12px;flex-wrap:wrap;}
+#travel b{color:var(--sand);font-weight:normal;}
+
+#info{position:absolute;right:10px;top:48px;width:288px;max-height:56vh;overflow-y:auto;
+  opacity:0;transform:translateY(-6px);transition:all .22s;pointer-events:none;}
+#info.vis{opacity:1;transform:none;pointer-events:auto;}
+#info h2{font-size:.92rem;color:var(--gl);margin-bottom:3px;font-weight:normal;}
+#info .kind{font-size:.66rem;color:var(--gold);margin-bottom:6px;letter-spacing:.6px;}
+#info p{font-size:.74rem;line-height:1.55;color:var(--tx);}
+#info .close{position:absolute;right:8px;top:7px;cursor:pointer;color:var(--mu);font-size:.8rem;}
+.tag{display:inline-block;font-size:.6rem;letter-spacing:1px;padding:1px 5px;border-radius:3px;
+  margin-right:4px;margin-bottom:5px;border:1px solid;}
+.tag.LOCKED{color:#8CBA8C;border-color:rgba(140,186,140,.55);}
+.tag.PROPOSED{color:#E0A85C;border-color:rgba(224,168,92,.55);}
+.tag.RECONCILE{color:#D97070;border-color:rgba(217,112,112,.55);}
+.tag.OPEN{color:#7FA8D0;border-color:rgba(127,168,208,.55);}
+
+#dev{position:absolute;right:10px;bottom:12px;background:var(--panel);border:1px solid var(--line);
+  border-radius:7px;padding:7px 9px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:.62rem;color:var(--mu);line-height:1.5;display:none;white-space:pre;}
+#dev.vis{display:block;}
+#dev b{color:var(--gl);font-weight:normal;}
+
+.hint{color:var(--mu);font-size:.62rem;line-height:1.45;margin-top:7px;}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="boot">
+  <h1>THE SOUTHERN SUNLANDS</h1>
+  <div class="sub">building the world at one metre to the unit</div>
+  <div class="bar"><i id="bootbar"></i></div>
+  <div class="sub" id="bootmsg">starting</div>
+</div>
+
+<div id="hud">
+  <div class="topbar">
+    <h1>THE SOUTHERN SUNLANDS</h1>
+    <div class="st">
+      <span><strong>2.5M</strong> sq mi</span>
+      <span><strong>8M</strong> people</span>
+      <span><strong>85%</strong> of continental gold</span>
+      <span><strong>9</strong> Solanu</span>
+      <span id="stTier"><strong>&mdash;</strong></span>
+    </div>
+  </div>
+
+  <div class="panel" id="left">
+    <h3>Environment</h3>
+    <div class="row">
+      <label>Time</label>
+      <input type="range" id="tod" min="0" max="24" step="0.25" value="10">
+      <span class="val" id="todVal">10:00</span>
+    </div>
+    <div class="grid" id="weatherBtns">
+      <button class="btn on" data-w="clear">Clear</button>
+      <button class="btn" data-w="rain">Rain</button>
+      <button class="btn" data-w="harmattan">Harmattan</button>
+      <button class="btn" data-w="fog">Coastal fog</button>
+    </div>
+
+    <h3>Season</h3>
+    <div class="grid" id="seasonBtns">
+      <button class="btn on" data-s="greening">The Greening</button>
+      <button class="btn" data-s="dust">The Long Dust</button>
+    </div>
+
+    <h3>Go to</h3>
+    <div class="grid" id="gotoBtns"></div>
+
+    <div class="hint" id="controlHint">
+      Drag to orbit &middot; scroll to zoom &middot; right-drag to pan<br>
+      Click the ground for the place under the cursor
+    </div>
+  </div>
+
+  <div class="panel" id="info">
+    <span class="close" id="infoClose">&times;</span>
+    <h2 id="infoTitle"></h2>
+    <div class="kind" id="infoKind"></div>
+    <div id="infoTags"></div>
+    <p id="infoText"></p>
+  </div>
+
+  <div id="scaleWrap">
+    <div id="scaleBar">
+      <div id="scaleRule" style="width:120px"><i></i></div>
+      <div id="scaleLabel">100 km</div>
+    </div>
+    <div id="readout">
+      <span>Altitude <b id="roAlt">&mdash;</b></span>
+      <span>Tier <b id="roTier">&mdash;</b></span>
+      <span>Across view <b id="roSpan">&mdash;</b></span>
+    </div>
+    <div id="travel"></div>
+  </div>
+
+  <div id="dev"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
