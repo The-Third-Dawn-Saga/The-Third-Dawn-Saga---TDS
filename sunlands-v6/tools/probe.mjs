@@ -235,10 +235,14 @@ console.log('\nG2b. the city keeps its own clock');
     await page.waitForTimeout(2600);
     return page.evaluate(() => window.__rites());
   };
+  /* How far a pool has been THROWN, measured from the plate that threw it.
+     Measuring from the temple centre instead reads the fifty-seven metres the
+     mirrors are spread along the roof as if it were reach, which at noon,
+     when every pool is sitting under its own mirror, is all of it. */
   const reachOf = (r) => {
     const on = r.pools.at.filter(p => p.glow > 0.01);
     if (!on.length) return 0;
-    return on.reduce((s, p) => s + Math.hypot(p.x - r.temple.x, p.z - r.temple.z), 0) / on.length;
+    return on.reduce((s, p) => s + Math.hypot(p.x - p.fromX, p.z - p.fromZ), 0) / on.length;
   };
 
   /* Part 4.2: the temple's roof mirrors drive a moving light pool as the sun
@@ -275,7 +279,7 @@ console.log('\nG2b. the city keeps its own clock');
      against simulated time, like every other speed here. */
   if (noon.rings) {
     const a = await page.evaluate(() => window.__rites());
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(3500);
     const b = await page.evaluate(() => window.__rites());
     const dt = b.t - a.t;
     const rates = [];
@@ -394,8 +398,22 @@ console.log('\nG4. the Glass Desert is a mirror, and it is visible from Sundisk'
      Glass is the darker material of the two by a wide margin, so at night,
      with no sun at all, the only thing that can make it the brighter one is
      that it is reflecting the sky and the stars. */
-  const groundGrid = [];
-  for (let x = 120; x <= 520; x += 50) for (let y = 250; y <= 330; y += 20) groundGrid.push([x, y]);
+  /* Sample points are FRACTIONS of the viewport, not pixels. A grid measured
+     at one window size and pasted into a run at another lands somewhere else
+     entirely: these were calibrated at 640x360 and at 1920x1080 they were
+     sampling sky and calling it ground. */
+  const VW = page.viewportSize().width, VH = page.viewportSize().height;
+  const gridOf = (x0, x1, y0, y1, nx, ny) => {
+    const g = [];
+    for (let i = 0; i <= nx; i++) {
+      for (let j = 0; j <= ny; j++) {
+        g.push([(x0 + (x1 - x0) * i / nx) * VW, (y0 + (y1 - y0) * j / ny) * VH]);
+      }
+    }
+    return g;
+  };
+  /* The lower half of the frame, which on a level-ish look is the ground. */
+  const groundGrid = gridOf(0.19, 0.81, 0.69, 0.92, 8, 4);
   const overGround = async (ax, az) => {
     await page.evaluate(([ax, az]) => {
       const gy = window.__terrainHeight(ax, az);
@@ -415,8 +433,8 @@ console.log('\nG4. the Glass Desert is a mirror, and it is visible from Sundisk'
      pixel anyway. What carries it is the air above the sheet, so the test is
      that the eastern sky is brighter than the rest of the sky and not that a
      surface is drawn. */
-  const skyGrid = [];
-  for (let x = 200; x <= 440; x += 20) for (let y = 140; y <= 175; y += 7) skyGrid.push([x, y]);
+  /* A band just above the horizon, which on a level look is screen centre. */
+  const skyGrid = gridOf(0.31, 0.69, 0.39, 0.49, 12, 5);
   const fromWall = async (dx, dz) => {
     await page.evaluate(([dx, dz]) => {
       const gy = window.__terrainHeight(5500, 0) + 9;        // on the Great Wall

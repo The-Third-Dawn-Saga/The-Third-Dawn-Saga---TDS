@@ -808,8 +808,11 @@ window.__rites = () => {
     pools: null, rings: null, queues: null,
   };
   const city = regions.get('sundisk');
+  /* Only the levels the render loop actually updates. A region holds a full
+     build and a blocks build, both carrying a wall, and reporting the one
+     that is not on screen means reporting numbers nothing ever touches. */
   if (city) for (const lvl of city.levels) {
-    if (!lvl) continue;
+    if (!lvl || !lvl.visible) continue;
     lvl.traverse(o => {
       if (o.userData.roofMirrors) {
         const rm = o.userData.roofMirrors;
@@ -817,7 +820,12 @@ window.__rites = () => {
         for (let i = 0; i < rm.mirrors.length; i++) {
           const m = new THREE.Matrix4();
           rm.pools.getMatrixAt(i, m);
-          p.push({ x: m.elements[12], z: m.elements[14], glow: rm.glow[i] });
+          /* The mirror's own position too: how far a pool has been thrown is
+             measured from the plate that threw it, not from the temple. */
+          p.push({
+            x: m.elements[12], z: m.elements[14], glow: rm.glow[i],
+            fromX: rm.mirrors[i].pos.x, fromZ: rm.mirrors[i].pos.z,
+          });
         }
         out.pools = { visible: rm.pools.visible, at: p };
       }
