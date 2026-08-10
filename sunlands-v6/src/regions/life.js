@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { CITY_GROUND_Y, walkableHeight } from '../terrain/height.js';
 import { makeRng, seedFrom } from '../world.js';
+import { marketOpen } from '../city/rites.js';
 import { KM } from '../units.js';
 
 const CROWD_VERT = /* glsl */`
@@ -163,7 +164,9 @@ export function updateCrowd(mesh, env) {
   const day = h < 4.5 ? 0.06 : h < 6 ? 0.25 : h < 11 ? 1.0
             : h < 15 ? 0.42 : h < 19.5 ? 0.85 : h < 22 ? 0.5 : 0.15;
   u.uDensity.value = day;
-  u.uMarketOpen.value = (h >= 5.5 && h <= 12.2) ? 1 : 0;
+  /* The same curve the drum towers read, so the market closing and the
+     drums that close it are one number rather than two. */
+  u.uMarketOpen.value = marketOpen(h);
   u.uTime.value = env.time;
   u.uAmbient.value.copy(env.ambient);
 }

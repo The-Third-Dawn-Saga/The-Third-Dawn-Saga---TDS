@@ -46,7 +46,8 @@ src/
   main.js               bootstrap, render loop, mode switching
   terrain/              noise, height field, chunk mesher, worker, sand shader
   water/                Gerstner ocean, depth-driven shoreline and foam
-  city/                 Sundisk generator, sunklay material, wall, the Veil
+  city/                 Sundisk generator, sunklay material, wall, Veil, rites
+  weather.js            the Harmattan front, coastal fog, rain
   regions/              settlements, landmarks, life, the Ashlands
   explore/              character controller, collision, footprints, audio
   ui/                   HUD, labels, map, reference layers
@@ -111,6 +112,59 @@ The depth pass uses one override material for everything, and re-renders on
 alternate frames unless the sun has moved. The crowd does not cast: nine
 thousand ankle-height shadows cost a great deal and show almost nothing.
 
+## What the city does on a clock
+
+Three things in Sundisk run off the time of day rather than off a loop, and
+all three are in `src/city/rites.js`.
+
+**The temple's roof mirrors** throw a real reflection. Each plate has a normal,
+the sun is reflected about it, and the reflected ray is marched down to the
+height of the surrounding roofline; the pool is put where it lands. Nothing is
+keyframed, which is why the design had to change once the algebra was done:
+for a plate canted by `a` and a sun at elevation `e`, the reflected ray's
+vertical component is `sin(2a + e)`, so a plate lying flat on the roof sends
+the beam into the sky at every hour of the day. The mirrors stand nearly
+upright, in a fan from due east to due west. Early and late the pools reach
+seventy metres into the quarter; at noon they collapse back under the temple.
+
+**The drums** fire the market close at solar noon, and the ring each strike
+sends out travels at 343 m/s, because in a build whose premise is real
+distances it has no business travelling any faster. Tower to the far side of
+the Grand Market is about four seconds and you can watch it cross. The crowd's
+market-open curve and the drums read one function, so the drums close the
+market in the code as well as in the fiction.
+
+**The gates queue**, longest at the eastern gate at dawn. Each figure holds a
+gate index and a slot in the line; its position is derived in the shader from
+that slot and the clock, so the queue shuffles forward for one draw call and
+no CPU work.
+
+## The Glass Desert
+
+The sheet is a near-mirror, so it is given a mirror's roughness: about 0.02,
+not the 0.12 that reads as "shiny". What makes a mirror a mirror is that it
+shows you something, so the reflected view direction is evaluated against the
+same scattering function the sky dome is drawn with. The sheet carries the
+sunset, and at night it carries the stars.
+
+Canon marks the hidden springs with darker glass, so the dark patches are a
+field in their own right rather than a side effect of the crazing, and the
+polish follows the same field: a spring is where the sheet is thinnest and
+least like a mirror, so it reads as duller as well as darker.
+
+**The glow from three hundred kilometres.** Canon says the reflected starlight
+is visible from Sundisk's walls. The sheet itself cannot be what you see from
+there, and it is worth being exact about why: Part 1.3 puts the Street tier
+far plane at four kilometres, and even without that limit, the sheet at three
+hundred kilometres is a band a hair below the horizon and thinner than a
+pixel. What you would actually see is the air above the sheet, lit from below,
+the way a city puts a dome of light over itself. So that is what it is: a glow
+banked on the eastern horizon, computed from the camera's real bearing to the
+Glass Desert, swinging round the sky as you travel and gone when you are
+standing on the glass. Measured from the top of the Great Wall at midnight the
+eastern sky reads 1.66 times the western, and west and north agree with each
+other to within a tenth of a percent.
+
 ## Weather that has a position
 
 Two of the four Part 5.5 states are not global tints, so they are not
@@ -158,9 +212,9 @@ Last budget run:
 ```
 continental  draws   42 tris    275k of which shadow      0k  OK
 kingdom      draws   56 tris    277k of which shadow      0k  OK
-regional     draws  118 tris   1277k of which shadow      0k  OK
-street       draws  152 tris   4212k of which shadow   1035k  OK
-ashlands     draws   38 tris    131k of which shadow      0k  OK
+regional     draws  119 tris   1280k of which shadow      0k  OK
+street       draws  160 tris   4222k of which shadow   1042k  OK
+ashlands     draws   35 tris    105k of which shadow      0k  OK
 ```
 
 Street tier used to carry 16.9M triangles, 11.1M of them in the shadow pass.
@@ -188,10 +242,28 @@ thirty thousand instances inside the budget, and that the Harmattan front
 advances at 80 km/h with clear air ahead of it and four hundred metre
 visibility behind.
 
-Both speed checks, the walker's and the storm's, are measured per second of
-**simulated** time rather than per second of wall clock. Under a software
-rasteriser the page runs at about one frame a second, so wall clock would be
-measuring the rasteriser.
+It also asserts, by reading pixels rather than by looking at a screenshot,
+that at night the Glass Desert is brighter than the sand sea it is darker
+than, and that the eastern sky from the Great Wall carries a glow the west and
+the north do not. And it asserts the city's clock: that the temple's light
+pools sweep and then collapse under the temple at noon, that the drum ring
+crosses the market at the speed of sound, and that the gates queue at dawn and
+not in the heat.
+
+Every speed check here, the walker's and the storm's and the drum ring's, is
+measured per second of **simulated** time rather than per second of wall
+clock. Under a software rasteriser the page runs at about one frame a second,
+so wall clock would be measuring the rasteriser.
+
+### What these checks do not cover
+
+Part 2 sets frame-rate targets: 60 fps at 1080p on integrated graphics at
+Regional tier, 30 fps minimum at Street. Nothing here can tell you whether
+those are met. The verification runs on a software rasteriser at roughly one
+frame a second, so the only performance numbers it can honestly produce are
+the counts, draw calls and triangles, not the time. The counts are inside
+budget at every tier and the Street-tier triangle load is down fourfold, which
+is the part that was measurable. The frame rate itself wants a real GPU.
 
 ---
 

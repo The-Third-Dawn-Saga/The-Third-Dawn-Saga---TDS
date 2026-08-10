@@ -33,6 +33,7 @@
 
 import * as THREE from 'three';
 import { GLSL_NOISE, GLSL_LIGHTING, GLSL_FOG } from '../shaders/common.js';
+import { SKY_SCATTER } from '../shaders/sky-glsl.js';
 import { GLSL_SHADOW, shadowUniforms } from '../shadows.js';
 import { TAU_PIXELS, ERROR_PER_SPACING } from './chunker.js';
 import { SEA_LEVEL } from './height.js';
@@ -66,8 +67,10 @@ const PALETTE = {
   SALT_HIGH:   '#F5F3EE',
   /* Hard reg pavement, the 70 percent of the Sunlands that is not sand sea */
   REG_BASE:    '#9F8560',
-  /* The Glass Desert sheet, and the Ashlands basalt and rust */
+  /* The Glass Desert sheet, and the darker glass that marks a hidden spring */
   GLASS_BASE:  '#5A6A76',
+  GLASS_DEEP:  '#1E2A33',
+  /* The Ashlands basalt and rust */
   ASH_BASE:    '#3E3A36',
   RUST_BASE:   '#5F3E2B',
   ROCK_BASE:   '#665D53',
@@ -153,6 +156,11 @@ ${GLSL_NOISE}
 ${GLSL_LIGHTING}
 ${GLSL_FOG}
 ${GLSL_SHADOW}
+/* The same scattering the sky is drawn with, so what the Glass Desert
+   reflects is the sky that is actually up there rather than an approximation
+   of it that disagrees along the horizon. Everything it costs sits behind a
+   branch on the glass weight. */
+${SKY_SCATTER}
 
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -260,10 +268,23 @@ void main(){
   vec3 saltCol = mix(SALT_BASE, SALT_HIGH, clamp(0.5 + variation * 3.0, 0.0, 1.0));
   saltCol = mix(saltCol, vec3(0.62, 0.58, 0.52), saltCrack * 0.8 * fRipple);
 
-  /* Glass: dark where the sheet is thick, paler where it is crazed. The full
-     near-mirror treatment is in the glass region material. */
-  float crazing = fbm2(vLoUV * 60.0, 3);
-  vec3 glassCol = mix(GLASS_BASE, GLASS_BASE * 0.45, smoothstep(0.1, 0.5, crazing));
+  /* Glass: dark where the sheet is thick, paler where it is crazed. Canon is
+     specific that the hidden springs are marked by DARKER glass, so the dark
+     patches are a field in their own right rather than a side effect of the
+     crazing, and they are what the polish varies with too: a spring is where
+     the sheet is thinnest and least like a mirror.
+
+     Behind a branch because the Glass Desert is one region out of fifty and
+     every other pixel in the world would otherwise pay for two noise fields
+     it multiplies by zero. */
+  float crazing = 0.0, springs = 0.0;
+  vec3 glassCol = vec3(0.0);
+  if (glass > 0.004) {
+    crazing = fbm2(vLoUV * 60.0, 3);
+    springs = smoothstep(0.42, 0.78, fbm2(vLoUV * 7.0 + vec2(19.3, -4.1), 4) * 0.5 + 0.5);
+    glassCol = mix(GLASS_BASE, GLASS_BASE * 0.45, smoothstep(0.1, 0.5, crazing));
+    glassCol = mix(glassCol, GLASS_DEEP, springs * 0.85);
+  }
 
   /* Ash: basalt and rust, and nothing saturated. */
   float rustV = smoothstep(0.15, 0.6, fbm2(vLoUV * 30.0, 3));
@@ -299,7 +320,13 @@ void main(){
      Broad, ocean-like, and strongest across the dune faces where the surface
      is smoothest. Wet sand and glass sharpen it. */
   float rough = mix(0.62, 0.34, clamp(N.y, 0.0, 1.0));
-  rough = mix(rough, 0.12, glass);
+  /* NEAR-MIRROR, per Part 5.3. Fused silica polished by forty centuries of
+     wind is not a shiny surface, it is a bad mirror: roughness in the low
+     hundredths, not the tenths. The springs are the exception, and that is
+     the point of them, so the polish varies with the same field the colour
+     does and the darker patches read as duller as well as darker. */
+  float polish = mix(0.020, 0.115, springs) + crazing * 0.030;
+  rough = mix(rough, polish, glass);
   rough = mix(rough, 0.22, wet);
   rough = mix(rough, 0.05, flood);
   rough = mix(rough, 0.85, ash);
@@ -355,6 +382,39 @@ void main(){
   vec3 color = albedo * (ambient + sun * diffuse * shade)
              + sun * spec * shade * mix(1.0, 3.0, glass)
              + sun * glint * shade;
+
+  /* ---- the Glass Desert reflects ---------------------------------------
+     What separates a mirror from a shiny floor is that a mirror shows you
+     something. Reflecting the view about the surface normal and evaluating
+     the same sky the sky dome is drawn with costs a couple of dozen
+     instructions and is the whole effect: the sheet carries the sunset, and
+     at night it carries the stars.
+
+     AND THE GLOW FROM THREE HUNDRED KILOMETRES. Canon says the reflected
+     starlight is visible from Sundisk's walls, and the near edge of the sheet
+     is about that far east of them. Starlight reflected off glass is far too
+     dim to survive being multiplied by a night ambient that is itself already
+     a deliberate lift, so the star term is added rather than modulated, at a
+     level chosen to read as a glow along the horizon and not as a lit
+     surface. That is the second place in this build where the lighting model
+     stops being physical, and like the first it is named where it happens. */
+  if (glass > 0.004) {
+    vec3 R = reflect(-V, Nd);
+    R.y = abs(R.y);                      // never sample below the horizon
+    vec3 sky = skyRadiance(R, uSunDir, uSunIntensity, uDust, 1.0);
+    /* Fresnel at the real grazing angles this surface is usually seen at,
+       which is why a glass plain goes from grey underfoot to bright at the
+       horizon. */
+    float fres = f0 + (1.0 - f0) * pow(clamp(1.0 - max(dot(Nd, V), 0.0), 0.0, 1.0), 5.0);
+    /* A rough mirror blurs what it reflects, so the reflection fades toward
+       the ambient as the polish drops away over the springs. */
+    float mirror = glass * (1.0 - smoothstep(0.02, 0.13, rough) * 0.75);
+    vec3 stars = vec3(0.72, 0.80, 1.0) * starField(R) * 5.0 * uNightBlend;
+    color += (sky + stars) * fres * mirror;
+    /* The sheet as a whole, seen from far enough away that the individual
+       stars are long gone and only the sheen is left. */
+    color += vec3(0.030, 0.038, 0.055) * uNightBlend * mirror * fres;
+  }
 
   /* The Ashlands lose their colour, hard. Beautiful at distance, wrong on
      approach, and the desaturation is the first half of that. */

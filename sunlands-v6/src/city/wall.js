@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { CITY_GROUND_Y } from '../terrain/height.js';
 import { InstanceSet, geometryKit } from './kit.js';
 import { goldRatio } from './materials.js';
+import { buildDrumRings, buildGateQueues } from './rites.js';
 import { CITY } from './sundisk.js';
 import { makeRng, seedFrom } from '../world.js';
 
@@ -124,6 +125,14 @@ export function buildWall(ctx) {
     const m = set.build(name);
     if (m) grp.add(m);
   }
+  /* The rings each strike sends out, expanding at the speed of sound. The
+     towers are only towers until they are actually struck. */
+  grp.add(buildDrumRings(drums));
+  /* Part 4.6: traffic actually queues, and it queues longest at the eastern
+     gate at dawn. The barbicans and the tax booths above are what it is
+     queueing for. */
+  const q = buildGateQueues(gateAngles, R);
+  if (q) grp.add(q);
   grp.userData.drums = drums;
   grp.userData.towerCount = nTowers;
   return grp;

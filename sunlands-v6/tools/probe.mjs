@@ -228,6 +228,83 @@ console.log('\nG2. Sundisk carries a city, not a diorama');
   ok(s.draws < 900, 'the full city stays inside the draw budget', `${s.draws} calls, ${(s.triangles / 1e6).toFixed(1)}M tris`);
 }
 
+console.log('\nG2b. the city keeps its own clock');
+{
+  const at = async (h) => {
+    await page.evaluate(hh => window.__env.setTime(hh), h);
+    await page.waitForTimeout(2600);
+    return page.evaluate(() => window.__rites());
+  };
+  const reachOf = (r) => {
+    const on = r.pools.at.filter(p => p.glow > 0.01);
+    if (!on.length) return 0;
+    return on.reduce((s, p) => s + Math.hypot(p.x - r.temple.x, p.z - r.temple.z), 0) / on.length;
+  };
+
+  /* Part 4.2: the temple's roof mirrors drive a moving light pool as the sun
+     angle changes. Moving is the claim, so movement is the test. */
+  const dawn = await at(7);
+  const noon = await at(12);
+  const dusk = await at(17);
+  ok(dawn.pools && noon.pools, 'the temple roof mirrors are throwing pools',
+     `${dawn.pools ? dawn.pools.at.filter(p => p.glow > 0.01).length : 0} lit at 07:00, ` +
+     `${noon.pools ? noon.pools.at.filter(p => p.glow > 0.01).length : 0} at noon`);
+  if (dawn.pools && noon.pools && dusk.pools) {
+    const rDawn = reachOf(dawn), rNoon = reachOf(noon);
+    ok(rDawn > rNoon * 2, 'and at noon they collapse back under the temple',
+       `${rDawn.toFixed(0)} m out at 07:00 against ${rNoon.toFixed(0)} m at noon`);
+    let moved = 0;
+    for (let i = 0; i < dawn.pools.at.length; i++) {
+      moved = Math.max(moved, Math.hypot(dawn.pools.at[i].x - dusk.pools.at[i].x,
+                                         dawn.pools.at[i].z - dusk.pools.at[i].z));
+    }
+    ok(moved > 40, 'the pools sweep across the quarter through the day',
+       `furthest pool travels ${moved.toFixed(0)} m between 07:00 and 17:00`);
+  }
+
+  /* Part 4.6: the drums fire the market close at solar noon, and the crowd
+     and the drums read one number rather than two. */
+  ok(noon.drums > 0.9 && dawn.drums < 0.01, 'the drums fire at solar noon and only then',
+     `${noon.drums.toFixed(2)} at noon, ${dawn.drums.toFixed(2)} at 07:00`);
+  ok(dawn.market === 1 && (await at(12.5)).market < 0.2,
+     'and the market shuts when they do', 'open at dawn, shut by 12:30');
+  ok(noon.rings && noon.rings.visible, 'the strike is drawn', '');
+
+  /* The ring travels at the speed of sound, because in a build whose premise
+     is real distances it has no business travelling any faster. Measured
+     against simulated time, like every other speed here. */
+  if (noon.rings) {
+    const a = await page.evaluate(() => window.__rites());
+    await page.waitForTimeout(2500);
+    const b = await page.evaluate(() => window.__rites());
+    const dt = b.t - a.t;
+    const rates = [];
+    for (let i = 0; i < a.rings.radii.length; i++) {
+      const dr = b.rings.radii[i] - a.rings.radii[i];
+      if (dr > 0) rates.push(dr / dt);              // skip any ring that wrapped
+    }
+    rates.sort((p, q) => p - q);
+    const median = rates.length ? rates[rates.length >> 1] : 0;
+    ok(Math.abs(median - a.soundSpeed) < 2, 'and it travels at the speed of sound',
+       `${median.toFixed(1)} m/s over ${dt.toFixed(1)} s of simulated time, ` +
+       `${rates.length} of ${a.rings.radii.length} rings unwrapped`);
+  }
+
+  /* Part 4.6: traffic actually queues at dawn, longest at the eastern gate. */
+  const q6 = await at(6.5);
+  const q14 = await at(14);
+  ok(q6.queue > q14.queue * 1.5, 'the gates queue at dawn and not in the heat',
+     `${q6.queue.toFixed(2)} at 06:30 against ${q14.queue.toFixed(2)} at 14:00`);
+  if (q6.queues) {
+    const share = q6.queues.share;
+    const most = share.indexOf(Math.max(...share));
+    ok(share[most] > 1.5 * Math.min(...share) && q6.queues.length === q6.queue,
+       'and the eastern gate carries the long one',
+       `shares ${share.map(v => v.toFixed(2)).join(' ')}`);
+  }
+  await page.evaluate(() => window.__env.setTime(10));
+}
+
 console.log('\nG3. the Harmattan is a place, not a tint');
 {
   const KMm = 1000;
@@ -306,6 +383,59 @@ console.log('\nG3. the Harmattan is a place, not a tint');
 
   await page.evaluate(() => window.__env.setWeather('clear'));
   await page.waitForTimeout(300);
+}
+
+console.log('\nG4. the Glass Desert is a mirror, and it is visible from Sundisk');
+{
+  const lumOf = (px) => px.reduce((s, [r, g, b]) => s + 0.299 * r + 0.587 * g + 0.114 * b, 0) / px.length;
+  await page.evaluate(() => window.__env.setTime(23));
+
+  /* A grazing look across the sheet, and the same look across the sand sea.
+     Glass is the darker material of the two by a wide margin, so at night,
+     with no sun at all, the only thing that can make it the brighter one is
+     that it is reflecting the sky and the stars. */
+  const groundGrid = [];
+  for (let x = 120; x <= 520; x += 50) for (let y = 250; y <= 330; y += 20) groundGrid.push([x, y]);
+  const overGround = async (ax, az) => {
+    await page.evaluate(([ax, az]) => {
+      const gy = window.__terrainHeight(ax, az);
+      window.__lookFrom(ax, gy + 260, az, ax + 2600, gy + 120, az);
+    }, [ax, az]);
+    await page.waitForTimeout(9000);
+    return lumOf(await page.evaluate(g => window.__samplePixels(g), groundGrid));
+  };
+  const gGlass = await overGround(530e3, -70e3);
+  const gSand = await overGround(300e3, -40e3);
+  ok(gGlass / gSand > 1.5, 'at night the sheet is brighter than sand it is darker than',
+     `glass ${gGlass.toFixed(1)} against sand ${gSand.toFixed(1)}, ${(gGlass / gSand).toFixed(2)}x`);
+
+  /* Canon: the glow is visible from Sundisk's walls, three hundred kilometres
+     away. The sheet itself cannot be: Part 1.3 puts the Street tier far plane
+     at four kilometres, and at that range the sheet is a band thinner than a
+     pixel anyway. What carries it is the air above the sheet, so the test is
+     that the eastern sky is brighter than the rest of the sky and not that a
+     surface is drawn. */
+  const skyGrid = [];
+  for (let x = 200; x <= 440; x += 20) for (let y = 140; y <= 175; y += 7) skyGrid.push([x, y]);
+  const fromWall = async (dx, dz) => {
+    await page.evaluate(([dx, dz]) => {
+      const gy = window.__terrainHeight(5500, 0) + 9;        // on the Great Wall
+      window.__lookFrom(5500, gy, 0, 5500 + dx, gy, dz);
+    }, [dx, dz]);
+    await page.waitForTimeout(7000);
+    return lumOf(await page.evaluate(g => window.__samplePixels(g), skyGrid));
+  };
+  const east = await fromWall(4000, -520);
+  const west = await fromWall(-4000, 520);
+  const north = await fromWall(-520, -4000);
+  ok(east / west > 1.25, 'from the Great Wall the eastern sky carries the glow',
+     `east ${east.toFixed(1)} against west ${west.toFixed(1)}, ${(east / west).toFixed(2)}x`);
+  ok(Math.abs(west - north) / Math.max(west, north) < 0.10,
+     'and it is a direction, not a brighter night',
+     `west ${west.toFixed(1)}, north ${north.toFixed(1)}`);
+
+  await page.evaluate(() => window.__env.setTime(10));
+  await page.waitForTimeout(400);
 }
 
 console.log('\nH. the floating origin actually engages');

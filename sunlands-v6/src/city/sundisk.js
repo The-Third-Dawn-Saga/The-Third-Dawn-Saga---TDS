@@ -26,6 +26,7 @@ import * as THREE from 'three';
 import { CITY_GROUND_Y } from '../terrain/height.js';
 import { InstanceSet, geometryKit } from './kit.js';
 import { goldRatio } from './materials.js';
+import { buildRoofMirrors } from './rites.js';
 import { makeRng, seedFrom } from '../world.js';
 
 export const CITY = {
@@ -385,14 +386,18 @@ function buildPalace(material) {
  * rounded parapets, and three towers for dawn, noon and dusk, each capped
  * with an ostrich-egg pinnacle.
  */
+/* The temple footprint, in one place, because the roof mirrors have to sit on
+   the roof and a second copy of these numbers is a second chance to be wrong. */
+export const TEMPLE = { x: 520, z: -180, w: 132, d: 96, h: 17 };
+
 function buildTemple(material) {
   const geo = geometryKit();
   const body = new InstanceSet(geo.house, material, 512);
   const eggs = new InstanceSet(geo.egg, material, 8);
   const rng = makeRng(seedFrom('sun-temple'));
 
-  const cx = 520, cz = -180;
-  const W = 132, D = 96, H = 17;          // capacity 10,000 at the canon figure
+  const cx = TEMPLE.x, cz = TEMPLE.z;
+  const W = TEMPLE.w, D = TEMPLE.d, H = TEMPLE.h;   // capacity 10,000 at canon
   const gold = goldRatio(Math.hypot(cx, cz), 1.0, 1.0);
 
   body.add(cx, G, cz, W, H, D, 0, gold * 0.8, 0.72, 0.12);
@@ -586,6 +591,9 @@ export function buildSundiskFull(ctx) {
 
   grp.add(buildPalace(mat));
   grp.add(buildTemple(mat));
+  /* Part 4.2 asks for the temple's golden roof mirrors to be functional, so
+     they come with the pools they throw. */
+  grp.add(buildRoofMirrors(mat, TEMPLE));
   grp.add(buildNobleQuarter(mat));
   grp.add(buildGranaries(mat));
   grp.add(buildMarket(mat));

@@ -44,6 +44,7 @@ uniform float uDust;          // Harmattan
 uniform float uCloud;
 uniform float uTime;
 uniform float uCamAltitude;   // metres above sea level
+uniform vec3 uGlassGlow;      // xz: unit bearing to the Glass Desert, y: strength
 
 varying vec3 vDir;
 
@@ -77,6 +78,29 @@ void main(){
     float band = pow(max(0.0, 1.0 - abs(dot(d, normalize(vec3(0.42, 0.30, -0.86)))) * 2.6), 3.0);
     col += vec3(0.95, 0.96, 1.0) * st * 1.6;
     col += vec3(0.16, 0.17, 0.24) * band * uNight * 0.30 * (1.0 - below);
+
+    /* THE GLASS DESERT GLOW, and why it belongs to the sky.
+
+       Canon: at night the starlight reflected off the sheet is visible from
+       Sundisk's walls, three hundred kilometres away. It cannot be carried by
+       the terrain from there. The Street tier far plane is four kilometres,
+       per Part 1.3, and even with an unlimited one the sheet at three hundred
+       kilometres is a band a hair below the horizon, thinner than a pixel.
+
+       What you would actually see from the walls is not the sheet. It is the
+       air above the sheet, lit from below, the same way a city puts a dome of
+       light over itself. So that is what this is: a glow banked on the
+       horizon in the sheet's direction, fading upward through the haze, on
+       for as long as the stars are. It is computed from the camera's real
+       bearing to the Glass Desert, so it swings round the sky as you travel
+       and it is gone when you are standing on the glass itself. */
+    if (uGlassGlow.y > 0.001) {
+      float bearing = max(0.0, dot(normalize(vec3(d.x, 0.0, d.z) + 1e-6),
+                                   vec3(uGlassGlow.x, 0.0, uGlassGlow.z)));
+      float spread = pow(bearing, 22.0);
+      float lift = exp(-max(d.y, 0.0) * 26.0) * smoothstep(-0.02, 0.03, d.y);
+      col += vec3(0.34, 0.42, 0.58) * spread * lift * uGlassGlow.y * uNight;
+    }
   }
 
   /* Cloud and dust flatten the whole dome toward the haze colour. */
@@ -97,6 +121,11 @@ void main(){
 }
 `;
 
+/* The Glass Desert, from canon.json. The glow is a bearing to a place, so
+   the place has to be in here. */
+const GLASS_CENTRE = { x: 530e3, z: -70e3 };
+const GLASS_RADIUS = 215e3;                   // half the 430 km extent
+
 export class Sky {
   constructor(scene) {
     this.uniforms = {
@@ -111,6 +140,7 @@ export class Sky {
       uCloud: { value: 0 },
       uTime: { value: 0 },
       uCamAltitude: { value: 0 },
+      uGlassGlow: { value: new THREE.Vector3(1, 0, 0) },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -128,7 +158,11 @@ export class Sky {
     scene.add(this.mesh);
   }
 
-  update(camera, env, altitudeAboveSea) {
+  /**
+   * @param {{x:number,z:number}} camAbs camera position in absolute metres,
+   *   which the Glass Desert glow needs because it is a bearing to a place.
+   */
+  update(camera, env, altitudeAboveSea, camAbs) {
     const u = this.uniforms;
     u.uInvProj.value.copy(camera.projectionMatrixInverse);
     u.uCamWorld.value.copy(camera.matrixWorld);
@@ -141,5 +175,18 @@ export class Sky {
     u.uCloud.value = env.weatherDef.cloud;
     u.uTime.value = env.time;
     u.uCamAltitude.value = altitudeAboveSea;
+
+    /* Bearing and strength of the Glass Desert glow. It rises as you leave
+       the sheet, because standing on glass you see the glass and not its
+       glow, and it dies away past the far side of the Sunlands. */
+    if (camAbs) {
+      const dx = GLASS_CENTRE.x - camAbs.x, dz = GLASS_CENTRE.z - camAbs.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const near = Math.min(1, Math.max(0, (dist - GLASS_RADIUS * 0.55) / (GLASS_RADIUS * 0.8)));
+      const far = 1 - Math.min(1, Math.max(0, (dist - 700e3) / 900e3));
+      u.uGlassGlow.value.set(dx / dist, near * far, dz / dist);
+    } else {
+      u.uGlassGlow.value.y = 0;
+    }
   }
 }

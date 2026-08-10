@@ -35,6 +35,11 @@ import { RegionManager } from './world.js';
 import { loadCanon, registerRegions } from './regions/index.js';
 import { createSunklayMaterial, updateSunklayUniforms } from './city/materials.js';
 import { updateVeil } from './city/veil.js';
+import {
+  updateRoofMirrors, updateDrumRings, updateGateQueues,
+  drumStrength, queueLength, marketOpen, SOUND_SPEED,
+} from './city/rites.js';
+import { TEMPLE } from './city/sundisk.js';
 import { updatePyramids, updateShapes } from './regions/landmarks.js';
 import { updateCrowd, buildTraffic, updateTraffic } from './regions/life.js';
 import { applyAshGrade, buildAshVeil, updateSeasonalLake } from './regions/ashlands.js';
@@ -537,7 +542,7 @@ function tick() {
   ashVeil.material.uniforms.uAmount.value = ash;
   ashVeil.visible = ash > 0.02;
 
-  sky.update(camera, env, camera.position.y - SEA_LEVEL);
+  sky.update(camera, env, camera.position.y - SEA_LEVEL, { x: camAbsX, z: camAbsZ });
   sky.uniforms.uCloud.value = Math.max(sky.uniforms.uCloud.value, ash * 0.8);
   updateSunklayUniforms(sunklay, env);
 
@@ -623,6 +628,9 @@ function tick() {
       if (!lvl || !lvl.visible) continue;
       lvl.traverse(o => {
         if (o.userData.veil) updateVeil(o, env, wantDepth ? depthRT.texture : null);
+        if (o.userData.roofMirrors) updateRoofMirrors(o, env);
+        if (o.userData.drumRings) updateDrumRings(o, env);
+        if (o.userData.gateQueues) updateGateQueues(o, env);
         if (o.userData.crowd) {
           updateCrowd(o, env);
           if (!shadowExcluded.includes(o)) shadowExcluded.push(o);
@@ -767,6 +775,13 @@ window.__triBreakdown = () => {
 };
 
 window.__flyTo = flyTo;
+/* Camera and target both in absolute metres, so a test can set up a grazing
+   look across a plain, which flyTo's fixed 61 degree pitch cannot. */
+window.__lookFrom = (ax, ay, az, tx, ty, tz) => {
+  controls.target.copy(absToScene(tx, ty, tz));
+  camera.position.copy(absToScene(ax, ay, az));
+  controls.update();
+};
 window.__regions = () => ({ ...regions.stats });
 window.__showPlace = (id) => { const p = placesById.get(id); if (p) { showPlace(p); flyTo(p.x, p.z, PRESET_ALT[id] || 4 * KM); } return !!p; };
 window.__activatePyramids = () => { pyramidState.active = true; pyramidState.phase = 0; pyramidState.timer = 0; };
@@ -779,6 +794,46 @@ window.__layers = () => ({ ...layers });
 window.__ashBlend = () => env.ashBlend || 0;
 window.__scene = scene;
 window.__shadowStrength = () => shadows.strength;
+window.__sky = sky;
+/* The city's daily rites, so a test can assert that the mirrors move, the
+   drums fire at noon and the gate queues are longest at dawn. */
+window.__rites = () => {
+  const out = {
+    market: marketOpen(env.timeOfDay),
+    drums: drumStrength(env.timeOfDay),
+    queue: queueLength(env.timeOfDay),
+    temple: { x: TEMPLE.x, z: TEMPLE.z },
+    soundSpeed: SOUND_SPEED,
+    t: env.time,
+    pools: null, rings: null, queues: null,
+  };
+  const city = regions.get('sundisk');
+  if (city) for (const lvl of city.levels) {
+    if (!lvl) continue;
+    lvl.traverse(o => {
+      if (o.userData.roofMirrors) {
+        const rm = o.userData.roofMirrors;
+        const p = [];
+        for (let i = 0; i < rm.mirrors.length; i++) {
+          const m = new THREE.Matrix4();
+          rm.pools.getMatrixAt(i, m);
+          p.push({ x: m.elements[12], z: m.elements[14], glow: rm.glow[i] });
+        }
+        out.pools = { visible: rm.pools.visible, at: p };
+      }
+      if (o.userData.drumRings) {
+        out.rings = { visible: o.visible, radii: Array.from(o.userData.drumRings.radii) };
+      }
+      if (o.userData.gateQueues) {
+        out.queues = {
+          length: o.material.uniforms.uQueue.value,
+          share: o.material.uniforms.uGateShare.value.toArray(),
+        };
+      }
+    });
+  }
+  return out;
+};
 window.__weather = () => ({
   front: weather.frontDistance,
   offsetHere: weather.frontOffset(camera.position.x + getWorldOffset().x,
