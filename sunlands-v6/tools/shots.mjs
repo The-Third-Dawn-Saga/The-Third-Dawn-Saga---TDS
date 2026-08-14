@@ -82,10 +82,15 @@ export const SCENES = [
     window.__lookFrom(520 - 250, window.__terrainHeight(0, 0) + 120, -180 - 250,
                       520, window.__terrainHeight(0, 0) + 10, -180);
   }],
-  ['drums_noon', 'solar noon, the drum rings crossing the Grand Market', () => {
+  /* DOWN IN THE MARKET, not above it. Sundisk is thirty thousand buildings
+     of three to nine metres: from five hundred metres up at a shallow angle
+     every one of them is sub-pixel in height and the quarter aliases into
+     shingle, which says nothing about the drums. Close enough that a house
+     is a house. */
+  ['drums_noon', 'solar noon, a drum ring crossing the Grand Market', () => {
     window.__env.setTime(12);
-    window.__lookFrom(0, window.__terrainHeight(0, 0) + 900, 2600,
-                      0, window.__terrainHeight(0, 0), 200);
+    const gy = window.__terrainHeight(0, 0);
+    window.__lookFrom(1900, gy + 90, 1900, 1500, gy + 12, 1500);
   }],
   ['gate_dawn', 'the eastern gate at dawn, and the queue for it', () => {
     window.__env.setTime(6.4);
@@ -131,6 +136,18 @@ page.on('console', m => { if (m.type() === 'error') console.error('console:', m.
 
 await page.goto(`${base}/index.html?dev=1`, { waitUntil: 'load' });
 await page.waitForFunction(() => typeof window.__flyTo === 'function', null, { timeout: 30000 });
+
+/* WAIT FOR THE BOOT SPLASH TO CLEAR BEFORE PHOTOGRAPHING ANYTHING.
+
+   The splash lifts when the chunk queue drops below its threshold, and some
+   poses never let it: a shallow look across four kilometres from nine hundred
+   metres up keeps eighty-odd chunks queued indefinitely under a software
+   rasteriser. Capturing a scene first in a batch then yields a picture of the
+   loading screen, which is exactly what happened to the drum towers. Boot at
+   the default view, where the queue does drain, and the splash is gone for
+   every scene after it. */
+await page.waitForFunction(() => window.__ready(), null, { timeout: 180000 }).catch(() => {});
+await page.evaluate(() => { const b = document.getElementById('boot'); if (b) b.style.display = 'none'; });
 
 const want = process.argv.slice(2);
 for (const [name, xk, zk, alt, tod, weather, season, heading] of VIEWS) {
