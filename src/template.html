@@ -39,6 +39,22 @@
   .modeTab .st.m{border:1px solid #223146;}
   .modeTab u{ text-decoration:none; border-bottom:1px solid transparent; padding-bottom:2px;}
   .modeTab.active u{border-bottom-color:var(--gold);}
+  /* The way out to the Sunlands. Deliberately NOT a modeTab: the tabs swap a
+     view in this page and this one leaves it, so it should not look like they
+     do. A doorway, with the sun on it. */
+  .navOut{display:flex; align-items:center; gap:9px; margin-left:22px; padding:7px 15px;
+    border:1px solid #3d4f66; border-radius:22px; text-decoration:none;
+    color:var(--parch); font-size:11px; letter-spacing:0.2em; text-transform:uppercase;
+    white-space:nowrap; transition:border-color .25s, color .25s, box-shadow .25s;}
+  .navOut:hover{color:var(--gold-soft); border-color:var(--gold); box-shadow:0 0 14px rgba(212,168,74,0.22);}
+  .navOut .disc{width:13px; height:13px; border-radius:50%; flex:none;
+    background:radial-gradient(circle at 38% 34%, #ffdf9a 0%, var(--gold) 52%, var(--ember) 100%);
+    box-shadow:0 0 9px rgba(212,168,74,0.55);}
+  .navOut .arrow{color:#54687f; font-size:13px;}
+  .navOut:hover .arrow{color:var(--gold-soft);}
+  .navOut.unavailable{opacity:0.42; cursor:not-allowed;}
+  .navOut.unavailable:hover{color:var(--parch); border-color:#3d4f66; box-shadow:none;}
+  @media (max-width:720px){ .navOut span.lbl{display:none;} .navOut{padding:7px 11px; margin-left:12px;} }
   /* ---------- stage ---------- */
   #stage{position:relative; height:calc(100% - 64px);}
   .view{position:absolute; inset:0; display:none;}
@@ -160,6 +176,10 @@
       <span class="stars"><span class="st r"></span><span class="st y"></span><span class="st r"></span><span class="st m"></span></span>
       <u>Map</u>
     </button>
+    <a class="navOut" id="navSunlands" href="sunlands-v6/"
+       title="The Southern Sunlands in three dimensions, at one metre to the unit">
+      <span class="disc"></span><span class="lbl">The Southern Sunlands</span><span class="arrow">&rsaquo;</span>
+    </a>
   </nav>
 </header>
 
