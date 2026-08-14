@@ -1,0 +1,590 @@
+{
+  "$comment": [
+    "Every place in the model, its coordinates in METRES, and its info text.",
+    "Origin (0,0,0) is the centre of the Solaharan's throne dais, Royal Palace,",
+    "Sundisk City. +X east, +Z south, +Y up. Coordinates here are absolute",
+    "metres: the loader does not scale them, it only subtracts the floating",
+    "origin at build time.",
+    "",
+    "Status tags are load-bearing canon-workflow markers and must survive any",
+    "refactor: LOCKED, PROPOSED, RECONCILE, OPEN. Nothing here promotes a",
+    "PROPOSED item to LOCKED.",
+    "",
+    "Info text is ported from the v5 locInfo object and from the atlas",
+    "src/data.js, and extended for the places Part 3 adds."
+  ],
+
+  "meta": {
+    "territory": "The Southern Sunlands",
+    "area": "2.5 million square miles",
+    "population": "8,000,000",
+    "founded": "Year 6,500 A.C.",
+    "ruler": "The Solaharan, the Sun Sovereign",
+    "rulerNote": "Solaharan, not Sultan. The v5 model used Sultan in one place; corrected here.",
+    "capital": "Sundisk City",
+    "bounds": { "minX": -1300000, "maxX": 1250000, "minZ": -1000000, "maxZ": 800000 },
+    "seaLevelY": -241,
+    "seaLevelNote": "The origin is the throne dais and Sundisk stands on a plateau, so sea level cannot also be zero. It sits 241 m below the dais."
+  },
+
+  "openQuestions": [
+    {
+      "id": "O-1",
+      "title": "Sundisk metro diameter",
+      "text": "18 km is derived from 1.5 million people at roughly 40,000 per square mile, not stated in canon. This model uses 18 km.",
+      "status": "OPEN"
+    },
+    {
+      "id": "O-2",
+      "title": "Oasis of Seven Palms position",
+      "text": "Conflicts across two documents. The March 2026 retcon places it in Sol Veth, southern interior. The Book Two route places it past the Glass Desert on the way north to the Twilight March. This model defaults to the route position at (+690, -430) km.",
+      "status": "RECONCILE"
+    },
+    {
+      "id": "O-3",
+      "title": "Glass Desert area",
+      "text": "10,000 square miles in pre-scale-up documents. The March 2026 continental scale-up multiplied territory by 2.5x. This model uses roughly 45,000 square miles, 430 by 270 km. Confirm or correct.",
+      "status": "OPEN"
+    },
+    {
+      "id": "O-4",
+      "title": "Fishing village distance",
+      "text": "Canon says three days on foot from Sundisk, which this document renders as roughly 120 km along the coast road. The coordinates given in Part 3.2, (0,0) and (+72,+118), are 138.2 km apart in a straight line, so the road cannot be shorter than that. Either the coordinates or the 120 km figure needs adjusting. Three days at 4 km/h over 8 hours is 96 km, so even 120 km is already four days of walking. Flagged, not resolved.",
+      "status": "RECONCILE"
+    },
+    {
+      "id": "O-5",
+      "title": "The Sunward Veil",
+      "text": "The name is PROPOSED pending a ruling. The technology itself extends locked Angel Stone sand-barrier canon.",
+      "status": "PROPOSED"
+    },
+    {
+      "id": "O-6",
+      "title": "Sundisk wall height",
+      "text": "Canonically 3 m or more. At a capital of 1.5 million that is low, so this model builds it at 9 m with a 3 m parapet. Confirm or revert.",
+      "status": "OPEN"
+    },
+    {
+      "id": "O-7",
+      "title": "Ashlands capital",
+      "text": "Mournscar versus Phoenix Rising. Sources conflict. This model defaults to Mournscar.",
+      "status": "RECONCILE"
+    }
+  ],
+
+  "places": [
+    {
+      "id": "sundisk",
+      "name": "Sundisk City",
+      "kind": "Capital of the Southern Sunlands",
+      "x": 0, "z": 0,
+      "population": "1,500,000",
+      "extent": 18000,
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Built where three underground rivers converge. Concentric rings with the palace at the exact centre, reflecting the sun's radiance spreading outward. Inner Ring, the Golden Circle: Royal Palace of 50 acres, the Great Sun Temple with its three towers and ostrich-egg pinnacles, the Noble Quarter, the Royal Granaries, the Treasury, the Prison. Middle Ring: the Grand Market of 30 acres, the Caravan Quarter, the Artisan District, money-changers and information brokers. Outer Ring: common housing with thick sunklay walls for thermal regulation, Tomorrow's Lions Academy, the Healers' Quarter, the Military Barracks. Beyond the Great Wall, the Commons: everything and everyone the wall keeps out. A person walking at 4 km/h crosses the metro in four and a half hours."
+    },
+    {
+      "id": "gate",
+      "name": "Golden Gate Terminal",
+      "kind": "Aetherial transit hub, Grand Portal",
+      "x": 2100, "z": -2100,
+      "tier": "street",
+      "tags": ["LOCKED"],
+      "info": "Full airport-style complex 3 km northeast of the outer walls. Five buildings: Main Registration Hall, which processes identity, destination and purpose; Security Station, where Flow Readers scan for hostile intent, military training patterns and Stone Madness residue; Customs and Cargo Inspection; the Noble Waiting Lounge with priority boarding; and the ATA Administration Office. Four checkpoint booths with barrier arms line the approach road. A uranium containment vault sits behind the complex and glows green at night. Outer security wall plus an inner barrier around the Gate itself. Maximum 50 per transit, 4-hour cooldown, six a day. One mile Flow Dead Zone. Connected to the World Tree and the Lotus Terminal. Blocked to the Northern Throne and the Holy Imperium. Rhy is flagged."
+    },
+    {
+      "id": "milbase",
+      "name": "Military Base",
+      "kind": "Garrison, gate approach",
+      "x": 1200, "z": -1200,
+      "tier": "street",
+      "tags": ["LOCKED"],
+      "info": "Positioned between the Golden Gate Terminal and the city, controlling all access to both. Nothing reaches the Gate without passing the base, and nothing leaves the Gate for the city without passing it again."
+    },
+    {
+      "id": "arena",
+      "name": "The Grand Arena",
+      "kind": "Sacred combat site, 100,000 capacity",
+      "x": 1400, "z": 1400,
+      "tier": "street",
+      "tags": ["LOCKED"],
+      "info": "Relocated outside the southeast walls. A colossal ring with stepped seating tiers, four cardinal entrance arches with gilded frames, and a sand-floored fighting pit. Its own plaza and approach road from the south gate. Where the Sun Trial concludes, and where Rhy defeated six opponents without killing any, then threw down the crown. The crowd that cheers martial prowess is the same crowd that watches children die."
+    },
+    {
+      "id": "mensah",
+      "name": "Mensah's Landing",
+      "kind": "Sol Mensah provincial hub",
+      "x": 40000, "z": 110000,
+      "population": "30,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The poorest of the Nine Solanu and the seat of Sol Mensah, on the south coast under the western end of the Wailing Cliffs. Fishing, salt-drying and the coastal road north to Sundisk. Captain Mensah's family name is the province's."
+    },
+    {
+      "id": "fishing",
+      "name": "Rhy's Fishing Village",
+      "kind": "Coastal settlement",
+      "x": 72000, "z": 118000,
+      "population": "~500",
+      "tier": "street",
+      "tags": ["LOCKED", "RECONCILE"],
+      "info": "Under the Wailing Cliffs on the south coast. Where Rhy hid under sacred hospitality. Wooden pirogues, salt air, drying nets, Captain Mensah's house, Nyla's tea house. \"May your nets be full / May your hull be dry.\" Coastal fog rolls in more than sixty days a year off the cold current, holding the village twenty degrees cooler than the interior. The wind through the cliff formations wails, and it masked a hidden prince's crying. RECONCILE, see O-4: the canon route says roughly 120 km from Sundisk and three days on foot, but the coordinates in the placement table are 138.2 km apart in a straight line."
+    },
+    {
+      "id": "wailing",
+      "name": "The Wailing Cliffs",
+      "kind": "Coastal cliff line",
+      "x": 60000, "z": 113000,
+      "extent": 60000,
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Sixty kilometres of coast between x +30 and +90, with faces from 60 to 140 m. Wind through the formations wails; locals say it carries the souls of the Glass Desert's dead. Rhy's escape route, and the wailing masked his crying."
+    },
+    {
+      "id": "veth",
+      "name": "Veth",
+      "kind": "Sol Veth provincial hub",
+      "x": -160000, "z": 330000,
+      "population": "70,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "A quiet pastoral crossroads where the southern roads meet, well inland of the coast. Grazing, grain, and the least trouble of any of the Nine."
+    },
+    {
+      "id": "ashara",
+      "name": "Ashara",
+      "kind": "Sol Ashara provincial hub",
+      "x": 300000, "z": -40000,
+      "population": "60,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Glows at night from the Glass Desert's reflection two hundred kilometres east. Starlight coming off the fused sheet lights Ashara's walls from below the horizon, which the province has never stopped charging pilgrims to see."
+    },
+    {
+      "id": "glass",
+      "name": "The Glass Desert",
+      "kind": "Supernatural zone",
+      "x": 530000, "z": -70000,
+      "extent": 430000,
+      "tier": "kingdom",
+      "tags": ["LOCKED", "OPEN"],
+      "info": "Sand fused to glass by Kaelen's Category 6 Light Stone around Year 7,000 A.C., twenty Hiroshimas at once, a deliberate judgment that ended the Sunlands' third empire. 140 degrees Fahrenheit at noon. The Shapes, frozen humanoid glass formations, move when you are not looking. Three cluster fields. The Sun Trial route for Tomorrow's Lions, 35 percent survival. Hidden springs are marked by darker glass. Compasses are useless. At night starlight reflects off the sheet and the glow is visible from Sundisk's walls three hundred kilometres away. The glass reflects souls: travellers see the dead army beneath their feet. OPEN, see O-3: area given as 430 by 270 km, roughly 45,000 square miles, against 10,000 square miles in pre-scale-up documents."
+    },
+    {
+      "id": "goldE",
+      "name": "Eastern Gold Mines",
+      "kind": "Mining complex",
+      "x": 640000, "z": 90000,
+      "population": "30,000 slaves",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Secondary deposits feeding the eastern trade routes to the Golden Coast. Thirty thousand slaves work the shafts."
+    },
+    {
+      "id": "tawari",
+      "name": "Tawari",
+      "kind": "Sol Tawari provincial hub",
+      "x": 780000, "z": 30000,
+      "population": "120,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The highway province. Every eastern caravan stops here, and the town is mostly caravanserai: staging yards, water, fodder, and the tax booths that make Sol Tawari the second richest of the Nine without owning a single mine."
+    },
+    {
+      "id": "soleth",
+      "name": "Soleth",
+      "kind": "Sol Soleth provincial hub",
+      "x": 900000, "z": -190000,
+      "population": "100,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Little Heartlands. Date palms and irrigation channels make the greenest ground in the territory outside the canal corridors, and the province has never let anyone forget it."
+    },
+    {
+      "id": "solkhari",
+      "name": "Sol'khari",
+      "kind": "Vassal kingdom, crystal monopoly",
+      "x": 955000, "z": -235000,
+      "population": "45,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The Sunlands' most valuable vassal. A settlement of engineers, alchemists and crystal growers who control the single most transformative technology on the continent: solar-to-Divine Flow conversion and quartz crystal cultivation. Its skyline is defined by dozens of Pyramid Collectors, stone pyramids whose four triangular panels open like flower petals at dawn, exposing central quartz crystals that absorb converted Divine Flow over 48 hours, shifting from clear to warm amber when charged. These crystals power Sun Eater vehicles. Only Sol'khari knows the full conversion process. Other kingdoms can buy and operate Sun Eaters, but only Sol'khari can make the fuel."
+    },
+    {
+      "id": "goldencoast",
+      "name": "Golden Coast",
+      "kind": "Vassal kingdom, merchant republic",
+      "x": 1210000, "z": 140000,
+      "population": "250,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The busiest port in the territory. Deep-water docks for trading dhows, banking houses, and a partnership with Albion Magna that makes the Golden Coast the place where Sunlands gold becomes continental credit. Reached through the Golden Mouth harbour channel in the Elven Forest Ring."
+    },
+    {
+      "id": "drumharbor",
+      "name": "Drum Harbor",
+      "kind": "Vassal kingdom, naval expansion",
+      "x": -280000, "z": 470000,
+      "population": "150,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "RETCON: no longer only a slave-trade hub. Being converted to a dual-purpose naval base and trade port, with a shipyard and drydock for warship construction and a naval watchtower over the southern sea approaches. A hundred thousand slaves still pass through yearly and the darkness persists, but the infrastructure now serves military logistics. Connected to Sundisk by the canal system. The fishing fleets have been expanded for food independence."
+    },
+    {
+      "id": "sunset",
+      "name": "Sunset Islands",
+      "kind": "Vassal, pirate confederation",
+      "x": -120000, "z": 720000,
+      "population": "80,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Three islands controlling the southern sea routes. Hidden coves, fortified harbours, and the fastest ships in the Sunlands Sea. Pays tribute to the Solaharan for legitimacy, which is the whole of the arrangement: the tribute buys the word privateer instead of the word pirate."
+    },
+    {
+      "id": "mirin",
+      "name": "Mirin",
+      "kind": "Sol Diallo provincial hub",
+      "x": -500000, "z": 20000,
+      "population": "80,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "House Diallo's seat and the head of the salt road. Caravans of 500 to 12,000 camels leave here for the north and east carrying salt traded nearly weight for weight with gold."
+    },
+    {
+      "id": "saltflats",
+      "name": "The Great Salt Flats",
+      "kind": "Natural resource, House Diallo",
+      "x": -520000, "z": 40000,
+      "extent": 320000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "320 by 200 km of cracked polygonal crust and mining camps, the source of the Sunlands' salt preservation monopoly. Salt traded nearly weight for weight with gold. The camps work hardest in the Long Dust, when Faro's Mirror gives up its water and leaves harvestable salt behind."
+    },
+    {
+      "id": "faros",
+      "name": "Faro's Mirror",
+      "kind": "Seasonal lake",
+      "x": -400000, "z": 80000,
+      "extent": 92000,
+      "tier": "kingdom",
+      "tags": ["PROPOSED"],
+      "info": "A seasonal lake at the salt flats margin, filling in the Greening and vanishing in the Long Dust to leave harvestable salt: a surfacing arm of an underground river. [PROPOSED]"
+    },
+    {
+      "id": "kosei",
+      "name": "Kosei's Claim",
+      "kind": "Sol Kosei provincial hub",
+      "x": -200000, "z": -580000,
+      "population": "100,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "A boomtown on the Northern Gold Mines, the richest deposits on the continent. Fifty thousand slaves work them and they yield 85 percent of continental gold. The underground rivers follow the gold veins, which is how the mines were found and how the canal engineers later knew where to dig."
+    },
+    {
+      "id": "goldN",
+      "name": "Northern Gold Mines",
+      "kind": "Mining complex",
+      "x": -212000, "z": -598000,
+      "population": "50,000 slaves",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The richest deposits on the continent, 85 percent of continental gold. Underground rivers follow the veins. Gold dust from here is mixed into sunklay plaster as a building material, and the wealthier the owner, the more gold in their walls. That single fact is why Sundisk gradients from blazing to bare as you walk outward."
+    },
+    {
+      "id": "taresh",
+      "name": "Taresh",
+      "kind": "Sol Taresh provincial hub",
+      "x": -840000, "z": 400000,
+      "population": "90,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The frontier province. Ashlands smoke is visible on the western horizon most days, and sulphur is on the air when the wind turns. Refugee camps sit outside the town on the Sunlands side of a border nobody patrols properly."
+    },
+    {
+      "id": "ok_taresh",
+      "name": "Oasis Kingdom of Taresh",
+      "kind": "Vassal oasis kingdom",
+      "x": -920000, "z": 450000,
+      "population": "50,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Southwestern oasis vassal, the last settled water before the Ashlands frontier."
+    },
+    {
+      "id": "ok_mirin",
+      "name": "Oasis Kingdom of Mirin",
+      "kind": "Vassal oasis kingdom",
+      "x": -560000, "z": -30000,
+      "population": "40,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Western oasis vassal near the Great Salt Flats, and the last reliable water on the salt road west."
+    },
+    {
+      "id": "ok_soleth",
+      "name": "Oasis Kingdom of Soleth",
+      "kind": "Vassal oasis kingdom",
+      "x": 930000, "z": -150000,
+      "population": "55,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Eastern oasis vassal on the Glass Desert's flank, and the largest of the four oasis kingdoms."
+    },
+    {
+      "id": "ok_veth",
+      "name": "Oasis Kingdom of Veth",
+      "kind": "Vassal oasis kingdom",
+      "x": -190000, "z": 365000,
+      "population": "35,000",
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "The smallest of the four oasis kingdoms, on the Sundisk to coast road."
+    },
+    {
+      "id": "sevenpalms",
+      "name": "Oasis of Seven Palms",
+      "kind": "Neutral trading post, Sahir'ani controlled",
+      "x": 690000, "z": -430000,
+      "population": "3,000",
+      "tier": "regional",
+      "tags": ["RECONCILE"],
+      "info": "A key desert waypoint controlled by the Sahir'ani, the Spiral People, keepers of the destroyed Second World Tree, the bodyless phantoms official maps erase. Neutral ground: no crown's writ runs here. RECONCILE, see O-2: the March 2026 retcon puts Seven Palms in Sol Veth in the southern interior, while the Book Two route puts it past the Glass Desert on the way north to the Twilight March. This model uses the route position."
+    },
+    {
+      "id": "azalai",
+      "name": "Seven Wells of Azalai",
+      "kind": "Treaty wells on the salt road",
+      "x": -250000, "z": 10000,
+      "extent": 500000,
+      "tier": "kingdom",
+      "tags": ["PROPOSED"],
+      "info": "A chain of treaty wells on the salt road from Mirin to Sundisk. No blood may be shed at a well of Azalai, and the caravan houses enforce it between themselves because the alternative is a road nobody can use. [PROPOSED]"
+    },
+    {
+      "id": "ashteeth",
+      "name": "The Ashteeth",
+      "kind": "Mountain range, northern border",
+      "x": 150000, "z": -900000,
+      "extent": 1500000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "The east-west range between the Southern Sunlands and the Central Heartlands. Low in altitude but extremely treacherous: razor-sharp ridgelines, narrow defiles, and constant rockslides. No army has ever crossed it in formation. It forces Sunlands travellers either east through the Glass Desert or west through the Ashlands corridor, and it is the reason the northern border has never needed a garrison."
+    },
+    {
+      "id": "canals",
+      "name": "The Canal System",
+      "kind": "Infrastructure",
+      "x": 0, "z": 0,
+      "extent": 800000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "Underground rivers, mapped by 3,500 years of gold mining, brought to the surface through engineered channels connecting Sundisk to the twelve major oases and the coast. The routes are lined with Angel Stone powered sand barriers that create protected agricultural corridors, and the green farm strips along them produce 60 to 70 percent of the Sunlands' food. The soil beneath the sand is surprisingly fertile once irrigated and shielded from wind burial. The barriers glow faintly gold at their posts, visible at night as strings of amber light crossing the desert. Water leaves the city by the four cardinal gates, so the network is four trunks that fan out rather than twelve spokes from a point."
+    },
+    {
+      "id": "veil",
+      "name": "The Sunward Veil",
+      "kind": "Sand barrier, Angel Stone",
+      "x": 0, "z": 0,
+      "extent": 11000,
+      "tier": "regional",
+      "tags": ["PROPOSED"],
+      "info": "A ring of Angel Stone posts set into the Great Wall's crenellations, one every 60 m, with a barely visible vertical shimmer between them rising 40 m above the wall. Refractive rather than opaque: near invisible head on, gold at a grazing angle. Airborne sand striking it deflects upward and outward. In the Harmattan the Commons outside are buried in blowing dust while the Outer Ring behind the Veil stays clear, which is the whole political point of the technology. At night the post stones glow amber and give the city a ring of light 34 km around. A second, denser ring stands on the Inner Ring boundary at 1,200 m, because the nobility do not share air with the market either. [PROPOSED: name pending a ruling. The technology extends locked Angel Stone sand-barrier canon, see O-5.]"
+    },
+    {
+      "id": "pyramids",
+      "name": "Pyramid Collectors",
+      "kind": "Solar-Flow technology, Sol'khari design",
+      "x": 955000, "z": -235000,
+      "tier": "street",
+      "tags": ["LOCKED"],
+      "info": "Fifteen-foot stone pyramids built from imported volcanic rock. Each face splits along the centre and hinges outward like a four-petalled flower, doubling the collection surface. Inner surfaces are lined with a proprietary alchemical coating that absorbs photonic energy and converts it to Divine Flow. Raw quartz sits in the central housing. Over 48 hours the converted Flow saturates the crystal until it glows warm amber. Night collection runs at 15 to 20 percent efficiency, overcast at 30 to 40. Travellers approaching Sol'khari at dawn see dozens of stone flowers opening at once. At sunset they close."
+    },
+    {
+      "id": "suneater",
+      "name": "Sun Eater (Ah-nie'kra)",
+      "kind": "Solar-Flow vehicle, Tier 2 transport",
+      "x": 2100, "z": -2100,
+      "tier": "street",
+      "tags": ["LOCKED"],
+      "info": "Hovering vehicles powered by Sol'khari quartz crystals, floating one to two feet above the ground. Top speed about 180 km/h, practical speed 100 to 130 km/h to manage heat. Range 1,200 to 1,400 km per crystal, with a 48-hour recharge on a pyramid collector. Three to four hour operating windows with mandatory cooldown. The overheating system runs blue for safe, amber for warning, red for danger, then detonation. Rhy cannot afford one and his identity would be flagged at registration, so he walks."
+    },
+    {
+      "id": "sailing",
+      "name": "Sand Sailers",
+      "kind": "Desert transport",
+      "x": -300000, "z": -240000,
+      "tier": "regional",
+      "tags": ["LOCKED"],
+      "info": "Wind-powered desert craft sailing the hard reg between the dunes. Triangular sails catch the Harmattan and the trade winds and reach 40 to 60 miles an hour on flat stretches. Caravans of them follow the interdune corridors, natural shipping lanes 1.5 to 2.5 km wide between the linear dune ridges, with oasis ports as waypoints."
+    },
+    {
+      "id": "minerals",
+      "name": "Mineral Diversification",
+      "kind": "Economic",
+      "x": -200000, "z": -580000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "Beyond gold, 85 percent of continental supply, and salt, a monopoly, the Sunlands now mine copper, tin, phosphates, iron and gemstones. Phosphate feeds the canal corridor farms. Iron smelting reduces the weapons dependency on Northern imports. Copper and tin enable bronze. The desert geology across a million square miles contains far more than the old regime ever bothered to exploit."
+    },
+    {
+      "id": "territory",
+      "name": "The Southern Sunlands",
+      "kind": "2.5M sq mi, pop 8M, founded Year 6,500 A.C.",
+      "x": 0, "z": 0,
+      "extent": 2550000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "Ruled by the Solaharan, the Sun Sovereign, over the Nine Solanu provinces under their Sun Governors, the Solahene. Controls 85 percent of continental gold and the salt monopoly. The Three-Zone Defense Model makes the desert itself the army: the Burning Shield, the Golden Corridors, the Sunheart. RETCON SUMMARY: the canal system brings underground rivers to the surface, Angel Stone sand barriers create protected agricultural corridors producing 60 to 70 percent of food needs, mineral diversification adds copper, tin, iron, phosphates and gems, Drum Harbor is pivoting to a naval base, the Sunset Islands are formalised as a privateer fleet, and the Golden Gate Terminal has been relocated outside the city walls for security and Flow Dead Zone reasons. The kingdom that wins the peace, not the war."
+    },
+
+    {
+      "id": "frontier",
+      "name": "The Sunlands and Ashlands Frontier",
+      "kind": "Border region",
+      "x": -1300000, "z": 100000,
+      "extent": 1400000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "Porous, with refugee camps on the Sunlands side and sulphur on the air. Crossing it from Sol Taresh should feel like a colour grade change, because it is one: the sand glitter stops, the sky goes overcast grey, and the ground turns to basalt and rust."
+    },
+    {
+      "id": "mournscar",
+      "name": "Mournscar",
+      "kind": "Capital of the Western Ashlands",
+      "x": -1900000, "z": -100000,
+      "population": "~200,000",
+      "tier": "regional",
+      "tags": ["LOCKED", "RECONCILE"],
+      "info": "Half-ruined capital of the Forsaken, built on the Khael'morguul ruins. Named for Kaelen Mournscar, or he for it. RECONCILE, see O-7: sources conflict between Mournscar and Phoenix Rising as the Ashlands capital. This model defaults to Mournscar."
+    },
+    {
+      "id": "cindermarch",
+      "name": "Cindermarch",
+      "kind": "Outcast market",
+      "x": -1750000, "z": 120000,
+      "tier": "regional",
+      "tags": ["PROPOSED"],
+      "info": "The largest outcast market in the Ashlands, built into a pre-Forgetting ruin nobody can date and nobody will leave. [PROPOSED]"
+    },
+    {
+      "id": "burns",
+      "name": "The Three Burns",
+      "kind": "Habitable zones",
+      "x": -1900000, "z": 0,
+      "extent": 600000,
+      "tier": "kingdom",
+      "tags": ["LOCKED"],
+      "info": "The habitable floors between the lava fields, where most of the 2.5 million people of the Ashlands actually live. Maps mark this region empty. It is not."
+    },
+    {
+      "id": "rustriver",
+      "name": "The Rust-River",
+      "kind": "Metal-laden watercourse",
+      "x": -1900000, "z": 100000,
+      "extent": 900000,
+      "tier": "kingdom",
+      "tags": ["PROPOSED"],
+      "info": "A metal-laden watercourse winding the length of the Ashlands. Beavers dam it. That is the whole point of the Ashlands: abandonment plus time produced an exclusion zone, and the wildlife recolonised it. [PROPOSED]"
+    },
+    {
+      "id": "verdigris",
+      "name": "Lake Verdigris",
+      "kind": "Toxic lake",
+      "x": -1900000, "z": -150000,
+      "tier": "regional",
+      "tags": ["PROPOSED"],
+      "info": "A turquoise pool no bird lands on. Beautiful at distance, wrong on approach. [PROPOSED]"
+    },
+    {
+      "id": "weeping",
+      "name": "The Weeping Wastes",
+      "kind": "Luminous marsh",
+      "x": -2100000, "z": 250000,
+      "extent": 180000,
+      "tier": "regional",
+      "tags": ["PROPOSED"],
+      "info": "A chemically luminous marsh, beautiful and lethal. One of only two places in the Ashlands with any saturated colour left in it. [PROPOSED]"
+    },
+    {
+      "id": "bloomfields",
+      "name": "The Bloomfields",
+      "kind": "Mutant-flora meadows",
+      "x": -1950000, "z": 400000,
+      "extent": 200000,
+      "tier": "regional",
+      "tags": ["PROPOSED"],
+      "info": "Mutant-flora meadows that should not be so lovely. The honest register of a toxic zone is recolonisation plus subtle wrongness, not monsters, and the Bloomfields are the case that proves it. [PROPOSED]"
+    },
+    {
+      "id": "poisonsea",
+      "name": "The Poison Sea",
+      "kind": "Ocean, western bound",
+      "x": -2600000, "z": 0,
+      "extent": 1400000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "The western bound of the Ashlands and of the continent. Nothing crosses it and nothing lives in it that anyone has been able to eat."
+    },
+    {
+      "id": "ashlands",
+      "name": "The Western Ashlands",
+      "kind": "1.75M sq mi, pop 2.5M, ~9,500 years old",
+      "x": -1900000, "z": -100000,
+      "extent": 1300000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "The oldest kingdom on the continent and its doormat, conquered three times. Volcanic wasteland, ash deserts, corrupted zones, permanent grey sky, poison rivers that kill in minutes, and a Blight that expands every year. Where Kaelen was found. No ruler is recognised; the Forsaken govern themselves. Five hundred thousand escaped child soldiers, outcasts and refugees live invisibly in the Borderland Marshes. The July 2026 expansion doctrine is explicit that this is not a monster wasteland: the honest picture is an exclusion zone where abandonment plus time produced an eerie sanctuary, and the wildlife recolonised. Beautiful at distance, wrong on approach."
+    },
+
+    {
+      "id": "heartlands",
+      "name": "The Central Heartlands",
+      "kind": "Neighbouring kingdom, north",
+      "x": 150000, "z": -1600000,
+      "extent": 2000000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "North beyond the Ashteeth. The World Tree stands at Verdanthome, three miles tall and a mile wide at the trunk, visible from the Sunlands side of the range on a clear day as a spire on the horizon."
+    },
+    {
+      "id": "worldtree",
+      "name": "The World Tree",
+      "kind": "Wonder, three miles tall",
+      "x": 150000, "z": -1750000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "Three miles tall, a mile wide at the trunk, the last of three. The axis of the world. Rendered here only as a silhouette on the northern horizon, because from the Sunlands that is all it has ever been."
+    },
+    {
+      "id": "forestring",
+      "name": "The Elven Forest Ring",
+      "kind": "Encircles ~80 percent of the continent",
+      "x": 0, "z": 900000,
+      "extent": 2600000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "Fifty to two hundred miles wide, encircling roughly 80 percent of the continent just inside the coast. The elves control the ocean Gates through the Ring and levy passage. The Golden Mouth, the channel serving the Golden Coast, is the busiest passage on the southern arc."
+    },
+    {
+      "id": "sunlandssea",
+      "name": "The Sunlands Sea",
+      "kind": "Ocean, south and east",
+      "x": 400000, "z": 600000,
+      "extent": 2000000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "South and east of the territory. The Sunset Islands sit three hundred kilometres offshore and control its western routes; the Golden Coast controls its eastern trade."
+    },
+    {
+      "id": "twilight",
+      "name": "The Twilight March",
+      "kind": "Border region, far north",
+      "x": 690000, "z": -1500000,
+      "extent": 900000,
+      "tier": "continental",
+      "tags": ["LOCKED"],
+      "info": "Far north, past the Glass Desert and the Ashteeth. Blocked in at Continental tier as a silhouette only."
+    }
+  ]
+}
