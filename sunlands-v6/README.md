@@ -187,7 +187,7 @@ Glass Desert, swinging round the sky as you travel and gone when you are
 standing on the glass. Measured from the top of the Great Wall at midnight the
 eastern sky reads **1.63 times** the western, and west and north measure the
 same as each other, which is how you know it is a direction and not simply a
-brighter night. Over the sheet itself the glass reads 1.84 times the sand sea
+brighter night. Over the sheet itself the glass reads 3.06 times the sand sea
 it is much the darker material than.
 
 ## Weather that has a position
@@ -239,9 +239,9 @@ Last budget run:
 ```
 continental  draws   42 tris    275k of which shadow      0k  OK
 kingdom      draws   56 tris    277k of which shadow      0k  OK
-regional     draws  119 tris   1280k of which shadow      0k  OK
-street       draws  160 tris   4222k of which shadow   1042k  OK
-ashlands     draws   35 tris    105k of which shadow      0k  OK
+regional     draws  123 tris   1283k of which shadow     17k  OK
+street       draws  162 tris   4378k of which shadow   1053k  OK
+ashlands     draws   44 tris    183k of which shadow      0k  OK
 ```
 
 Street tier used to carry 16.9M triangles, 11.1M of them in the shadow pass.
