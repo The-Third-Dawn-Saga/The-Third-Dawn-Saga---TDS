@@ -141,11 +141,23 @@ no CPU work.
 
 ## The Glass Desert
 
-The sheet is a near-mirror, so it is given a mirror's roughness: about 0.02,
-not the 0.12 that reads as "shiny". What makes a mirror a mirror is that it
-shows you something, so the reflected view direction is evaluated against the
-same scattering function the sky dome is drawn with. The sheet carries the
-sunset, and at night it carries the stars.
+The sheet is a near-mirror, and what makes a mirror a mirror is that it shows
+you something, so the reflected view direction is evaluated against the same
+scattering function the sky dome is drawn with. The sheet carries the sunset,
+and at night it carries the stars.
+
+The emphasis belongs on **near**. Roughness two hundredths makes the sheet
+optically perfect over kilometres, and a perfect mirror seen at the grazing
+angles a flat plain is mostly seen at returns the sky and nothing else: the
+first version of this came out indistinguishable from more sky, which is
+correct and useless. Fused silica sandblasted by forty centuries of Harmattan
+is a bad mirror. At 0.055, with the reflection blurred toward the sky's
+hemisphere mean by the roughness rather than merely dimmed, it still reads as
+a mirror close up and keeps its own colour along the horizon.
+
+Fresnel is a split, not a bonus: light the mirror sends to the eye never
+reached the glass to be absorbed, so the diffuse term gives up exactly what
+the reflection takes.
 
 Canon marks the hidden springs with darker glass, so the dark patches are a
 field in their own right rather than a side effect of the crazing, and the
@@ -286,10 +298,22 @@ One of them was sharpened by building the thing:
 > them can be 120 km. Three days at 4 km/h over an 8 hour day is 96 km, so
 > even 120 km is already four days of walking. Flagged, not resolved.
 
-Two places where canon is silent are marked in the code rather than invented:
-the exact Solanu province boundaries and the individual military outpost
-sites. The layers show each seat's reach and the named approaches instead of
-drawing a border that does not exist.
+Where canon is silent it is marked in the code with a `// CANON GAP:` comment
+rather than filled in. Four of those so far:
+
+- the exact Solanu province boundaries, so the layers show each seat's reach
+  instead of drawing a border that does not exist
+- the individual military outpost sites, so the layers show the named
+  approaches instead
+- **Sundisk's gates.** Neither their number nor their names are recorded. Four
+  cardinal and two service is a reading of a walled capital of a million and a
+  half, and the names in `CITY.gates` are deliberately just bearings marked
+  `[NAME UNRECORDED]`, so that an invention of this build cannot be mistaken
+  downstream for a fact about the Sunlands.
+- **the drum towers.** That they fire the market close at solar noon is canon.
+  How many there are is not. Four, one per quarter inside the Middle Ring, is
+  an acoustic argument: nowhere in the Grand Market is more than a few seconds
+  of sound from one. That is not the same as a canon argument.
 
 ## Controls
 

@@ -109,8 +109,13 @@ export function buildWall(ctx) {
   }
 
   /* ---- drum towers -------------------------------------------------------
-     They fire the market close at solar noon. Four of them, one per quarter,
-     inside the Middle Ring where the market can hear them. */
+     They fire the market close at solar noon, which is canon. How many there
+     are is not.
+
+     CANON GAP: the number and placement of the drum towers is unrecorded.
+     Four, one per quarter, sited inside the Middle Ring, is chosen so that
+     nowhere in the Grand Market is more than a few seconds of sound from one
+     of them. That is an acoustic argument, not a canon one. Open for Rush. */
   const drums = [];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;

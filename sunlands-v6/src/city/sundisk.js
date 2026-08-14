@@ -56,13 +56,19 @@ export const CITY = {
      them, because that is where cities put what they do not want to smell. */
   downwind: { x: -Math.SQRT1_2, z: Math.SQRT1_2 },
 
+  /* CANON GAP: the gates are not named or counted anywhere in the source
+     documents. Four cardinal and two service is a reading of a walled capital
+     of a million and a half, not something canon says, and the names below
+     are placeholders rather than proposals: they are deliberately the bearing
+     and nothing more, so that nobody downstream mistakes an invention of this
+     build for a fact about the Sunlands. Open for Rush. */
   gates: [
-    { name: 'Gate of the Rising Sun', bearing: 90, service: false },
-    { name: 'Gate of the Salt Road', bearing: 270, service: false },
-    { name: 'Gate of the Ashteeth', bearing: 0, service: false },
-    { name: 'Gate of the Sea', bearing: 180, service: false },
-    { name: 'Kiln Gate', bearing: 225, service: true },
-    { name: 'Cattle Gate', bearing: 45, service: true },
+    { name: 'East gate [NAME UNRECORDED]', bearing: 90, service: false },
+    { name: 'West gate [NAME UNRECORDED]', bearing: 270, service: false },
+    { name: 'North gate [NAME UNRECORDED]', bearing: 0, service: false },
+    { name: 'South gate [NAME UNRECORDED]', bearing: 180, service: false },
+    { name: 'Southwest service gate [NAME UNRECORDED]', bearing: 225, service: true },
+    { name: 'Northeast service gate [NAME UNRECORDED]', bearing: 45, service: true },
   ],
 };
 

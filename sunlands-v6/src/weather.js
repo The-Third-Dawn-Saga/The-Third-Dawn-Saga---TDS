@@ -183,16 +183,31 @@ void main(){
   float n = fbm2(p, 4) * 0.5 + 0.5;
   float churn = fbm2(p * 2.7 + vec2(uTime * 0.09, 0.0), 3) * 0.5 + 0.5;
 
+  /* THE THRESHOLD HAS TO SIT WHERE THE NOISE ACTUALLY IS.
+
+     n and churn each average about a half, so a cutoff anywhere below that
+     saturates and every lobe in the field disappears into one opaque sheet.
+     That is what a miscalibrated smoothstep gets you: a wall of flat grey
+     slabs with straight edges rather than a haboob. The band below brackets
+     the field's real mean, so the billows survive. */
+  float density = n * 0.60 + churn * 0.40;
+
   /* Dense at the base, ragged at the top, which is where a haboob loses its
-     load. */
-  float profile = 1.0 - smoothstep(0.25, 1.0, vUv.y);
-  float edge = smoothstep(0.06, 0.30, n * 0.65 + churn * 0.35 + profile * 0.55);
-  float a = edge * profile * uAmount;
+     load, and the raggedness is the noise rather than a clean gradient. */
+  float profile = 1.0 - smoothstep(0.10, 0.92 + churn * 0.20, vUv.y);
+  float lobes = smoothstep(0.40, 0.74, density + profile * 0.26);
+
+  /* The sheet has ends, and they have to be its own rather than the geometry's
+     or the front reads as a flat card cut off in mid air. */
+  float ends = smoothstep(0.0, 0.16, vUv.x) * smoothstep(1.0, 0.84, vUv.x);
+
+  float a = lobes * profile * ends * uAmount;
   if (a <= 0.004) discard;
 
-  /* The top catches the sun while the base is already in its own shadow. */
-  vec3 c = uColor * (0.42 + 0.75 * vUv.y * uSunUp + 0.20 * churn);
-  gl_FragColor = vec4(c, a * 0.92);
+  /* The top catches the sun while the base is already in its own shadow, and
+     the lobes shade themselves: a haboob is not a flat colour. */
+  vec3 c = uColor * (0.34 + 0.70 * vUv.y * uSunUp + 0.34 * churn - 0.16 * n);
+  gl_FragColor = vec4(c, a * 0.88);
 
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

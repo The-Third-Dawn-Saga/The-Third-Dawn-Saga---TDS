@@ -320,12 +320,17 @@ void main(){
      Broad, ocean-like, and strongest across the dune faces where the surface
      is smoothest. Wet sand and glass sharpen it. */
   float rough = mix(0.62, 0.34, clamp(N.y, 0.0, 1.0));
-  /* NEAR-MIRROR, per Part 5.3. Fused silica polished by forty centuries of
-     wind is not a shiny surface, it is a bad mirror: roughness in the low
-     hundredths, not the tenths. The springs are the exception, and that is
-     the point of them, so the polish varies with the same field the colour
-     does and the darker patches read as duller as well as darker. */
-  float polish = mix(0.020, 0.115, springs) + crazing * 0.030;
+  /* NEAR-MIRROR, per Part 5.3, with the emphasis on NEAR. Fused silica
+     sandblasted by forty centuries of Harmattan is a BAD mirror, and the
+     difference matters: at roughness two hundredths the sheet is optically
+     perfect over kilometres, and a perfect mirror seen at the grazing angles
+     a flat plain is mostly seen at just returns the sky. The Glass Desert
+     came out indistinguishable from more sky. Ten hundredths still reads as
+     a mirror close up and lets the sheet keep its own colour along the
+     horizon. The springs are the exception, and that is the point of them:
+     the polish follows the same field the colour does, so the darker patches
+     read as duller as well as darker. */
+  float polish = mix(0.055, 0.150, springs) + crazing * 0.030;
   rough = mix(rough, polish, glass);
   rough = mix(rough, 0.22, wet);
   rough = mix(rough, 0.05, flood);
@@ -379,42 +384,52 @@ void main(){
     ambient = mix(ambient, uSkyColor * 2.2, flood * fres * 0.9 + flood * 0.12);
   }
 
-  vec3 color = albedo * (ambient + sun * diffuse * shade)
-             + sun * spec * shade * mix(1.0, 3.0, glass)
-             + sun * glint * shade;
+  /* THE GLASS DESERT REFLECTS, AND THE REFLECTION IS NOT FREE.
 
-  /* ---- the Glass Desert reflects ---------------------------------------
      What separates a mirror from a shiny floor is that a mirror shows you
-     something. Reflecting the view about the surface normal and evaluating
-     the same sky the sky dome is drawn with costs a couple of dozen
-     instructions and is the whole effect: the sheet carries the sunset, and
-     at night it carries the stars.
+     something, so the view is reflected about the surface normal and
+     evaluated against the same scattering the sky dome is drawn with. The
+     sheet carries the sunset, and at night it carries the stars.
 
-     AND THE GLOW FROM THREE HUNDRED KILOMETRES. Canon says the reflected
-     starlight is visible from Sundisk's walls, and the near edge of the sheet
-     is about that far east of them. Starlight reflected off glass is far too
-     dim to survive being multiplied by a night ambient that is itself already
-     a deliberate lift, so the star term is added rather than modulated, at a
-     level chosen to read as a glow along the horizon and not as a lit
-     surface. That is the second place in this build where the lighting model
-     stops being physical, and like the first it is named where it happens. */
+     Fresnel is a SPLIT, not a bonus. Light the mirror sends to the eye is
+     light that never reached the glass to be absorbed and re-emitted, so the
+     diffuse term has to give up exactly what the reflection takes. Adding the
+     reflection on top of a fully lit surface instead double counts, and at
+     the grazing angles a flat plain is mostly seen at, where Fresnel runs to
+     one, it double counts the entire sky: the Glass Desert came out a sheet
+     of blown-out white at noon, which is how this was caught. */
+  float mirror = 0.0, fres = 0.0;
+  vec3 mirrored = vec3(0.0);
   if (glass > 0.004) {
     vec3 R = reflect(-V, Nd);
     R.y = abs(R.y);                      // never sample below the horizon
-    vec3 sky = skyRadiance(R, uSunDir, uSunIntensity, uDust, 1.0);
-    /* Fresnel at the real grazing angles this surface is usually seen at,
-       which is why a glass plain goes from grey underfoot to bright at the
-       horizon. */
-    float fres = f0 + (1.0 - f0) * pow(clamp(1.0 - max(dot(Nd, V), 0.0), 0.0, 1.0), 5.0);
-    /* A rough mirror blurs what it reflects, so the reflection fades toward
-       the ambient as the polish drops away over the springs. */
-    float mirror = glass * (1.0 - smoothstep(0.02, 0.13, rough) * 0.75);
-    vec3 stars = vec3(0.72, 0.80, 1.0) * starField(R) * 5.0 * uNightBlend;
-    color += (sky + stars) * fres * mirror;
-    /* The sheet as a whole, seen from far enough away that the individual
-       stars are long gone and only the sheen is left. */
-    color += vec3(0.030, 0.038, 0.055) * uNightBlend * mirror * fres;
+    fres = f0 + (1.0 - f0) * pow(clamp(1.0 - max(dot(Nd, V), 0.0), 0.0, 1.0), 5.0);
+    /* A rough mirror BLURS what it reflects, and blur is the half of this
+       that a strength multiplier cannot stand in for. A sharp reflection of
+       the horizon sky is a bright white band whatever you scale it by; a
+       blurred one is the sheet's own hemisphere average, which is dimmer and
+       carries the sheet's colour. So the reflected radiance is mixed toward
+       the sky's mean by the roughness, and only then scaled. */
+    mirror = glass * (1.0 - smoothstep(0.05, 0.20, rough) * 0.55);
+    float blur = smoothstep(0.03, 0.16, rough);
+    vec3 sharp = skyRadiance(R, uSunDir, uSunIntensity, uDust, 1.0);
+    vec3 wide = skyRadiance(normalize(mix(R, Nd, 0.75)), uSunDir, uSunIntensity, uDust, 1.0);
+    mirrored = mix(sharp, wide, blur);
+
+    /* THE STARS, and the one place this stops being physical. Starlight off
+       glass is far too dim to survive a night ambient that is itself already
+       a deliberate lift, so the star term is added at a level chosen to read
+       rather than at the level it would actually arrive with. Named here
+       because it is a departure. */
+    mirrored += vec3(0.72, 0.80, 1.0) * starField(R) * 5.0 * uNightBlend;
+    mirrored += vec3(0.030, 0.038, 0.055) * uNightBlend;
   }
+  float keep = 1.0 - fres * mirror;      // what the surface is still allowed to keep
+
+  vec3 color = albedo * (ambient + sun * diffuse * shade) * keep
+             + mirrored * fres * mirror
+             + sun * spec * shade * mix(1.0, 3.0, glass)
+             + sun * glint * shade;
 
   /* The Ashlands lose their colour, hard. Beautiful at distance, wrong on
      approach, and the desaturation is the first half of that. */
