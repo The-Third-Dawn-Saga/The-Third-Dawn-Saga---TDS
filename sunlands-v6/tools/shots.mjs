@@ -92,10 +92,16 @@ export const SCENES = [
     const gy = window.__terrainHeight(5500, 0);
     window.__lookFrom(5500 + 300, gy + 46, 190, 5500 + 60, gy + 6, 0);
   }],
-  ['wadi_flood', 'the brief violent rain, and the wadis running', () => {
+  /* On an actual watercourse. The first attempt at this shot was framed on
+     open reg where the wadi weight is near zero, so the flood was running
+     correctly and there was nothing on screen to run in. The location below
+     was found by searching the classification for a channel rather than by
+     picking somewhere that looked likely. */
+  ['wadi_flood', 'the brief violent rain, and a wadi running', () => {
     window.__env.setTime(15); window.__env.setWeather('rain');
-    const gy = window.__terrainHeight(-300e3, -240e3);
-    window.__lookFrom(-300e3, gy + 260, -240e3, -300e3 + 3400, gy + 90, -240e3 + 700);
+    const wx = -270e3, wz = 182e3;
+    const gy = window.__terrainHeight(wx, wz);
+    window.__lookFrom(wx, gy + 130, wz, wx + 1500, gy + 20, wz + 380);
   }],
 ];
 

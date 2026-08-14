@@ -506,8 +506,25 @@ function tick() {
   const under = walkableHeight(camAbsX, camAbsZ);
   const altitude = Math.max(ALT_MIN, camera.position.y - under);
   const nf = nearFarForAltitude(altitude);
-  if (Math.abs(camera.near - nf.near) > camera.near * 0.02) {
-    camera.near = nf.near; camera.far = nf.far;
+
+  /* NEAR HAS TO ANSWER TO WHAT YOU ARE LOOKING AT, NOT ONLY TO HOW HIGH YOU
+     ARE, and Part 1.3's table can only speak to the second of those.
+
+     A depth buffer spends its precision near the camera: resolvable depth at
+     range z goes as z squared over near. At nine hundred metres up the tier
+     gives near 1.8 and far 18,000, which is right for looking down and wrong
+     for looking out. Along a shallow line of sight across Sundisk that leaves
+     about half a metre of depth resolution four kilometres away, and the
+     city's flat roofs are a good deal thinner than half a metre: the whole
+     quarter shears into stripes.
+
+     Nothing can be near the camera that is not near what it is aimed at, so
+     the floor scales with the focus distance. It is a floor and never a
+     ceiling, so a close-up keeps the tier's own near plane untouched. */
+  const focus = camera.position.distanceTo(controls.target);
+  const near = Math.max(nf.near, Math.min(focus * 0.0025, altitude * 0.35));
+  if (Math.abs(camera.near - near) > camera.near * 0.02 || camera.far !== nf.far) {
+    camera.near = near; camera.far = nf.far;
     camera.updateProjectionMatrix();
   }
   controls.maxDistance = Math.min(ALT_MAX * 1.2, 2600 * KM);

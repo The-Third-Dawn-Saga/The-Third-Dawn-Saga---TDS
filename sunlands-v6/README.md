@@ -86,6 +86,17 @@ log-interpolated between tier anchors, so there is no hard cut at a boundary.
 | Regional | 2 km to 40 km | 20 / 60,000 |
 | Street | 1.6 m to 2 km | 0.1 / 4,000 |
 
+The near plane is the tier's, or the focus distance over four hundred,
+whichever is larger. Part 1.3's table can only speak to altitude, and a depth
+buffer spends its precision near the camera: resolvable depth at range `z`
+goes as `z² / near`. At nine hundred metres up the table gives 1.8 and 18,000,
+which is right for looking down and wrong for looking out. Along a shallow
+line of sight across Sundisk that leaves half a metre of depth resolution four
+kilometres away, and the city's flat roofs are much thinner than that, so the
+whole quarter shears into stripes. Nothing can be near the camera that is not
+near what it is aimed at. It is a floor and never a ceiling, so a close-up
+keeps the tier's own near plane.
+
 ## Streaming
 
 Terrain streams by **screen-space error**, not distance rings: a quadtree node
